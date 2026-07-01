@@ -1,41 +1,29 @@
-# Codex Unity Agent Kit
+# Gamedev AI Agents
 
-Portable Codex setup for Unity, C#, and ASP.NET backend work. This repository is a source kit: it contains project templates, reusable skills, a local plugin marketplace, custom agents, and installer scripts.
+Portable Codex agent kit for Unity, C#, and ASP.NET game-development projects.
 
-## Layout
+The kit includes project templates, reusable Codex skills, custom agents, validation rules, installer scripts, and a local Codex plugin package. It is meant to help Codex orient in a project, plan work, implement changes, review diffs, validate builds/tests, and prepare GitHub handoffs.
+
+## What's Included
 
 ```text
-AGENTS.md
-global/
-  AGENTS.md
-  unity-codex.config.toml
-  agents/
-  rules/
-templates/
-  unity-project/
-    AGENTS.md
-    .codex/
-    .agents/
-  csharp-aspnet-project/
-    AGENTS.md
-    .codex/
-    .agents/
-plugins/
-  codex-unity-agent-kit/
-.agents/
-  plugins/
-scripts/
+global/                         Global Codex profile, agents, and rules
+templates/unity-project/         Unity project Codex template
+templates/csharp-aspnet-project/ ASP.NET project Codex template
+plugins/codex-unity-agent-kit/   Local Codex plugin with bundled skills
+.agents/plugins/                 Repo-local plugin marketplace entry
+scripts/                         Installer scripts
 ```
 
-## Use In A Unity Project
+## Install In A Unity Project
 
-Apply the project template:
+Run from this repository:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path-to-unity-project>"
 ```
 
-The script copies:
+This copies the Unity project template into the target project:
 
 - `AGENTS.md`
 - `.codex/config.toml`
@@ -43,32 +31,17 @@ The script copies:
 - `.codex/rules/*.rules`
 - `.agents/skills/*`
 
-Included skills:
+Restart Codex or open a new Codex thread from the Unity project after installation.
 
-- `$unity-orient-project`
-- `$unity-implement-csharp`
-- `$unity-review-changes`
-- `$unity-validate-project`
-- `$unity-debug-and-recover`
-- `$unity-use-editor-mcp`
-- `$grill-me` - Unity/game-dev plan grilling and decision stress-testing
-- `$planning` - creates `.agents/plans/active_plan.md` and `.agents/plans/task_list.md`
-- `$crossworking` - coordinates planning, workers, validation, review, and create-mr handoff
-- `$create-mr` - verifies, commits, pushes, and opens a Pull Request / Merge Request
-- `$teamwork-preview` - invokes a coordinated agent team for larger tasks
-- `$learn` - captures reusable rules or skill updates from completed work
+## Install In A C# ASP.NET Project
 
-Restart Codex or open a new thread from the Unity project after copying.
-
-## Use In A C# ASP.NET Project
-
-Apply the backend project template:
+Run from this repository:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-aspnet-project-template.ps1 -TargetProject "<path-to-backend-project>"
 ```
 
-The script copies:
+This copies the ASP.NET project template into the target project:
 
 - `AGENTS.md`
 - `.codex/config.toml`
@@ -76,27 +49,19 @@ The script copies:
 - `.codex/rules/*.rules`
 - selected `.agents/skills/*`
 
-Included backend skills:
+Restart Codex or open a new Codex thread from the backend project after installation.
 
-- `$csharp-backend-implement`
-- `$csharp-backend-review`
-- `$csharp-backend-validate`
-
-It also includes shared skills used by larger workflows: `$planning`, `$crossworking`, `$teamwork-preview`, `$create-mr`, `$grill-me`, and `$learn`.
-
-Restart Codex or open a new thread from the backend project after copying.
-
-## Use As A Plugin
+## Use As A Codex Plugin
 
 The repo-local marketplace is at `.agents/plugins/marketplace.json` and points to `plugins/codex-unity-agent-kit`.
 
-Install the marketplace in Codex only if the app does not discover it automatically:
+If Codex does not discover the marketplace automatically, add it manually:
 
 ```powershell
-codex plugin marketplace add "<path-to-this-kit>"
+codex plugin marketplace add "<path-to-this-repository>"
 ```
 
-## Use As A Global Profile
+## Install As A Global Profile
 
 Copy global defaults to your Codex home:
 
@@ -104,40 +69,53 @@ Copy global defaults to your Codex home:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1
 ```
 
-To also install the kit skills globally:
+Install the kit skills globally as well:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1 -InstallSkills
 ```
 
-For the VSCode Codex extension when it runs Codex through WSL, install the same skills into the WSL Codex home:
+For the VS Code Codex extension when it runs Codex through WSL, install the same skills into the WSL Codex home:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1 -InstallWslSkills
 ```
 
-Use `-Force` when you intentionally want to overwrite existing local skill copies, including an existing WSL-global `grill-me`:
+Use `-Force` when you want to overwrite existing local skill copies:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1 -InstallWslSkills -Force
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1 -InstallSkills -Force
 ```
 
-This creates or updates a `unity-codex.config.toml` profile and copies reusable custom agents/rules. Optional skill installation copies the plugin skills into the selected Codex home. It does not copy credentials or app authorizations.
+## Skills
 
-Globally installed skills include the Unity set plus:
+Unity-focused skills:
 
-- `$csharp-backend-implement` - implements ASP.NET and C# backend changes safely
-- `$csharp-backend-review` - reviews backend diffs for correctness, security, data integrity, and validation gaps
-- `$csharp-backend-validate` - selects and runs focused backend build, test, migration, and API validation
+- `$unity-orient-project`
+- `$unity-implement-csharp`
+- `$unity-review-changes`
+- `$unity-validate-project`
+- `$unity-debug-and-recover`
+- `$unity-use-editor-mcp`
 
-## What Does Not Transfer
+C# / ASP.NET skills:
 
-Do not commit or copy these as part of this kit:
+- `$csharp-backend-implement`
+- `$csharp-backend-review`
+- `$csharp-backend-validate`
 
-- Codex auth files and API keys
-- OAuth tokens for GitHub, Gmail, Calendar, Figma, or other apps
-- machine-specific Unity license state
-- user-specific cloud environments
-- hook trust state
+Shared workflow skills:
 
-Keep secrets in environment variables, OS keychain, or the normal Codex auth flow.
+- `$planning`
+- `$crossworking`
+- `$teamwork-preview`
+- `$create-mr`
+- `$grill-me`
+- `$learn`
+
+## Typical Workflow
+
+1. Install the template or plugin.
+2. Open Codex from the target project.
+3. Ask Codex to use the relevant skill, for example `$unity-orient-project`, `$planning`, or `$csharp-backend-validate`.
+4. Run validation before handing off a change.
