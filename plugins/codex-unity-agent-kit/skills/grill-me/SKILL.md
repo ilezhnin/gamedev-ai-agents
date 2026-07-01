@@ -1,6 +1,6 @@
 ---
 name: grill-me
-description: Relentlessly stress-test a user's plan, design, architecture, feature idea, game mechanic, Unity/C# implementation strategy, migration, or technical decision through focused questions until assumptions, tradeoffs, scope, lifecycle, risks, and next steps are clear. Use when the user says "grill me", "прожарь", "прожарка", "допроси", "разнеси план", "проверь план", "stress-test", asks for rigorous critique, or wants to be questioned before planning or implementation.
+description: Relentlessly stress-test a user's plan, design, architecture, feature idea, game mechanic, Unity/C# implementation strategy, migration, or technical decision through focused questions until assumptions, tradeoffs, scope, lifecycle, risks, and next steps are clear. Use when the user says "grill me", "stress-test this", "roast my plan", "interrogate this design", asks for rigorous critique in any language, or wants to be questioned before planning or implementation.
 ---
 
 # Grill Me
@@ -86,7 +86,7 @@ For Unity/C# game work, keep grilling until the relevant branches below are clos
 
 ## Stop Conditions
 
-Continue until the important branches are closed or the user explicitly says to stop, plan, summarize, implement, or "хватит".
+Continue until the important branches are closed or the user explicitly asks to stop, plan, summarize, or implement - in any language.
 
 Understanding test: when you can predict the user's answers to your next three questions, the grill has converged - offer to summarize instead of continuing.
 

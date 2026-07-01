@@ -83,6 +83,7 @@ If the project has no header convention, propose this one to the user before ado
 
 ## Comments
 
+- English only - in comments, identifiers, string resources for developers, and documentation. No other language appears in source.
 - Comments explain ownership, invariants, lifecycle, or non-obvious tradeoffs - never restate code or narrate change history.
 - XML docs for supported APIs, module boundaries, and serialized contracts.
 - Inline comments start uppercase and end with a period when written as sentences. Keep comments current during refactors.

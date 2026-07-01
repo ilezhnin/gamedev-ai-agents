@@ -13,6 +13,10 @@
 
 Never credit yourself (the AI agent) as author, co-author, or contributor anywhere: file headers, commit messages and trailers (no `Co-Authored-By`, no "Generated with" lines), documentation, changelogs, code comments, or PR descriptions. Author identity always comes from the project: existing file headers, `git config user.name`, repository history. Match the project's existing date and header formats instead of inventing new ones.
 
+## Language
+
+Every repository artifact is written in English: code, identifiers, comments, documentation, commit messages, branch names, PR titles and bodies, changelogs, learnings, and plans. No other language is acceptable in artifacts, regardless of the language the user speaks. Converse with the user in the user's language; write into the repository only in English.
+
 ## Engineering Discipline
 
 These rules bias agents toward careful, reviewable game-development and C# work. Explicit user instructions and repository-specific instructions override these rules when they are more specific. Existing project conventions override personal style preferences unless the user asks for a redesign.

@@ -14,7 +14,7 @@ This repository stores a portable Codex environment kit for Unity and C#/ASP.NET
 ## Editing Rules
 
 - Prefer small, reviewable edits.
-- Keep template and plugin files ASCII. Exception: intentional non-English trigger phrases in skill descriptions (currently `grill-me`), allowlisted in `validate-kit.ps1`.
+- The kit is international: English only, everywhere. No non-English text in skills, templates, documentation, code, comments, or commit messages. All template and plugin files stay ASCII with no exceptions (`validate-kit.ps1` enforces this).
 - Do not commit credentials, OAuth tokens, Codex auth state, Unity license data, or machine-local cache paths.
 - Keep skills focused: `SKILL.md` stays procedural and under ~90 lines; detailed checklists and command templates go in `references/`.
 - Every skill ships `agents/openai.yaml` whose `default_prompt` references `$<skill-name>`.

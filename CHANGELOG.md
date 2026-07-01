@@ -11,6 +11,7 @@ Conventions ported from a production Unity project (SandboxWrestling) and genera
 - Template `AGENTS.md` sections: Module Map And Feature Routing (owners, no parallel Manager/Service, adapter-at-boundary) and Documentation Layout (`<Module>/Documentation/`, `docs/authoring|qa|tickets`).
 
 ### Changed
+- English-only policy: the kit is international - all artifacts (code, comments, docs, commits, branch names, learnings) are English with no exceptions; removed the non-English trigger phrases from grill-me and the ASCII allowlist from validate-kit.
 - Attribution rule everywhere: the agent never credits itself as author or co-author - headers, commits, docs, changelogs, PR bodies (global AGENTS.md, git-conventions, CODE_STYLE, template boundaries).
 - Global AGENTS.md: architecture restraint now names SOLID/KISS/DRY/SRP, systems/subsystems with one public API and entry point, GoF-where-it-pays, delete-before-abstracting, economical codebase growth; error handling upgraded to a fail-loud contract (typed failures, no silent fallbacks or empty-ID markers, reject invalid data at authoring time).
 - Unity patterns: asmdef best practices as the kit's boundary-enforcement norm (per-module runtime/editor/tests, minimal references, propose asmdefs for outgrown Assembly-CSharp), determinism rules (tick-driven, seeded random, ordered async commits), scene-first UI wiring, fail-loud section. Backend patterns gained the fail-loud section.

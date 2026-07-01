@@ -14,7 +14,6 @@ Declare the project's real stack so agents stop guessing. Replace the placeholde
 - UI: <UGUI / UI Toolkit; text: TMP / other>
 - Convention-defining packages: <Addressables, Cinemachine, Odin, R3, DOTween, ...>
 - Networking / multiplayer: <none / NGO / Mirror / Photon / custom>
-- Commit message language: <en / ru>
 
 Maintenance rule: when code uses a technology not listed here, ask the user whether to add it to this list.
 
@@ -65,6 +64,7 @@ The kit's global profile (`~/.codex/AGENTS.md`, installed from the kit's `global
 - Measure before optimizing; keep `Update`/`FixedUpdate`/UI-refresh paths allocation-free.
 - Never log or commit secrets; treat player input, saves, mods, and network messages as untrusted.
 - Report honestly: what changed, what was verified, what remains unverified. Never claim unrun validation.
+- English only in every artifact: code, comments, docs, commit messages, branch names, learnings. Converse with the user in the user's language, but write into the repository only in English.
 - Stop and ask when requirements conflict, a change is destructive or irreversible, or you cannot verify a risky result.
 
 ## Unity Asset Safety

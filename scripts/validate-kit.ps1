@@ -130,10 +130,8 @@ foreach ($rulePath in @("global\rules\default.rules", "templates\unity-project\.
 $rulesOk = ($ruleBodies[1].Body -eq $ruleBodies[0].Body) -and ($ruleBodies[2].Body -eq $ruleBodies[0].Body)
 Report $rulesOk "rules: template rules match global rules (ignoring header comment)"
 
-# 8: ASCII policy with explicit allowlist.
-$asciiAllowlist = @(
-    (Join-Path $script:PluginSkillsRoot "grill-me\SKILL.md")
-)
+# 8: ASCII policy - the kit is English-only, no exceptions.
+$asciiAllowlist = @()
 $nonAscii = @()
 foreach ($root in @("templates", "plugins")) {
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $script:KitRoot $root) -Recurse -File) {

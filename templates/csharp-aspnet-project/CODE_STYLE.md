@@ -54,6 +54,7 @@ If the project uses file headers, match the existing format exactly and derive v
 
 ## Comments
 
+- English only - in comments, identifiers, log messages, and documentation. No other language appears in source.
 - Comments explain ownership, invariants, or non-obvious tradeoffs - never restate code or narrate change history.
 - XML docs for supported APIs and contracts the team consumes.
 - Keep comments current during refactors.

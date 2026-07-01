@@ -18,6 +18,7 @@ Optional scope: `feat(inventory): add stack splitting`. Keep scopes short and co
 
 ## Message Rules
 
+- English only: commit messages, branch names, and PR titles/bodies are always English, regardless of the conversation language.
 - Imperative mood: "add", not "added" or "adds".
 - Subject line lowercase after the type, no trailing period, aim for <= 72 characters.
 - The subject states the behavioral result, usually through the domain/module: `fix: bound rewind audio retention by state history window`.

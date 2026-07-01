@@ -54,7 +54,7 @@ Shared:
 | `planning` | Writes `.agents/plans/active_plan.md` + `task_list.md` before execution |
 | `crossworking` | Delivery loop across agents: plan -> implement -> validate -> review -> PR |
 | `arch-audit` | Module architecture audit -> dependency-ordered refactor backlog (SOLID/KISS/DRY lens) |
-| `grill-me` | Relentless plan stress-testing (RU triggers included) |
+| `grill-me` | Relentless plan and design stress-testing before implementation |
 | `create-mr` | Verify, commit, push, open the PR/MR; conventional commits |
 | `learn` | Capture reusable lessons into AGENTS.md / learnings / skills |
 
