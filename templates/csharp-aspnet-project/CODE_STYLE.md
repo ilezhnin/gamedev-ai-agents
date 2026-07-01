@@ -17,7 +17,7 @@ If the project uses file headers, match the existing format exactly and derive v
 
 - Use the project root namespace (derive from csproj `RootNamespace` or existing files). File-scoped namespaces are fine when the project already uses them.
 - Namespace structure mirrors project and responsibility folders.
-- File name matches the primary type. One primary entity per file; split sibling DTOs, requests, results, and enums into their own files unless private nested details.
+- One file - one entity. This rule is hard and has no exceptions: every class, struct, interface, enum, record, and delegate lives in its own file named after it. Nested types are forbidden - extract them into their own files, including private ones (generated code is exempt per Scope).
 - Sort usings: `System.*`, framework, third-party, project. Match the project's usings placement (file-scoped `global using` conventions included).
 
 ## Naming
@@ -67,6 +67,7 @@ If the project uses file headers, match the existing format exactly and derive v
 
 ## Review Checklist
 
+- [ ] One file - one entity: no nested types, no sibling types sharing a file.
 - [ ] Names communicate responsibility; access modifiers explicit; public surface intentional; no AI attribution anywhere.
 - [ ] Contracts (routes, DTOs, status codes) unchanged unless the task requires it.
 - [ ] Async methods use `Async` suffix, propagate cancellation, no sync-over-async.

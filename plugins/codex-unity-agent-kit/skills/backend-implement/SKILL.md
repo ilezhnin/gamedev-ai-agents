@@ -23,6 +23,7 @@ Make narrow ASP.NET and C# backend changes that preserve API contracts, security
 
 ## Backend Rules
 
+- One file - one entity, no exceptions: every class, struct, interface, enum, record, and delegate gets its own file named after it. Nested types are forbidden, including private ones - extract them.
 - Do not hardcode secrets, connection strings, tokens, passwords, private keys, or production URLs.
 - Preserve authentication and authorization checks. Do not replace policy/role/ownership checks with client-side assumptions.
 - Validate input at external boundaries. Prefer existing validators, model binding, filters, endpoint filters, or domain factories.

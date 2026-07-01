@@ -18,6 +18,7 @@ Judge everything through these, by name, in the findings:
 - **Systems hierarchy**: decompose into systems and subsystems, each isolated with one public API and one entry point, so a subsystem can be replaced, extended, or tested alone.
 - **Patterns where they pay**: use Gang of Four patterns when they remove real coupling or duplication (factory for families, strategy for swappable policy, observer for decoupled events, adapter at boundaries). Naming a pattern is never a justification by itself.
 - **Anti-overengineering**: no abstractions or entities for their own sake. Delete before abstracting. A new interface, facade, registry, or helper must pay for itself by removing duplication or creating a boundary with multiple real call sites. Public surface is a liability: a public member with one internal caller is a private detail. Compatibility wrappers must have an owner and a removal condition.
+- **One file - one entity**: a hard rule with no exceptions - every type lives in its own file named after it; nested types (including private ones) are findings that go into the backlog as extraction tasks.
 - **Economical growth**: before proposing new code, check what already exists and whether less code solves it. A cleanup pass should be neutral or negative in production code; net-new code needs an explicit reason.
 
 ## Workflow

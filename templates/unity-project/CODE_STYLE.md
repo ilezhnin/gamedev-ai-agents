@@ -37,7 +37,7 @@ If the project has no header convention, propose this one to the user before ado
 - Namespace structure mirrors module and responsibility folders.
 - Place the namespace declaration before the `#region Usings` block; put `using` directives inside the namespace and inside `#region Usings`.
 - Sort usings: `System.*`, Unity, third-party, project, aliases. No comments labeling groups.
-- File name matches the primary type. One primary entity per file; split sibling enums, structs, interfaces, requests, and results into their own files unless private nested details.
+- One file - one entity. This rule is hard and has no exceptions: every class, struct, interface, enum, record, and delegate lives in its own file named after it. Nested types are forbidden - extract them into their own files, including private ones (generated code is exempt per Scope).
 - No new `partial` types in runtime code (generated code and approved editor integration are exceptions).
 
 ## Naming
@@ -90,7 +90,7 @@ If the project has no header convention, propose this one to the user before ado
 
 ## Class Organization
 
-Structure non-trivial classes with `#region` blocks in this order, omitting empty ones: `Nested Types`, `Events`, `Fields`, `Properties`, `Constructors`, `Unity Methods`, `Public Methods`, `Protected Methods`, `Private Methods`, `Event Handlers`.
+Structure non-trivial classes with `#region` blocks in this order, omitting empty ones: `Events`, `Fields`, `Properties`, `Constructors`, `Unity Methods`, `Public Methods`, `Protected Methods`, `Private Methods`, `Event Handlers`. There is no `Nested Types` region because nested types are forbidden (one file - one entity).
 
 - Blank line before and after each `#region`/`#endregion`; no nested regions.
 - Inside `Fields`: constants, statics, serialized, readonly, mutable - in that order where practical.
@@ -107,6 +107,7 @@ Structure non-trivial classes with `#region` blocks in this order, omitting empt
 ## Review Checklist
 
 - [ ] Header, namespace, usings, and regions match this guide; no AI attribution anywhere.
+- [ ] One file - one entity: no nested types, no sibling types sharing a file.
 - [ ] Names communicate responsibility; access modifiers explicit; public surface intentional.
 - [ ] Serialized references wired intentionally; no global-search fallbacks.
 - [ ] Async methods use `Async` suffix, propagate cancellation, avoid unsafe `async void`.

@@ -167,6 +167,7 @@ Design only as much architecture as the problem needs. Know and apply SOLID, KIS
 - No abstractions or entities for their own sake. Delete before abstracting: a new interface, facade, registry, or helper must pay for itself by removing duplication or creating a boundary with multiple real call sites.
 - Grow the codebase economically: before writing new code, check whether it already exists or whether less code solves it. Public surface is a liability - a public member with one internal caller is a private detail.
 - Avoid new global mutable state, service locators, singletons, and hidden dependencies unless the project already uses that pattern. No spaghetti: modules integrate through their public API, never by reaching into each other's internals.
+- One file - one entity, without exceptions: every class, struct, interface, enum, record, and delegate lives in its own file named after it. Nested types are forbidden, including private ones (generated code exempt).
 - Do not rewrite a working subsystem to match a preferred architecture.
 
 Good architecture reduces future change cost. Bad architecture hides simple logic behind ceremony.

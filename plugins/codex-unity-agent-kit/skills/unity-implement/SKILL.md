@@ -22,6 +22,7 @@ Make narrow Unity C# changes that respect Unity serialization, assembly boundari
 
 ## Unity C# Rules
 
+- One file - one entity, no exceptions: every class, struct, interface, enum, record, and delegate gets its own file named after it. Nested types are forbidden, including private ones - extract them.
 - Prefer `[SerializeField] private` over new public fields unless existing API requires public access.
 - When renaming serialized fields that may already exist in scenes, prefabs, or assets, use `UnityEngine.Serialization.FormerlySerializedAs`.
 - Keep `Editor` code out of runtime assemblies and runtime code out of `Editor` folders.

@@ -54,6 +54,7 @@ For NuGet advisories (`dotnet list package --vulnerable`) triage by: severity x 
 
 ## Overengineering And Principles
 
+- One file - one entity is a hard rule: flag any new nested type or any file gaining a second class/struct/interface/enum/record/delegate as a must-fix violation.
 - New abstraction with a single implementation and no boundary/testing need - flag it; delete before abstracting.
 - Parallel service/helper created where an existing owner (service, repository, validator) already covers the responsibility.
 - New public surface with one internal caller; DTOs/overloads without real call sites.

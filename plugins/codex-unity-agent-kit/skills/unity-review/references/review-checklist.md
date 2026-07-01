@@ -46,6 +46,7 @@
 
 ## Overengineering And Principles
 
+- One file - one entity is a hard rule: flag any new nested type or any file gaining a second class/struct/interface/enum/record/delegate as a must-fix violation.
 - New abstraction (interface, facade, registry, base class) with a single implementation and no boundary/testing need - flag it; delete before abstracting.
 - Parallel `Manager`/`Service`/`Utils` created where a domain module already owns the responsibility.
 - New public surface with one internal caller; convenience members without multiple real call sites.

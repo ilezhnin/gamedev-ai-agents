@@ -11,6 +11,7 @@ Conventions ported from a production Unity project (SandboxWrestling) and genera
 - Template `AGENTS.md` sections: Module Map And Feature Routing (owners, no parallel Manager/Service, adapter-at-boundary) and Documentation Layout (`<Module>/Documentation/`, `docs/authoring|qa|tickets`).
 
 ### Changed
+- One file - one entity is a hard, exceptionless rule across the kit: every class, struct, interface, enum, record, and delegate lives in its own file named after it; nested types are forbidden, including private ones (generated code exempt). Encoded in global AGENTS.md, both CODE_STYLE.md templates (no `Nested Types` region), implement rules, review checklists (must-fix), and the arch-audit lens.
 - English-only policy: the kit is international - all artifacts (code, comments, docs, commits, branch names, learnings) are English with no exceptions; removed the non-English trigger phrases from grill-me and the ASCII allowlist from validate-kit.
 - Attribution rule everywhere: the agent never credits itself as author or co-author - headers, commits, docs, changelogs, PR bodies (global AGENTS.md, git-conventions, CODE_STYLE, template boundaries).
 - Global AGENTS.md: architecture restraint now names SOLID/KISS/DRY/SRP, systems/subsystems with one public API and entry point, GoF-where-it-pays, delete-before-abstracting, economical codebase growth; error handling upgraded to a fail-loud contract (typed failures, no silent fallbacks or empty-ID markers, reject invalid data at authoring time).
