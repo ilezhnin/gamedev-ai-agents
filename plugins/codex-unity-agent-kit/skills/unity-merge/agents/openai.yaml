@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Merge Scenes And Prefabs"
+  short_description: "Resolve Unity YAML merge conflicts"
+  default_prompt: "Use $unity-merge to resolve these Unity scene/prefab/asset merge conflicts with UnityYAMLMerge and verify references afterward."

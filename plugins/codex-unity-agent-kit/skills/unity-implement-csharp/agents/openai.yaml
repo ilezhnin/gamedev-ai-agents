@@ -1,4 +1,0 @@
-interface:
-  display_name: "Unity Implement C#"
-  short_description: "Implement Unity C# changes safely"
-  default_prompt: "Use $unity-implement-csharp to implement this Unity C# change with focused validation."

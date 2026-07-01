@@ -1,4 +1,0 @@
-interface:
-  display_name: "C# Backend Implement"
-  short_description: "Implement ASP.NET backend changes safely"
-  default_prompt: "Use $csharp-backend-implement to implement this ASP.NET backend change with focused validation."

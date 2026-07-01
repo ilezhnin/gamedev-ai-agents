@@ -1,141 +1,76 @@
 ---
 name: create-mr
-description: Prepare, verify, commit, push, and open a GitHub Pull Request / Merge Request for completed workspace changes.
+description: Prepare, verify, commit, push, and open a GitHub Pull Request / Merge Request for completed workspace changes. Use when the user asks to create a PR/MR, commit and push finished work, ship a change, open a pull request, or when crossworking reaches its handoff step and the working tree holds verified changes.
 ---
 
 # Create a Merge Request (Pull Request)
 
-**System Goal:** You are tasked with preparing, committing, pushing, and opening a Pull Request for the changes made in the current workspace.
+## Goal
 
-Follow these strict guidelines when executing this task.
+Turn verified workspace changes into a clean branch, commit, push, and Pull Request. Never ship unverified work, never invent verification results, and never widen the diff beyond the task.
 
 ## 1. Verify the Current State
 
-Before creating the PR, verify the integrity of the codebase and the working tree.
+- **Branch:** `git branch --show-current`. If on `main`/`master` or another protected branch, create a task branch first and move uncommitted changes there.
+- **Status and diff:** `git status`, then inspect `git diff` and `git diff --staged` before staging anything.
+- **Plan contract:** if `.agents/plans/task_list.md` exists for this task, confirm its checklist items are done or explicitly waived; if `.agents/plans/active_plan.md` names verification commands, prefer those.
+- **Validation:** run the project's checks. For Unity work use `$unity-validate` (compile/EditMode/PlayMode); for ASP.NET work use `$backend-validate` (`dotnet build`, targeted `dotnet test`, `dotnet format --verify-no-changes` when the repo uses it). Otherwise use commands documented by the repo or CI.
+- **Secrets check:** never commit `.env`, `appsettings.*.json` with real values, user-secrets state, credentials, tokens, keystores, Unity license files, logs, `Library/`, build output, or unrelated generated files.
 
-- **Branch:** Confirm the current branch with `git branch --show-current`.
-- **Git Status:** Run `git status` and identify every changed, staged, untracked, or deleted file.
-- **Diff Review:** Inspect `git diff` and `git diff --staged` before staging or committing anything.
-- **Linting:** Ensure there are no linting errors, for example `npm run lint` in `gui-node`.
-- **Tests:** Ensure tests pass, for example `npm run test` in `gui-node` or `go test ./...` in `exec-node`.
-- **Build / Typecheck:** Run the project's relevant build or typecheck command when available.
-- **Secrets Check:** Do not commit `.env`, credentials, API keys, tokens, private keys, logs, local config, build output, or unrelated generated files.
+If verification cannot run, do not pretend it passed. State exactly what could not be verified and why.
 
-If verification cannot be run, do not pretend it passed. State exactly what could not be verified and why.
+## 2. Size the Change
 
-## 2. Commit the Changes
+- Up to ~100 changed lines: reviewable in one sitting - proceed.
+- ~300 lines: acceptable only when it is one logical change - state why it belongs together.
+- ~1000+ lines or mixed concerns (feature + refactor + formatting + asset churn): split before opening the PR. Strategies: stacked branches, by file group, shared code first, or vertical feature slices.
+- Unity asset churn (scenes, prefabs, `.meta`) counts toward review load: call it out separately in the PR body and keep unrelated asset diffs out.
 
-If changes are not yet committed:
+## 3. Commit the Changes
 
-- **Surgical Commits:** Commit only what is strictly necessary to solve the task. Do not include unrelated files or opportunistic refactoring.
-- **No Adjacent Cleanup:** Do not reformat, rename, reorganize, or refactor code that is unrelated to the requested change.
-- **Stage Intentionally:** Use targeted staging such as `git add <file>` or `git add -p` when only part of a file belongs to the PR.
-- **Commit Message Format:** Follow conventional commits:
-  - `feat: [description]` for new features.
-  - `fix: [description]` for bug fixes.
-  - `chore: [description]` for maintenance or non-user-facing changes.
+- Commit only what traces to the task. Use targeted staging (`git add <file>`, `git add -p`) when a file mixes concerns.
+- Follow Conventional Commits (`feat:`, `fix:`, `chore:`, and the full type set in `references/git-conventions.md`). Imperative mood, no vague messages like "Fix bug" or "Phase 1".
+- Each commit should leave the project compiling. Squash noisy checkpoint commits before pushing when the repo prefers a clean history.
 
-Before committing, confirm that every staged line traces directly to the user's request.
+## 4. Branch and Push
 
-## 3. Branch Verification
-
-Ensure you are on a branch that follows the project's branch naming conventions:
-
-- `feat/task-name`
-- `fix/task-name`
-- `chore/task-name`
-
-If you are on `main`, stop immediately, create a new branch, and move the uncommitted changes there.
-
-Use a short, descriptive task name. Do not use vague branch names such as `changes`, `updates`, `work`, or `misc`.
-
-## 4. Push the Branch
-
-Push the branch to the remote origin using the GitHub CLI or git commands:
-
-```bash
-git push -u origin <branch-name>
-```
-
-If the branch already exists remotely, use a normal push. Do not force-push unless the user explicitly asks and the risk is understood.
+- Branch names: `feat/<task-name>`, `fix/<task-name>`, `chore/<task-name>`. Short, descriptive; never `changes`, `updates`, `work`, `misc`.
+- Push with `git push -u origin <branch-name>`. Do not force-push unless the user explicitly asks and understands the risk.
 
 ## 5. Create the Pull Request
 
-Use the GitHub CLI (`gh pr create`) to open the pull request. Ensure the PR title and body are highly descriptive and formatted cleanly in Markdown.
-
-Before creating the PR, determine the repository default branch when needed:
-
-```bash
-gh repo view --json defaultBranchRef
-```
-
-### PR Title
-
-The title must match the primary commit message, for example:
-
-```text
-fix: resolve webhook signature validation
-```
-
-### PR Body Template
-
-Use the following structure for the PR body:
+Determine the target branch when unclear: `gh repo view --json defaultBranchRef`. Then `gh pr create` with a title matching the primary commit message and this body:
 
 ```markdown
 ## Description
-Provide a concise overview of what this PR accomplishes and why it is necessary.
+Concise overview of what this PR accomplishes and why.
 
 ## Changes Made
-- Point 1 (e.g., Added `X` dependency to `package.json`)
-- Point 2 (e.g., Fixed impurity in `reviews/page.tsx` by migrating `useMemo` to `useState`)
+- Point 1 (e.g., Added `FormerlySerializedAs` to renamed field in `Assets/Scripts/Player/Health.cs`)
+- Point 2 (e.g., Fixed ownership check in `src/Api/Endpoints/Inventory.cs`)
 
 ## Verification
-Explain how the changes were verified to work:
-- [x] Linting passes without errors.
-- [x] Tests run successfully (including coverage if applicable).
-- [x] Local verification / manual testing steps performed.
+- [x] `dotnet test tests/Api.Tests` passes.
+- [x] Unity EditMode tests pass (TestResults/EditMode.xml).
+- [ ] PlayMode tests not run: <reason>
 ```
 
-If any verification step was not run, replace the checked item with an explicit note:
-
-```markdown
-- [ ] Tests not run: <reason>
-```
-
-## Execution Example
-
-```bash
-gh pr create \
-  --title "fix: resolve webhook signature validation" \
-  --body "## Description
-Fixes an issue where valid webhooks were being rejected due to incorrect payload hashing.
-
-## Changes Made
-- Updated \`hmac.New\` logic in \`exec-node/src/core/auth\`.
-- Added a failing unit test that now passes.
-
-## Verification
-- [x] \`go test ./src/core/auth\` passes.
-- [x] Tested locally against simulated GitHub events.
-"
-```
+Every unchecked verification item needs an explicit reason. Never invent a PR URL.
 
 ## Stop Conditions
 
-Stop and ask for clarification before committing, pushing, or opening the PR if:
+Stop and ask before committing, pushing, or opening the PR when:
 
-- The working tree contains unrelated changes and it is unclear which files belong to this PR.
-- The current branch is protected, shared, or unsuitable for the task.
-- Tests or linting fail for reasons that are not clearly caused by the current task.
-- Creating the PR requires credentials, permissions, or repository access that is not available.
+- The working tree contains unrelated changes and ownership is unclear.
+- The current branch is protected, shared, or unsuitable.
+- Tests, builds, or Unity compilation fail for reasons not clearly caused by this task.
+- Credentials, remote access, or `gh` auth are missing - report the exact blocker.
 - The PR target branch is ambiguous.
 
 ## Final Response
 
-After the PR is created, report:
+Report: PR URL, branch name, commit hash, verification commands that passed, and anything skipped or failed with reasons.
 
-- PR URL.
-- Branch name.
-- Commit hash or short commit hash.
-- Verification commands that passed.
-- Verification commands that were skipped or failed, with reasons.
+## Reference
+
+Read `references/git-conventions.md` for the full commit type set, branch naming, atomic-commit rules, and breaking-change markers.

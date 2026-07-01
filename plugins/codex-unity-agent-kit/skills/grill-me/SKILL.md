@@ -41,6 +41,8 @@ Useful baseline facts:
 - Keep preambles to 1-2 short lines when context is needed.
 - Do not ask menu questions without a recommendation. If no recommendation is possible, inspect context or state the unknown that blocks the recommendation.
 - Do not answer for the user's free-form "Other" path. Treat it as an escape hatch for information you did not model.
+- Track an honest 0-100% understanding confidence. When it is below ~70%, say so in one line with the reason before the next question.
+- Treat "whatever you think is best", "sounds good", and silence as non-answers, not agreement. Re-ask as a concrete choice between named options.
 
 Structured decision question shape:
 
@@ -86,6 +88,8 @@ For Unity/C# game work, keep grilling until the relevant branches below are clos
 
 Continue until the important branches are closed or the user explicitly says to stop, plan, summarize, implement, or "хватит".
 
+Understanding test: when you can predict the user's answers to your next three questions, the grill has converged - offer to summarize instead of continuing.
+
 Do not stop only because the next question is uncomfortable. The skill exists to expose hidden assumptions before code is written.
 
 ## Output When Asked To Stop
@@ -93,6 +97,7 @@ Do not stop only because the next question is uncomfortable. The skill exists to
 When the user asks for a plan, summary, or implementation direction, produce a concise decision record:
 
 - Confirmed decisions.
+- Out of scope: what is explicitly NOT being built. Half of misalignment is silent disagreement about scope - this line is mandatory.
 - Open questions, if any.
 - Rejected alternatives and why.
 - Risks and mitigations.

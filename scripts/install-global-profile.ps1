@@ -1,179 +1,186 @@
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [switch] $InstallAgentsMd,
     [switch] $InstallSkills,
     [switch] $InstallWslSkills,
     [string] $WslCodexHome,
-    [switch] $Force
+    [switch] $Force,
+    [switch] $Update
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "kit-common.ps1")
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$globalRoot = Join-Path $repoRoot "global"
-$skillsRoot = Join-Path (Join-Path $repoRoot "plugins\codex-unity-agent-kit") "skills"
-$codexHome = if ($env:CODEX_HOME) { $env:CODEX_HOME } else { Join-Path $HOME ".codex" }
+$globalRoot = Join-Path $script:KitRoot "global"
 
-New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
-
-function Copy-KitFile {
-    param(
-        [Parameter(Mandatory = $true)] [string] $Source,
-        [Parameter(Mandatory = $true)] [string] $Destination
-    )
-
-    $destinationDir = Split-Path -Parent $Destination
-    if (-not (Test-Path -LiteralPath $destinationDir)) {
-        New-Item -ItemType Directory -Force -Path $destinationDir | Out-Null
+if ($env:CODEX_HOME) {
+    if (-not [System.IO.Path]::IsPathRooted($env:CODEX_HOME)) {
+        Write-Error "CODEX_HOME must be an absolute path, got: $($env:CODEX_HOME)"
+        exit 1
     }
-
-    if ((Test-Path -LiteralPath $Destination) -and -not $Force) {
-        Write-Host "SKIP existing $Destination"
-        return
-    }
-
-    Copy-Item -LiteralPath $Source -Destination $Destination -Force:$Force
-    Write-Host "COPY $Destination"
+    $codexHome = $env:CODEX_HOME
+}
+else {
+    $codexHome = Join-Path $HOME ".codex"
 }
 
-function Copy-KitDirectory {
-    param(
-        [Parameter(Mandatory = $true)] [string] $Source,
-        [Parameter(Mandatory = $true)] [string] $Destination
-    )
+New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
+$ctx = New-InstallContext -TargetRoot $codexHome -ManifestPath (Join-Path $codexHome "kit-manifest.json") -Force:$Force -Update:$Update
 
-    if ((Test-Path -LiteralPath $Destination) -and -not $Force) {
-        Write-Host "SKIP existing $Destination"
-        return
+Install-KitFile -Ctx $ctx -Source (Join-Path $globalRoot "unity-codex.config.toml") -RelDest "unity-codex.config.toml" -Cmdlet $PSCmdlet
+Install-KitTree -Ctx $ctx -SourceDir (Join-Path $globalRoot "agents") -RelDestPrefix "agents" -Cmdlet $PSCmdlet
+Install-KitTree -Ctx $ctx -SourceDir (Join-Path $globalRoot "rules") -RelDestPrefix "rules" -Cmdlet $PSCmdlet
+
+if ($InstallAgentsMd) {
+    $agentsDest = Join-Path $codexHome "AGENTS.md"
+    if (Test-Path -LiteralPath $agentsDest) {
+        $existingHash = Get-FileSha256 -Path $agentsDest
+        $incomingHash = Get-FileSha256 -Path (Join-Path $globalRoot "AGENTS.md")
+        if ($existingHash -ne $incomingHash) {
+            $backup = Join-Path $codexHome ("AGENTS.md.bak-" + [DateTime]::Now.ToString("yyyyMMdd-HHmmss"))
+            if ($PSCmdlet.ShouldProcess($backup, "Back up existing global AGENTS.md")) {
+                Copy-Item -LiteralPath $agentsDest -Destination $backup -Force
+            }
+            Write-Host "BACKUP existing AGENTS.md -> $backup"
+        }
     }
+    Install-KitFile -Ctx $ctx -Source (Join-Path $globalRoot "AGENTS.md") -RelDest "AGENTS.md" -Cmdlet $PSCmdlet
+}
+else {
+    Install-KitFile -Ctx $ctx -Source (Join-Path $globalRoot "AGENTS.md") -RelDest "AGENTS.unity-template.md" -Cmdlet $PSCmdlet
+    Write-Host "NOTE: AGENTS.unity-template.md is INERT - Codex only reads $codexHome\AGENTS.md."
+    Write-Host "NOTE: Re-run with -InstallAgentsMd to activate it (your existing AGENTS.md is backed up first)."
+}
 
-    if (-not (Test-Path -LiteralPath $Destination)) {
-        New-Item -ItemType Directory -Force -Path $Destination | Out-Null
+if ($InstallSkills) {
+    $allSkills = $script:UnitySkills + $script:BackendSkills + $script:SharedSkills
+    foreach ($name in $allSkills) {
+        if (-not (Test-Path -LiteralPath (Join-Path $script:PluginSkillsRoot $name))) {
+            Write-Error "Bundled skill missing from kit: $name"
+            exit 1
+        }
     }
-
-    Get-ChildItem -LiteralPath $Source -Force | ForEach-Object {
-        Copy-Item -LiteralPath $_.FullName -Destination $Destination -Recurse -Force:$Force
+    # CODEX_HOME/skills is manifest-tracked; ~/.agents/skills (the documented user-scope
+    # location) lives outside CODEX_HOME, so it gets a plain copy with the same semantics.
+    foreach ($name in $allSkills) {
+        Install-KitTree -Ctx $ctx -SourceDir (Join-Path $script:PluginSkillsRoot $name) -RelDestPrefix (Join-Path "skills" $name) -Cmdlet $PSCmdlet
     }
-
-    Write-Host "COPY $Destination"
+    $agentsSkillsHome = Join-Path $HOME ".agents\skills"
+    foreach ($name in $allSkills) {
+        $dest = Join-Path $agentsSkillsHome $name
+        if ((Test-Path -LiteralPath $dest) -and -not $Force -and -not $Update) {
+            Write-Host "SKIP existing $dest"
+            continue
+        }
+        if ($PSCmdlet.ShouldProcess($dest, "Copy skill")) {
+            New-Item -ItemType Directory -Force -Path $dest | Out-Null
+            Copy-Item -Path (Join-Path (Join-Path $script:PluginSkillsRoot $name) "*") -Destination $dest -Recurse -Force
+        }
+        Write-Host "COPY $dest"
+    }
+    Write-Host "Skills installed to $agentsSkillsHome and $(Join-Path $codexHome 'skills')"
 }
 
 function ConvertTo-WslPath {
-    param(
-        [Parameter(Mandatory = $true)] [string] $WindowsPath
-    )
-
+    param([Parameter(Mandatory = $true)] [string] $WindowsPath)
     $resolvedPath = (Resolve-Path -LiteralPath $WindowsPath).Path
     if ($resolvedPath -match "^([A-Za-z]):\\(.*)$") {
         $drive = $matches[1].ToLowerInvariant()
         $tail = $matches[2] -replace "\\", "/"
         return "/mnt/$drive/$tail"
     }
-
     $converted = & wsl.exe wslpath -a -u $resolvedPath
     if ($LASTEXITCODE -ne 0 -or -not $converted) {
         throw "Could not convert path to WSL path: $WindowsPath"
     }
-
-    return $converted.Trim()
+    return ([string]::Join("", @($converted))).Trim()
 }
 
 function ConvertTo-ShSingleQuotedValue {
-    param(
-        [Parameter(Mandatory = $true)] [string] $Value
-    )
-
+    param([Parameter(Mandatory = $true)] [string] $Value)
     return $Value -replace "'", "'\''"
 }
 
-function Install-WslSkills {
+if ($InstallWslSkills) {
     if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-        throw "wsl.exe was not found. Install WSL or run without -InstallWslSkills."
+        Write-Error "wsl.exe was not found. Install WSL or run without -InstallWslSkills."
+        exit 1
     }
 
     if (-not $WslCodexHome) {
-        $homeResult = & wsl.exe sh -lc 'printf "%s" "$HOME/.codex"'
-        if ($LASTEXITCODE -ne 0 -or -not $homeResult) {
-            throw "Could not determine WSL Codex home. Pass -WslCodexHome explicitly."
+        # Single-quoted PowerShell string keeps $HOME literal for the WSL shell on both PS 5.1 and 7.
+        $homeResult = & wsl.exe sh -lc 'printf %s "$HOME"'
+        $homeText = ([string]::Join("", @($homeResult))).Trim()
+        if ($LASTEXITCODE -ne 0 -or -not $homeText) {
+            throw "Could not determine WSL home. Pass -WslCodexHome explicitly."
         }
-
-        $script:WslCodexHome = $homeResult.Trim()
+        $WslCodexHome = "$homeText/.codex"
     }
 
-    $wslSkillsRoot = ConvertTo-WslPath -WindowsPath $skillsRoot
-    $wslDestination = $WslCodexHome.TrimEnd("/") + "/skills"
-    $forceValue = if ($Force) { "1" } else { "0" }
+    $wslSkillsSrc = ConvertTo-WslPath -WindowsPath $script:PluginSkillsRoot
+    $wslGlobalSrc = ConvertTo-WslPath -WindowsPath $globalRoot
+    $wslHomeRoot = ($WslCodexHome.TrimEnd("/")) -replace "/\.codex$", ""
+    $forceValue = if ($Force -or $Update) { "1" } else { "0" }
+
     $script = @'
 set -e
-src='__SRC__'
-dest='__DEST__'
+skills_src='__SKILLS_SRC__'
+global_src='__GLOBAL_SRC__'
+codex_home='__CODEX_HOME__'
+home_root='__HOME_ROOT__'
 force='__FORCE__'
-mkdir -p "$dest"
-for skill in "$src"/*; do
-  [ -d "$skill" ] || continue
-  name="$(basename "$skill")"
-  target="$dest/$name"
-  if [ -e "$target" ] && [ "$force" != "1" ]; then
-    echo "SKIP existing $target"
-    continue
-  fi
-  mkdir -p "$target"
-  cp -R "$skill"/. "$target"/
-  echo "COPY $target"
-done
+copy_skill_set() {
+  dest_root="$1"
+  mkdir -p "$dest_root"
+  for skill in "$skills_src"/*; do
+    [ -d "$skill" ] || continue
+    name="$(basename "$skill")"
+    target="$dest_root/$name"
+    if [ -e "$target" ] && [ "$force" != "1" ]; then
+      echo "SKIP existing $target"
+      continue
+    fi
+    mkdir -p "$target"
+    cp -R "$skill"/. "$target"/
+    echo "COPY $target"
+  done
+}
+copy_skill_set "$home_root/.agents/skills"
+copy_skill_set "$codex_home/skills"
+mkdir -p "$codex_home/agents" "$codex_home/rules"
+cp "$global_src/unity-codex.config.toml" "$codex_home/unity-codex.config.toml"
+cp "$global_src"/agents/*.toml "$codex_home/agents/"
+cp "$global_src"/rules/*.rules "$codex_home/rules/"
+echo "COPY $codex_home/unity-codex.config.toml (+agents, +rules)"
 '@
 
-    $script = $script.Replace("__SRC__", (ConvertTo-ShSingleQuotedValue -Value $wslSkillsRoot))
-    $script = $script.Replace("__DEST__", (ConvertTo-ShSingleQuotedValue -Value $wslDestination))
+    $script = $script.Replace("__SKILLS_SRC__", (ConvertTo-ShSingleQuotedValue -Value $wslSkillsSrc))
+    $script = $script.Replace("__GLOBAL_SRC__", (ConvertTo-ShSingleQuotedValue -Value $wslGlobalSrc))
+    $script = $script.Replace("__CODEX_HOME__", (ConvertTo-ShSingleQuotedValue -Value $WslCodexHome))
+    $script = $script.Replace("__HOME_ROOT__", (ConvertTo-ShSingleQuotedValue -Value $wslHomeRoot))
     $script = $script.Replace("__FORCE__", $forceValue)
     $script = $script -replace "`r", ""
 
-    $tempScript = Join-Path $env:TEMP ("codex-install-wsl-skills-" + [Guid]::NewGuid().ToString("N") + ".sh")
+    $tempScript = Join-Path $env:TEMP ("codex-install-wsl-" + [Guid]::NewGuid().ToString("N") + ".sh")
     try {
         $utf8NoBom = New-Object System.Text.UTF8Encoding $false
         [System.IO.File]::WriteAllText($tempScript, $script, $utf8NoBom)
         $wslScriptPath = ConvertTo-WslPath -WindowsPath $tempScript
-
-        & wsl.exe sh $wslScriptPath
-        if ($LASTEXITCODE -ne 0) {
-            throw "WSL skill installation failed with exit code $LASTEXITCODE."
+        if ($PSCmdlet.ShouldProcess($WslCodexHome, "Install kit profile into WSL")) {
+            & wsl.exe sh $wslScriptPath
+            if ($LASTEXITCODE -ne 0) {
+                throw "WSL installation failed with exit code $LASTEXITCODE."
+            }
         }
-    } finally {
+    }
+    finally {
         if (Test-Path -LiteralPath $tempScript) {
             Remove-Item -LiteralPath $tempScript -Force
         }
     }
+    Write-Host "WSL profile installed under $WslCodexHome (skills also in $wslHomeRoot/.agents/skills)"
 }
 
-Copy-KitFile `
-    -Source (Join-Path $globalRoot "unity-codex.config.toml") `
-    -Destination (Join-Path $codexHome "unity-codex.config.toml")
-
-foreach ($file in Get-ChildItem -LiteralPath (Join-Path $globalRoot "agents") -File) {
-    Copy-KitFile -Source $file.FullName -Destination (Join-Path (Join-Path $codexHome "agents") $file.Name)
-}
-
-foreach ($file in Get-ChildItem -LiteralPath (Join-Path $globalRoot "rules") -File) {
-    Copy-KitFile -Source $file.FullName -Destination (Join-Path (Join-Path $codexHome "rules") $file.Name)
-}
-
-if ($InstallAgentsMd) {
-    Copy-KitFile -Source (Join-Path $globalRoot "AGENTS.md") -Destination (Join-Path $codexHome "AGENTS.md")
-} else {
-    Copy-KitFile -Source (Join-Path $globalRoot "AGENTS.md") -Destination (Join-Path $codexHome "AGENTS.unity-template.md")
-}
-
-if ($InstallSkills) {
-    foreach ($skill in Get-ChildItem -LiteralPath $skillsRoot -Directory) {
-        Copy-KitDirectory -Source $skill.FullName -Destination (Join-Path (Join-Path $codexHome "skills") $skill.Name)
-    }
-}
-
-if ($InstallWslSkills) {
-    Install-WslSkills
-}
-
+Complete-KitInstall -Ctx $ctx -Cmdlet $PSCmdlet
 Write-Host "Global Unity Codex profile installed under $codexHome"
-if ($InstallWslSkills) {
-    Write-Host "WSL Codex skills installed under $WslCodexHome/skills"
-}
+Write-Host "Run Codex with: codex --profile unity-codex"

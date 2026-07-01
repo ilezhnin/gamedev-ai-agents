@@ -1,13 +1,13 @@
 ---
 name: learn
-description: Reflect on recent development work to capture reusable rules, skill updates, or process corrections. Use when the user asks to learn from a completed task, remember a correction, update reusable Codex behavior, add a rule after a mistake or success, improve the Unity agent kit from experience, or decide whether a lesson belongs in AGENTS.md, rules, an existing skill, or a new skill.
+description: Reflect on recent development work to capture reusable rules, skill updates, or process corrections. Use when the user asks to learn from a completed task, remember a correction, add a rule after a mistake or success, update project instructions or the agent kit from experience, or decide whether a lesson belongs in AGENTS.md, learnings, a skill, or nowhere.
 ---
 
 # Learn
 
 ## Goal
 
-Convert one concrete success, correction, bug, review finding, or repeated workflow into durable guidance without polluting the kit with one-off notes.
+Convert one concrete success, correction, bug, review finding, or repeated workflow into durable guidance without polluting instructions with one-off notes.
 
 This skill does not blindly add memory. It decides whether a lesson is real, reusable, and safe to encode.
 
@@ -15,34 +15,42 @@ This skill does not blindly add memory. It decides whether a lesson is real, reu
 
 1. **Collect evidence**
    - Read the current request, final outcome, relevant diffs or files, validation results, review comments, plans, and user corrections.
-   - If the lesson depends on a specific project, read that project's AGENTS/README/config before generalizing.
    - Do not infer a broad rule from a single ambiguous event.
 
 2. **State the lesson**
    - Write the lesson as: "When <trigger/context>, do <behavior>, because <evidence/risk>."
-   - Include the smallest useful scope: one project, Unity projects, C# implementation, all Codex work, or a specific skill.
+   - Include the smallest useful scope: this project, Unity projects, C# backend work, or all work.
 
-3. **Choose destination**
-   - `templates/unity-project/AGENTS.md`: Unity project instructions that should be copied into future Unity projects.
-   - `global/AGENTS.md`: broad user preferences that should apply across projects.
-   - `global/rules/*.rules`: terse recurring behavior rules for Codex profiles.
-   - Existing skill `SKILL.md`: procedural improvements for an established workflow.
-   - New skill: only when there is a repeatable task category with clear triggers and enough workflow detail.
-   - No write: when the lesson is too local, speculative, already covered, or unsafe to preserve.
+3. **Detect the context**
+   - **Inside the kit repository** (the repo containing `plugins/codex-unity-agent-kit`): kit files are editable directly - see Kit Destinations.
+   - **Inside a target project** (a Unity or ASP.NET repo where the kit was installed): edit project-local files only - see Project Destinations. Skill copies under `.agents/skills/` are refreshed by kit updates; note in the entry when a lesson should also be promoted into the kit source.
 
 4. **Apply narrowly**
    - Make the smallest edit that captures the reusable behavior.
-   - Prefer updating an existing skill or rule over creating another skill.
+   - Prefer updating an existing rule, learnings entry, or skill over creating a new skill.
    - Keep wording imperative and testable.
-   - Preserve ASCII unless the target file already uses another style.
 
 5. **Validate**
-   - Run `quick_validate.py` after changing any skill.
-   - Run `validate_plugin.py` after changing plugin metadata.
-   - If validation tooling needs temporary dependencies, keep them outside the repo and report that explicitly.
+   - Inside the kit repository, run `scripts/validate-kit.ps1` after changing skills or manifests.
+   - In a target project, re-read the edited file to confirm it stays consistent with neighboring rules.
 
 6. **Report**
    - State what was learned, where it was recorded, and what was deliberately not recorded.
+
+## Project Destinations (inside a target project)
+
+- `AGENTS.md`: durable project rules - conventions, commands, constraints every future session needs.
+- `.agents/learnings.md`: dated, narrower lessons in the "When X, do Y, because Z" format; create the file when missing. Kit updates surface these entries as candidates to promote into the kit.
+- Project skill copy under `.agents/skills/<skill>/SKILL.md`: only for procedure fixes needed immediately; flag for promotion so the kit source gets the same fix.
+
+## Kit Destinations (inside the kit repository)
+
+- `templates/unity-project/AGENTS.md` or `templates/csharp-aspnet-project/AGENTS.md`: rules every future project of that type should inherit.
+- `global/AGENTS.md`: broad engineering discipline that applies across all projects.
+- `global/rules/*.rules`: terse allow/prompt/forbid command rules for Codex profiles.
+- Existing skill `SKILL.md` in `plugins/codex-unity-agent-kit/skills/`: procedural improvements - Unity lessons into `$unity-*` skills, backend lessons into `$backend-*` skills, planning/review/shipping lessons into `$planning`, `$crossworking`, `$grill-me`, `$create-mr`.
+- New skill: only when there is a repeatable task category with clear triggers and enough workflow detail.
+- No write: when the lesson is too local, speculative, already covered, or unsafe to preserve.
 
 ## Learning Filters
 
@@ -62,15 +70,6 @@ Do not record:
 - Rules that contradict higher-priority AGENTS or system instructions.
 - Tool-specific behavior that may change unless it is verified from current docs or local behavior.
 
-## Destination Heuristics
-
-- **Project-specific Unity workflow**: update `templates/unity-project/AGENTS.md`.
-- **Reusable Unity/C# execution procedure**: update `$unity-implement-csharp`, `$unity-validate-project`, `$unity-review-changes`, `$planning`, `$crossworking`, or `$teamwork-preview`.
-- **Plan critique behavior**: update `$grill-me`.
-- **MR behavior**: update `$create-mr`.
-- **Future learning behavior**: update `$learn`.
-- **General user preference**: update `global/AGENTS.md` only when it should apply everywhere.
-
 ## Output Shape
 
 Use this compact format in the final response:
@@ -79,7 +78,7 @@ Use this compact format in the final response:
 Learned: <the durable lesson>
 Recorded in: <file path or "not recorded">
 Why there: <scope reasoning>
-Validation: <commands run or skipped reason>
+Promotion: <"kit candidate" if a project lesson should reach the kit, else "none">
 Not recorded: <nearby ideas intentionally left out>
 ```
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "C# Backend Debug And Recover"
+  short_description: "Debug ASP.NET failures by root cause"
+  default_prompt: "Use $backend-debug to reproduce, diagnose, fix, and verify this ASP.NET/C# backend failure by root cause."

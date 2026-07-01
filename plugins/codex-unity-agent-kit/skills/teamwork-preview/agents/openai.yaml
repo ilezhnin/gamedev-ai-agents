@@ -1,4 +1,0 @@
-interface:
-  display_name: "Teamwork Preview"
-  short_description: "Run a coordinated agent team"
-  default_prompt: "Use $teamwork-preview to coordinate an agent team through planning, implementation, review, validation, and MR handoff."

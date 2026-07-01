@@ -1,0 +1,4 @@
+interface:
+  display_name: "C# Backend Orient"
+  short_description: "Map ASP.NET solution before edits"
+  default_prompt: "Use $backend-orient to inspect this ASP.NET/C# solution and identify the right files, boundaries, risks, and validation path."

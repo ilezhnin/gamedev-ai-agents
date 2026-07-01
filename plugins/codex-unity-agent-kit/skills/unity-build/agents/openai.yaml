@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Build Player"
+  short_description: "Automate Unity player builds"
+  default_prompt: "Use $unity-build to produce, automate, or fix a Unity player build via batchmode or CI."

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Crossworking"
-  short_description: "Coordinate agents through build and PR"
-  default_prompt: "Use $crossworking to coordinate agents from plan through implementation, review, validation, and create-mr handoff."

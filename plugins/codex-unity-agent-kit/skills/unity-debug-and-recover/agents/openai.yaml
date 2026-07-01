@@ -1,4 +1,0 @@
-interface:
-  display_name: "Unity Debug And Recover"
-  short_description: "Debug Unity failures by root cause"
-  default_prompt: "Use $unity-debug-and-recover to reproduce, diagnose, fix, and verify this Unity/C# failure by root cause."

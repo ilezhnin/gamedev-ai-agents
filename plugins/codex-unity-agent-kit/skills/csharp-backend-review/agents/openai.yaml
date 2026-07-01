@@ -1,4 +1,0 @@
-interface:
-  display_name: "C# Backend Review"
-  short_description: "Review ASP.NET backend changes"
-  default_prompt: "Use $csharp-backend-review to review this ASP.NET backend diff for correctness and risk."

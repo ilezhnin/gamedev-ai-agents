@@ -1,0 +1,8 @@
+---
+description: Project rules entry point
+alwaysApply: true
+---
+
+All project rules live in AGENTS.md at the repository root - read it first.
+
+Skills are in .agents/skills/ (one folder per skill, entry point SKILL.md). Project-specific lessons live in .agents/learnings.md.

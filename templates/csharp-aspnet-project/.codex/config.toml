@@ -3,11 +3,11 @@
 
 approval_policy = "on-request"
 sandbox_mode = "workspace-write"
-web_search = "cached"
 model_reasoning_effort = "medium"
 project_doc_max_bytes = 65536
 project_doc_fallback_filenames = ["BACKEND_AGENTS.md", "CLAUDE.md", ".cursorrules"]
 
+# hooks and multi_agent are enabled by default in current Codex; kept explicit for older builds.
 [features]
 hooks = true
 multi_agent = true

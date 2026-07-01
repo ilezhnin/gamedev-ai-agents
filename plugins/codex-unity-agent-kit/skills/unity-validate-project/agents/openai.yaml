@@ -1,4 +1,0 @@
-interface:
-  display_name: "Unity Validate Project"
-  short_description: "Run focused Unity validation"
-  default_prompt: "Use $unity-validate-project to choose and run the right Unity validation for this change."

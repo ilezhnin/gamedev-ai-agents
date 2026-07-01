@@ -1,0 +1,4 @@
+interface:
+  display_name: "C# Backend Validate"
+  short_description: "Validate C# backend builds and tests"
+  default_prompt: "Use $backend-validate to validate this C# backend change with the right build and test commands."

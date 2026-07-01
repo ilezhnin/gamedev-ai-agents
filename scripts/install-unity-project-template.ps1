@@ -1,42 +1,31 @@
-[CmdletBinding()]
+[CmdletBinding(SupportsShouldProcess = $true)]
 param(
     [Parameter(Mandatory = $true)]
     [string] $TargetProject,
 
-    [switch] $Force
+    [switch] $Force,
+    [switch] $Update,
+    [switch] $AllowNonUnityTarget
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "kit-common.ps1")
 
-$repoRoot = Split-Path -Parent $PSScriptRoot
-$templateRoot = Join-Path $repoRoot "templates\unity-project"
-$targetRoot = (Resolve-Path -LiteralPath $TargetProject).Path
+$targetRoot = Resolve-KitTarget -TargetProject $TargetProject
 
-foreach ($marker in @("Assets", "Packages", "ProjectSettings")) {
-    $path = Join-Path $targetRoot $marker
-    if (-not (Test-Path -LiteralPath $path)) {
-        Write-Warning "Target does not contain '$marker'. Continue only if this is intentional: $targetRoot"
+if (-not $AllowNonUnityTarget) {
+    $missing = @("Assets", "ProjectSettings") | Where-Object { -not (Test-Path -LiteralPath (Join-Path $targetRoot $_)) }
+    if ($missing) {
+        Write-Error "Target does not look like a Unity project (missing: $($missing -join ", ")): $targetRoot`nPass -AllowNonUnityTarget to install anyway."
+        exit 1
     }
 }
 
-$files = Get-ChildItem -LiteralPath $templateRoot -Force -Recurse -File
+$ctx = New-InstallContext -TargetRoot $targetRoot -ManifestPath (Join-Path $targetRoot ".agents\kit-manifest.json") -Force:$Force -Update:$Update
 
-foreach ($file in $files) {
-    $relative = $file.FullName.Substring($templateRoot.Length).TrimStart("\", "/")
-    $destination = Join-Path $targetRoot $relative
-    $destinationDir = Split-Path -Parent $destination
+Install-KitTree -Ctx $ctx -SourceDir (Join-Path $script:KitRoot "templates\unity-project") -RelDestPrefix "" -Cmdlet $PSCmdlet
+Install-KitSkills -Ctx $ctx -SkillNames ($script:UnitySkills + $script:SharedSkills) -Cmdlet $PSCmdlet
+Install-KitFile -Ctx $ctx -Source (Join-Path $PSScriptRoot "check-unity-meta.ps1") -RelDest ".codex\scripts\check-unity-meta.ps1" -Cmdlet $PSCmdlet
 
-    if (-not (Test-Path -LiteralPath $destinationDir)) {
-        New-Item -ItemType Directory -Force -Path $destinationDir | Out-Null
-    }
-
-    if ((Test-Path -LiteralPath $destination) -and -not $Force) {
-        Write-Host "SKIP existing $relative"
-        continue
-    }
-
-    Copy-Item -LiteralPath $file.FullName -Destination $destination -Force:$Force
-    Write-Host "COPY $relative"
-}
-
+Complete-KitInstall -Ctx $ctx -Cmdlet $PSCmdlet
 Write-Host "Unity Codex template installed to $targetRoot"

@@ -1,6 +1,6 @@
 ---
 name: crossworking
-description: Coordinate a planned task across agents from planning through implementation, review, validation, and create-mr handoff. Use when the user asks for crossworking, multi-agent execution, an agent team, workers plus reviewers/testers, running an existing `.agents/plans/active_plan.md`, or taking a planned task all the way to a Pull Request / Merge Request.
+description: Coordinate a planned task across agents from planning through implementation, review, validation, and create-mr handoff. Use when the user asks for crossworking, teamwork, a team of agents, multi-agent execution, parallel workers plus reviewers/testers, running an existing `.agents/plans/active_plan.md`, a larger Unity/C# or ASP.NET feature, or taking a planned task all the way to a Pull Request / Merge Request.
 ---
 
 # Crossworking
@@ -16,25 +16,34 @@ Read these first when present:
 - `.agents/plans/active_plan.md`
 - `.agents/plans/task_list.md`
 
-If either file is missing, stale, or too vague to execute, use `$planning` first and stop for user review when the plan contains blocking questions.
+If either file is missing, stale, or too vague to execute, use `$planning` first and stop for user review when the plan contains blocking questions. Use `$grill-me` before implementation when the plan has unclear product value, Unity lifecycle risk, persistence risk, migration risk, or high design uncertainty.
 
 ## Coordination Rules
 
 - Keep one parent agent in charge of scope, decisions, synthesis, and final reporting.
 - Use subagent or multi-agent tools when they are available. If they are not available, execute the same phases sequentially in the parent thread and report that delegation was unavailable.
 - Use only one writer in a working tree at a time. Split implementation across multiple workers only when the tasks are independent and isolated worktrees or equivalent safeguards are available.
-- Review agents must inspect fresh repository state and current diffs. They must not rely only on parent-thread summaries.
+- Review agents must inspect fresh repository state and current diffs. They must not rely only on parent-thread summaries. When prompting a reviewer, do not pass your own conclusions - pass the diff scope and ask the reviewer to find issues or state explicitly that none were found.
 - Do not let reviewers edit code. Use a writer/fixer pass for accepted fixes.
+- Commit after each verified increment when the branch is task-local, so a broken state reverts to last-known-good instead of unwinding by hand. Keep each increment compilable.
 - Keep `.agents/plans/task_list.md` current as phases complete or blockers appear.
 - Do not create a PR/MR while tests are failing, blocking review findings remain, or unrelated working-tree changes are unresolved.
+
+## Team Sizing
+
+Choose the smallest team that can safely complete the task:
+
+- **Small task**: parent agent plus one implementation pass plus validation.
+- **Medium task**: context scout, one worker, one validator, two reviewers.
+- **Large task**: planner/context scout, one writer at a time, validator, three reviewers, fixer, MR agent.
 
 ## Workflow
 
 1. **Plan gate**
    - Read `active_plan.md` and `task_list.md`.
    - If `User Review Required` contains unresolved blocking items, ask the user and stop.
-   - If the task is Unity-specific, use relevant kit skills for orientation, implementation, review, validation, or Unity MCP work.
-   - If the task is C# backend or ASP.NET-specific, use relevant kit skills for implementation, review, validation, auth/data/configuration risk, and migration checks.
+   - For Unity work, orient with `$unity-orient` and use `$unity-implement`, `$unity-validate`, `$unity-review`, `$unity-debug`, `$unity-mcp` as the task demands.
+   - For C# backend work, orient with `$backend-orient` and use `$backend-implement`, `$backend-validate`, `$backend-review`, `$backend-debug` as the task demands.
 
 2. **Context pass**
    - Gather only the context workers need: relevant files, ownership boundaries, commands, risks, and acceptance criteria.
@@ -43,7 +52,7 @@ If either file is missing, stale, or too vague to execute, use `$planning` first
 3. **Implementation pass**
    - Assign worker-sized tasks from `Agent Work Plan`.
    - Prefer one implementation worker unless the plan clearly separates independent file sets.
-   - Require each worker to report changed files, validation run, failed or skipped checks, and open questions.
+   - Require each worker to report: changes made, things deliberately not touched, validation run, failed or skipped checks, and open questions.
 
 4. **Validation pass**
    - Run the exact automated checks from `Verification Plan` when feasible.
@@ -86,6 +95,7 @@ Stop and ask or report a blocker when:
 - The plan has unresolved blocking questions.
 - The implementation requires a product, scope, dependency, schema, asset, or architecture decision not approved in the plan.
 - The working tree contains unrelated changes and ownership is unclear.
+- Multiple writers would touch the same working tree.
 - Validation fails for reasons not clearly caused by the current task.
 - Review finds a blocker that needs user approval.
 - PR/MR creation lacks credentials, remote access, a suitable branch, or the create-mr capability.
@@ -96,7 +106,7 @@ Report the outcome compactly:
 
 - Plan used: path and whether it changed.
 - Agents/phases run: planner, worker, validators, reviewers, fixer, create-mr.
-- Changes made: files and intent.
+- Changes made: files and intent. Things deliberately not touched.
 - Validation: commands passed, failed, or skipped with reasons.
 - Review: blockers fixed, optional items deferred, remaining risks.
 - MR: URL, branch, commit hash, or the exact blocker preventing MR creation.

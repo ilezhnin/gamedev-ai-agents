@@ -1,4 +1,0 @@
-interface:
-  display_name: "Unity Use Editor MCP"
-  short_description: "Drive Unity Editor through MCP"
-  default_prompt: "Use $unity-use-editor-mcp to inspect and modify this Unity scene through MCP safely."

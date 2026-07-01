@@ -17,11 +17,11 @@ Planning must expose uncertainty early. Do not implement while using this skill 
 ## Workflow
 
 1. Read the user request, current thread context, repository instructions, README files, and the smallest useful set of relevant source files.
-2. For Unity projects, use the Unity project shape and skills in this kit when relevant: orient before planning, respect `.meta` files, assembly boundaries, serialization, lifecycle, and validation constraints.
-3. For C# backend or ASP.NET projects, identify solution/project files, API/service boundaries, auth/data/configuration risks, migrations, and focused `dotnet` validation commands before planning implementation.
+2. For Unity projects, orient with `$unity-orient` before planning; respect `.meta` files, assembly boundaries, serialization, lifecycle, and validation constraints.
+3. For C# backend or ASP.NET projects, orient with `$backend-orient`: identify solution/project files, API/service boundaries, auth/data/configuration risks, migrations, and focused `dotnet` validation commands before planning implementation.
 4. Identify decisions that materially affect scope, architecture, data migration, tests, public API, dependencies, generated assets, or PR risk.
 5. Ask concise questions only when the answer changes the plan in a meaningful way. If the work can proceed with a safe assumption, state the assumption in the plan instead of blocking.
-6. Create `.agents/plans/` when missing. If `.agents/plans/.gitignore` is missing, create it so transient plan files stay out of commits unless the project already tracks them intentionally.
+6. Create `.agents/plans/` when missing. If `.agents/plans/.gitignore` is missing, create it with exactly two lines - `*` and `!.gitignore` - so transient plan files stay out of commits unless the project already tracks them intentionally.
 7. Write or replace `.agents/plans/active_plan.md` and `.agents/plans/task_list.md`.
 8. If there are unresolved blocking questions, stop after writing the artifacts and tell the user exactly what must be answered before crossworking or implementation starts.
 
@@ -62,6 +62,11 @@ Use this structure for `.agents/plans/active_plan.md`:
 
 ## Risks And Constraints
 - <Risk, invariant, or boundary.>
+
+## Boundaries
+- Always: <checks or behaviors that run without asking, e.g. focused tests after edits.>
+- Ask first: <changes needing approval, e.g. schema/package/serialized-data changes.>
+- Never: <hard limits, e.g. editing Generated/, committing secrets, force-push.>
 
 ## Handoff Notes
 - <What crossworking, workers, reviewers, and create-mr must know.>
