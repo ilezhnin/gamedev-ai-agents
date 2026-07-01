@@ -1,4 +1,4 @@
-# Gamedev AI Agents
+# Codex Gamedev AI Agents
 
 Portable Codex agent kit for Unity, C#, and ASP.NET game-development projects.
 
