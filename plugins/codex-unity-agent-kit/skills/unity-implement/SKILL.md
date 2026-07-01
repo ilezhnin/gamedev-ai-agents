@@ -12,7 +12,7 @@ Make narrow Unity C# changes that respect Unity serialization, assembly boundari
 ## Workflow
 
 1. Orient first if the relevant assembly, scene, prefab, or validation path is unclear.
-2. Read the project's `CODE_STYLE.md` when present and follow it over generic style habits.
+2. Read the project's `CODE_STYLE.md` and `ARCHITECTURE.md` when present; they override generic habits, and structural changes must follow the architecture contract.
 3. Inspect nearby code, asmdefs, tests, and serialized usages before editing public or `[SerializeField]` members.
 4. Keep edits small and local. Follow existing architecture instead of adding a new pattern.
 5. Preserve `.meta` files and GUIDs. Do not move or rename assets unless the task requires it.

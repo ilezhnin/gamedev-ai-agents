@@ -38,14 +38,14 @@ Rules:
 
 - Read `ProjectSettings/ProjectVersion.txt` before assuming Unity version behavior.
 - Read `Packages/manifest.json` before assuming packages are present; `DEPENDENCIES.md` explains why each package exists.
-- Read `CODE_STYLE.md` before writing or reviewing C#.
+- Read `CODE_STYLE.md` before writing or reviewing C#; read `ARCHITECTURE.md` before module work, refactors, or adding public APIs.
 - Read `.agents/learnings.md` when it exists - it holds project-specific lessons.
 - Use `rg --files` before broad file reads; inspect relevant `.asmdef` files before cross-assembly changes.
 - Check nearby tests before adding a new test style.
 
 ## Documentation Layout
 
-- Project-wide contracts live at the root: `AGENTS.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, and `ARCHITECTURE.md` when the project has one.
+- Project-wide contracts live at the root: `AGENTS.md`, `CODE_STYLE.md`, `ARCHITECTURE.md`, `DEPENDENCIES.md`.
 - Module documentation lives next to the module in `<Module>/Documentation/*.md`, written as living docs: they describe the current state, not history.
 - `docs/authoring/` - living content-authoring guides. `docs/qa/` - manual and regression checklists. `docs/tickets/` - implementation plans, architecture audits (from `$arch-audit`), and historical notes; a ticket is never a current contract.
 - When behavior changes, update the owning doc in place; move superseded plans to `docs/tickets/`.

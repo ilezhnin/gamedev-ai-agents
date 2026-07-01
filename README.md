@@ -64,7 +64,7 @@ Shared:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path-to-unity-project>"
 ```
 
-Copies the template tree (`AGENTS.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, `CLAUDE.md`, `.cursor/rules/agents.mdc`, `.codex/` config + hooks + agents + rules, `.agents/plans/.gitignore`), the 17 Unity+shared skills from the plugin into `.agents/skills/`, and `.codex/scripts/check-unity-meta.ps1`. Writes `.agents/kit-manifest.json` (kit version + per-file hashes).
+Copies the template tree (`AGENTS.md`, `ARCHITECTURE.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, `CLAUDE.md`, `.cursor/rules/agents.mdc`, `.codex/` config + hooks + agents + rules, `.agents/plans/.gitignore`), the 17 Unity+shared skills from the plugin into `.agents/skills/`, and `.codex/scripts/check-unity-meta.ps1`. Writes `.agents/kit-manifest.json` (kit version + per-file hashes).
 
 The target must contain `Assets/` and `ProjectSettings/` (override with `-AllowNonUnityTarget`). Restart Codex or open a new thread from the project after installing.
 
@@ -74,7 +74,7 @@ The target must contain `Assets/` and `ProjectSettings/` (override with `-AllowN
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-aspnet-project-template.ps1 -TargetProject "<path-to-backend-project>"
 ```
 
-Copies the backend template tree (including `CODE_STYLE.md` and `DEPENDENCIES.md`) plus the 11 backend+shared skills. The target must contain a `.sln`, `.slnx`, or `.csproj` (override with `-AllowNonDotnetTarget`).
+Copies the backend template tree (including `ARCHITECTURE.md`, `CODE_STYLE.md`, and `DEPENDENCIES.md`) plus the 11 backend+shared skills. The target must contain a `.sln`, `.slnx`, or `.csproj` (override with `-AllowNonDotnetTarget`).
 
 ## Update, Preview, Uninstall
 
@@ -131,7 +131,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-unity-meta.p
 ## How Configuration Layers
 
 1. `~/.codex/AGENTS.md` (global, optional) - full engineering discipline.
-2. Project `AGENTS.md` (from the template) - Tech Stack manifest, boundaries, skill routing, stack rules.
+2. Project `AGENTS.md` (from the template) - Tech Stack manifest, module map, boundaries, skill routing - plus the project contracts `ARCHITECTURE.md`, `CODE_STYLE.md`, and `DEPENDENCIES.md`.
 3. Project `.codex/` (trusted projects only) - config, agents, rules, hooks.
 4. `.agents/skills/` - project-scope skills; `.agents/learnings.md` - project lessons captured by `$learn`.
 

@@ -12,7 +12,7 @@ Make narrow ASP.NET and C# backend changes that preserve API contracts, security
 ## Workflow
 
 1. Orient first if the solution shape, service boundary, data flow, or validation path is unclear.
-2. Read the project's `CODE_STYLE.md` when present and follow it over generic style habits.
+2. Read the project's `CODE_STYLE.md` and `ARCHITECTURE.md` when present; they override generic habits, and structural changes must follow the architecture contract.
 3. Read the nearest `.sln`, `.csproj`, `Program.cs`, `Startup.cs`, `appsettings*.json`, `Directory.Build.props`, `Directory.Packages.props`, tests, and existing endpoint/service patterns before editing.
 4. Identify the system boundary: HTTP endpoint, worker, message handler, repository, database, external API, or configuration.
 5. Keep edits local and behavior-focused. Prefer existing DI, options, logging, validation, error, mapper, and persistence patterns. Check for an existing helper before writing new code; no abstractions for single-use code.

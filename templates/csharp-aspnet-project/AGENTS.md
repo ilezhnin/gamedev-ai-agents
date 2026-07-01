@@ -38,14 +38,14 @@ Rules:
 
 - Read `global.json` before assuming the .NET SDK version.
 - Read solution files, project files, `Directory.Build.props`, `Directory.Packages.props`, and `NuGet.config` before changing build, packages, analyzers, or target frameworks; `DEPENDENCIES.md` explains why each package exists.
-- Read `CODE_STYLE.md` before writing or reviewing C#.
+- Read `CODE_STYLE.md` before writing or reviewing C#; read `ARCHITECTURE.md` before module work, refactors, or adding public contracts.
 - Read `Program.cs`, `Startup.cs`, endpoint maps, middleware, DI registrations, config binding, and nearby tests before changing request behavior.
 - Read `.agents/learnings.md` when it exists - it holds project-specific lessons.
 - Inspect CI workflows and README validation commands before inventing build or test commands.
 
 ## Documentation Layout
 
-- Project-wide contracts live at the root: `AGENTS.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, and `ARCHITECTURE.md` when the project has one.
+- Project-wide contracts live at the root: `AGENTS.md`, `CODE_STYLE.md`, `ARCHITECTURE.md`, `DEPENDENCIES.md`.
 - Module/service documentation lives next to the code in `<Module>/Documentation/*.md`, written as living docs: current state, not history.
 - `docs/qa/` - manual and regression checklists. `docs/tickets/` - implementation plans, architecture audits (from `$arch-audit`), and historical notes; a ticket is never a current contract.
 - When behavior changes, update the owning doc in place; move superseded plans to `docs/tickets/`.

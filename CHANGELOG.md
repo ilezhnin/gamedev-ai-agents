@@ -5,6 +5,7 @@
 Conventions ported from a production Unity project (SandboxWrestling) and generalized.
 
 ### Added
+- `ARCHITECTURE.md` templates for both project types - the single project-wide architecture contract: modular standard with ports/adapters and typed outcomes, module shape (`Api/Core/Model/View/Diagnostics/Documentation/Tests`), asmdef boundary enforcement (Unity) / composition and DI rules (backend), layer rules, state-command-result ownership, determinism and replay, content catalogs, snapshots and cache invalidation, serialization compatibility, external-SDK adapters, testing requirements, governance. Wired into template AGENTS.md discovery, implement skills, and arch-audit (audits run against the project contract).
 - `arch-audit` skill: whole-module architecture audit through a SOLID/KISS/DRY/SRP and anti-overengineering lens, producing a dependency-ordered refactor backlog (stable task IDs, severity, non-goals, acceptance criteria) in `docs/tickets/`, with refactor discipline and a definition of done in references.
 - `CODE_STYLE.md` templates for both project types: file headers derived from the project (never the AI), namespace/usings layout, naming (`_camelCase`, `UPPER_SNAKE_CASE` contracts, `Is/Can/Has/Try` booleans), formatting, async rules, `#region` class organization, scene-first UI wiring.
 - `DEPENDENCIES.md` stubs for both templates: every package documented with its reason; updated in the same change as any package change (wired into unity-upgrade, unity-implement, backend-implement).

@@ -11,7 +11,7 @@ Inspect a whole module or system - not just the open file - and produce a develo
 
 ## Principles Lens
 
-Judge everything through these, by name, in the findings:
+When the project ships an `ARCHITECTURE.md`, that contract is the primary standard to audit against; the lens below is the baseline that applies with or without it. Judge everything through these, by name, in the findings:
 
 - **SRP / SOLID**: one reason to change per type; depend on narrow abstractions at real boundaries; no leaky or fat interfaces.
 - **KISS / DRY**: the simplest shape that solves the problem; duplication is a finding only when the copies must evolve together.
