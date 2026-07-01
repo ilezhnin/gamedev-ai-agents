@@ -1,0 +1,4 @@
+interface:
+  display_name: "Learn"
+  short_description: "Capture reusable rules from work"
+  default_prompt: "Use $learn to reflect on this task and capture reusable rules or skill updates for future Unity/C# work."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Review Changes"
+  short_description: "Review Unity and C# changes"
+  default_prompt: "Use $unity-review-changes to review this Unity C# diff for correctness, lifecycle issues, and missing tests."

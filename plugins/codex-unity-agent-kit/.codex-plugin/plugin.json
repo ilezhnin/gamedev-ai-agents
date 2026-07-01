@@ -1,0 +1,35 @@
+{
+  "name": "codex-unity-agent-kit",
+  "version": "0.1.0+codex.20260701211138",
+  "description": "Unity, C#, and ASP.NET backend workflows for Codex: project orientation, planning, cross-agent teamwork, implementation, debugging, review, validation, learning, create-mr handoff, plan grilling, and Unity MCP editor work.",
+  "author": {
+    "name": "Local developer"
+  },
+  "keywords": [
+    "unity",
+    "csharp",
+    "aspnet",
+    "backend",
+    "codex",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Codex Unity Agent Kit",
+    "shortDescription": "Unity, C#, and ASP.NET agent workflows.",
+    "longDescription": "Codex Unity Agent Kit packages focused workflows for Unity project discovery, ASP.NET backend work, planning, cross-agent teamwork, safe C# implementation, root-cause debugging, review, validation, reusable learning capture, Pull Request / Merge Request handoff, plan grilling, and optional Unity Editor MCP automation.",
+    "developerName": "Local developer",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Read",
+      "Write",
+      "Review",
+      "Planning"
+    ],
+    "defaultPrompt": [
+      "Orient in this Unity or ASP.NET project before editing.",
+      "Implement this Unity C# or ASP.NET backend change safely.",
+      "Review and validate these C# changes before create-mr."
+    ]
+  }
+}

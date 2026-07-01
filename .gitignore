@@ -1,0 +1,43 @@
+# Local Codex state. Template .codex/.agents directories under templates are tracked.
+/.codex/
+/.agents/cache/
+/.agents/logs/
+/.agents/plans/
+/.agents/tmp/
+
+# Secrets and local environment files.
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.sample
+*.pem
+*.key
+*.pfx
+
+# Logs and temporary files.
+*.log
+*.tmp
+*.bak
+*.swp
+*~
+
+# OS and editor noise.
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+
+# Python validation cache.
+__pycache__/
+.pytest_cache/
+
+# Unity project output accidentally copied into the kit.
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+MemoryCaptures/

@@ -1,0 +1,18 @@
+# Keep repository text files stable across Windows and Unix checkouts.
+* text=auto eol=lf
+
+# Explicit text formats used by the kit.
+*.md text eol=lf
+*.json text eol=lf
+*.toml text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.rules text eol=lf
+*.ps1 text eol=lf
+
+# Binary assets.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Planning"
+  short_description: "Plan tasks into files and checklists"
+  default_prompt: "Use $planning to turn this task into an active plan and checklist before implementation."

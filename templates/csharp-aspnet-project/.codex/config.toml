@@ -1,0 +1,18 @@
+# Project-scoped Codex defaults for C# backend and ASP.NET projects.
+# Project .codex layers load only when the project is trusted.
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+web_search = "cached"
+model_reasoning_effort = "medium"
+project_doc_max_bytes = 65536
+project_doc_fallback_filenames = ["BACKEND_AGENTS.md", "CLAUDE.md", ".cursorrules"]
+
+[features]
+hooks = true
+multi_agent = true
+shell_snapshot = true
+
+[agents]
+max_threads = 6
+max_depth = 1
