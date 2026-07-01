@@ -27,6 +27,7 @@ Move the project to the target editor or package versions in small verified stag
 4. **Package upgrades**
    - One package at a time. Read the target version's changelog for breaking changes before editing `Packages/manifest.json`.
    - Let `Packages/packages-lock.json` regenerate; diff it and question transitive bumps you did not request.
+   - Update `DEPENDENCIES.md` (when the project keeps one) in the same change: version bumps, additions, removals, purpose changes.
    - Compile and run targeted tests before touching the next package.
 
 5. **Render pipeline caution**

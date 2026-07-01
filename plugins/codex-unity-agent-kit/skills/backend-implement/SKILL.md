@@ -12,13 +12,14 @@ Make narrow ASP.NET and C# backend changes that preserve API contracts, security
 ## Workflow
 
 1. Orient first if the solution shape, service boundary, data flow, or validation path is unclear.
-2. Read the nearest `.sln`, `.csproj`, `Program.cs`, `Startup.cs`, `appsettings*.json`, `Directory.Build.props`, `Directory.Packages.props`, tests, and existing endpoint/service patterns before editing.
-3. Identify the system boundary: HTTP endpoint, worker, message handler, repository, database, external API, or configuration.
-4. Keep edits local and behavior-focused. Prefer existing DI, options, logging, validation, error, mapper, and persistence patterns.
-5. Ask before adding packages, changing public API contracts, changing auth behavior, introducing migrations, or touching production-like configuration.
-6. Treat input, headers, claims, tokens, files, webhooks, queue messages, and model output as untrusted.
-7. Add or update focused tests when the project has nearby unit, integration, WebApplicationFactory, Testcontainers, or repository-test patterns.
-8. Run the cheapest meaningful validation. If validation cannot run, state the exact gap.
+2. Read the project's `CODE_STYLE.md` when present and follow it over generic style habits.
+3. Read the nearest `.sln`, `.csproj`, `Program.cs`, `Startup.cs`, `appsettings*.json`, `Directory.Build.props`, `Directory.Packages.props`, tests, and existing endpoint/service patterns before editing.
+4. Identify the system boundary: HTTP endpoint, worker, message handler, repository, database, external API, or configuration.
+5. Keep edits local and behavior-focused. Prefer existing DI, options, logging, validation, error, mapper, and persistence patterns. Check for an existing helper before writing new code; no abstractions for single-use code.
+6. Ask before adding packages, changing public API contracts, changing auth behavior, introducing migrations, or touching production-like configuration. Update `DEPENDENCIES.md` (when the project keeps one) in the same change as any package change.
+7. Treat input, headers, claims, tokens, files, webhooks, queue messages, and model output as untrusted.
+8. Add or update focused tests when the project has nearby unit, integration, WebApplicationFactory, Testcontainers, or repository-test patterns.
+9. Run the cheapest meaningful validation. If validation cannot run, state the exact gap.
 
 ## Backend Rules
 

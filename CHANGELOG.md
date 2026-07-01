@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.3.0 - 2026-07-01
+
+Conventions ported from a production Unity project (SandboxWrestling) and generalized.
+
+### Added
+- `arch-audit` skill: whole-module architecture audit through a SOLID/KISS/DRY/SRP and anti-overengineering lens, producing a dependency-ordered refactor backlog (stable task IDs, severity, non-goals, acceptance criteria) in `docs/tickets/`, with refactor discipline and a definition of done in references.
+- `CODE_STYLE.md` templates for both project types: file headers derived from the project (never the AI), namespace/usings layout, naming (`_camelCase`, `UPPER_SNAKE_CASE` contracts, `Is/Can/Has/Try` booleans), formatting, async rules, `#region` class organization, scene-first UI wiring.
+- `DEPENDENCIES.md` stubs for both templates: every package documented with its reason; updated in the same change as any package change (wired into unity-upgrade, unity-implement, backend-implement).
+- Template `AGENTS.md` sections: Module Map And Feature Routing (owners, no parallel Manager/Service, adapter-at-boundary) and Documentation Layout (`<Module>/Documentation/`, `docs/authoring|qa|tickets`).
+
+### Changed
+- Attribution rule everywhere: the agent never credits itself as author or co-author - headers, commits, docs, changelogs, PR bodies (global AGENTS.md, git-conventions, CODE_STYLE, template boundaries).
+- Global AGENTS.md: architecture restraint now names SOLID/KISS/DRY/SRP, systems/subsystems with one public API and entry point, GoF-where-it-pays, delete-before-abstracting, economical codebase growth; error handling upgraded to a fail-loud contract (typed failures, no silent fallbacks or empty-ID markers, reject invalid data at authoring time).
+- Unity patterns: asmdef best practices as the kit's boundary-enforcement norm (per-module runtime/editor/tests, minimal references, propose asmdefs for outgrown Assembly-CSharp), determinism rules (tick-driven, seeded random, ordered async commits), scene-first UI wiring, fail-loud section. Backend patterns gained the fail-loud section.
+- Review checklists (both stacks): overengineering and principles lens - single-implementation abstractions, parallel owners, one-caller public surface, missed reuse, SRP breaches, cleanup that grows production code.
+- Commit conventions: behavioral subjects through the domain, bullet bodies with concrete changes, mention tests/docs/wiring; explicit no-AI-attribution rule.
+
 ## 0.2.0 - 2026-07-01
 
 Audit-driven overhaul.

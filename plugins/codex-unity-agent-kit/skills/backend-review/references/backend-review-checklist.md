@@ -52,6 +52,15 @@ Run this when the change touches auth, input, uploads, storage, or anything clie
 
 For NuGet advisories (`dotnet list package --vulnerable`) triage by: severity x reachability (is the vulnerable code path actually used?) x fix availability (patch bump vs major upgrade). Patch reachable-critical now; schedule the rest with reasons.
 
+## Overengineering And Principles
+
+- New abstraction with a single implementation and no boundary/testing need - flag it; delete before abstracting.
+- Parallel service/helper created where an existing owner (service, repository, validator) already covers the responsibility.
+- New public surface with one internal caller; DTOs/overloads without real call sites.
+- Missed reuse: an existing middleware, filter, validator, or mapper already does this.
+- SRP breaches that hurt: handlers accumulating unrelated responsibilities; layers bypassed (endpoint reaching into persistence internals instead of the owning service).
+- The diff grows production code during what was framed as cleanup - ask for the justification.
+
 ## Finding Classification
 
 - Severity: P0 blocks immediately, P1 must fix before merge, P2 should fix now, P3 optional/follow-up.

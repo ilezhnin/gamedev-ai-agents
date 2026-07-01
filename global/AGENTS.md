@@ -9,6 +9,10 @@
 - Run focused validation after edits when practical.
 - State exactly what was and was not verified.
 
+## Attribution
+
+Never credit yourself (the AI agent) as author, co-author, or contributor anywhere: file headers, commit messages and trailers (no `Co-Authored-By`, no "Generated with" lines), documentation, changelogs, code comments, or PR descriptions. Author identity always comes from the project: existing file headers, `git config user.name`, repository history. Match the project's existing date and header formats instead of inventing new ones.
+
 ## Engineering Discipline
 
 These rules bias agents toward careful, reviewable game-development and C# work. Explicit user instructions and repository-specific instructions override these rules when they are more specific. Existing project conventions override personal style preferences unless the user asks for a redesign.
@@ -149,12 +153,16 @@ When compatibility must break, say so clearly and explain the migration path.
 
 ### 9. Architecture Restraint
 
-Design only as much architecture as the problem needs.
+Design only as much architecture as the problem needs. Know and apply SOLID, KISS, DRY, and SRP by name - and know when applying them harder would be overengineering.
 
-- Keep high cohesion and low coupling.
+- Keep high cohesion and low coupling. One reason to change per type (SRP).
+- Decompose growing systems into subsystems that are isolated, own their state, and expose one public API and one entry point - so each can be replaced, extended, or tested alone.
 - Keep domain logic separate from IO, UI, transport, Unity scene glue, and framework glue where the project already follows that split.
 - Introduce interfaces only when there are multiple implementations, a stable boundary, platform variation, or a testing need.
-- Avoid new global mutable state, service locators, singletons, and hidden dependencies unless the project already uses that pattern.
+- Use Gang of Four patterns where they remove real coupling or duplication (strategy for swappable policy, factory for families, observer for decoupled events, adapter at boundaries). Naming a pattern is never a justification by itself.
+- No abstractions or entities for their own sake. Delete before abstracting: a new interface, facade, registry, or helper must pay for itself by removing duplication or creating a boundary with multiple real call sites.
+- Grow the codebase economically: before writing new code, check whether it already exists or whether less code solves it. Public surface is a liability - a public member with one internal caller is a private detail.
+- Avoid new global mutable state, service locators, singletons, and hidden dependencies unless the project already uses that pattern. No spaghetti: modules integrate through their public API, never by reaching into each other's internals.
 - Do not rewrite a working subsystem to match a preferred architecture.
 
 Good architecture reduces future change cost. Bad architecture hides simple logic behind ceremony.
@@ -177,6 +185,10 @@ If a dependency is necessary, use the smallest stable integration surface and ge
 Handle realistic failures. Do not invent impossible ones.
 
 - Handle IO, network, permissions, parsing, user input, timeouts, platform services, external APIs, and persistence failures at boundaries.
+- Fail loud. When a required reference, config, asset, catalog entry, or contract is broken, reject explicitly: validation error, typed failure result, exception, or visible error log per the local pattern.
+- Do not mask root causes with silent fallbacks, runtime repair, default assets, empty IDs as failure markers, or "best effort" no-ops.
+- A fallback is acceptable only as deliberate, documented, testable product behavior - not as a way to hide broken authoring, config, or wiring.
+- Reject invalid data as early as possible: in editor tooling and validation, not deep in runtime.
 - Do not swallow exceptions without logging or returning actionable context.
 - Do not convert all errors into generic "failed" messages.
 - Do not add defensive null checks everywhere to hide broken invariants.

@@ -19,7 +19,7 @@ Add tests that pin real behavior and survive refactoring. Match existing test in
 2. **Bootstrap when absent**
    - Create EditMode and/or PlayMode test asmdefs per `references/test-setup.md`: reference the runtime asmdef under test plus `UnityEngine.TestRunner` and `UnityEditor.TestRunner`, set `overrideReferences: true` with precompiled `nunit.framework.dll`, and add the `UNITY_INCLUDE_TESTS` define constraint so tests strip from player builds.
    - If `com.unity.test-framework` is missing from the manifest, adding it is a package change: surface it explicitly and get approval before touching the manifest.
-   - Test asmdefs cannot reference predefined assemblies (Assembly-CSharp). If the code under test has no asmdef, moving it into one needs approval.
+   - Test asmdefs cannot reference predefined assemblies (Assembly-CSharp). If the code under test has no asmdef, the kit's default recommendation is to introduce a module asmdef (asmdefs are the kit's boundary-enforcement norm) - propose it with the scope of what moves, and get approval before restructuring.
 
 3. **Choose the mode**
    - EditMode: pure logic, damage/economy/math calculations, serialization utilities, save migration, editor tooling. Fast, no scene, no frames.

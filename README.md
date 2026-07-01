@@ -1,6 +1,6 @@
 # Codex Gamedev AI Agents
 
-Portable Codex environment for Unity, C#, and ASP.NET game development. The kit is a source repository: project templates, 21 reusable skills, custom agents, rules, a local plugin marketplace, and manifest-based installers with a real update/uninstall story.
+Portable Codex environment for Unity, C#, and ASP.NET game development. The kit is a source repository: project templates, 22 reusable skills, custom agents, rules, a local plugin marketplace, and manifest-based installers with a real update/uninstall story.
 
 Primary platform: OpenAI Codex (VS Code extension and CLI) on Windows, WSL supported. Thin adapters keep installed projects usable from Claude Code and Cursor.
 
@@ -53,6 +53,7 @@ Shared:
 | --- | --- |
 | `planning` | Writes `.agents/plans/active_plan.md` + `task_list.md` before execution |
 | `crossworking` | Delivery loop across agents: plan -> implement -> validate -> review -> PR |
+| `arch-audit` | Module architecture audit -> dependency-ordered refactor backlog (SOLID/KISS/DRY lens) |
 | `grill-me` | Relentless plan stress-testing (RU triggers included) |
 | `create-mr` | Verify, commit, push, open the PR/MR; conventional commits |
 | `learn` | Capture reusable lessons into AGENTS.md / learnings / skills |
@@ -63,7 +64,7 @@ Shared:
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path-to-unity-project>"
 ```
 
-Copies the template tree (`AGENTS.md`, `CLAUDE.md`, `.cursor/rules/agents.mdc`, `.codex/` config + hooks + agents + rules, `.agents/plans/.gitignore`), the 16 Unity+shared skills from the plugin into `.agents/skills/`, and `.codex/scripts/check-unity-meta.ps1`. Writes `.agents/kit-manifest.json` (kit version + per-file hashes).
+Copies the template tree (`AGENTS.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, `CLAUDE.md`, `.cursor/rules/agents.mdc`, `.codex/` config + hooks + agents + rules, `.agents/plans/.gitignore`), the 17 Unity+shared skills from the plugin into `.agents/skills/`, and `.codex/scripts/check-unity-meta.ps1`. Writes `.agents/kit-manifest.json` (kit version + per-file hashes).
 
 The target must contain `Assets/` and `ProjectSettings/` (override with `-AllowNonUnityTarget`). Restart Codex or open a new thread from the project after installing.
 
@@ -73,7 +74,7 @@ The target must contain `Assets/` and `ProjectSettings/` (override with `-AllowN
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-aspnet-project-template.ps1 -TargetProject "<path-to-backend-project>"
 ```
 
-Copies the backend template tree plus the 10 backend+shared skills. The target must contain a `.sln`, `.slnx`, or `.csproj` (override with `-AllowNonDotnetTarget`).
+Copies the backend template tree (including `CODE_STYLE.md` and `DEPENDENCIES.md`) plus the 11 backend+shared skills. The target must contain a `.sln`, `.slnx`, or `.csproj` (override with `-AllowNonDotnetTarget`).
 
 ## Update, Preview, Uninstall
 
@@ -100,7 +101,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-pro
 Installs into `$env:CODEX_HOME` (default `~/.codex`): the `unity-codex` profile (run Codex with `codex --profile unity-codex`), custom agents, and rules.
 
 - `global/AGENTS.md` (the full 18-section engineering discipline) is installed as the inert `AGENTS.unity-template.md` by default. Activate it with `-InstallAgentsMd` - your existing `~/.codex/AGENTS.md` is backed up first.
-- `-InstallSkills` copies all 21 skills to both `~/.agents/skills` (documented user-scope location) and `~/.codex/skills` (legacy compatibility).
+- `-InstallSkills` copies all 22 skills to both `~/.agents/skills` (documented user-scope location) and `~/.codex/skills` (legacy compatibility).
 - `-InstallWslSkills` installs the full profile (skills, config, agents, rules) into the WSL Codex home for the VS Code extension running Codex through WSL. Use `-WslCodexHome` to override detection.
 - `-Update` / `-Force` / `-WhatIf` work as for project installs.
 

@@ -44,6 +44,13 @@
 - Add placeholder keys to examples only when needed; never copy real local values.
 - Keep options binding and validation consistent with existing `IOptions<T>`, `IOptionsMonitor<T>`, or custom configuration patterns.
 
+## Fail Loud
+
+- Broken required config, missing connection wiring, invalid content, and violated contracts reject explicitly: validation error, typed failure result, exception, or a visible error log per the local pattern.
+- No silent fallbacks, default-value substitution for required settings, or empty IDs/nulls as failure markers.
+- Convert external SDK errors into typed project results at the adapter boundary; do not let callers guess from generic exceptions.
+- A fallback (cached data, degraded mode) is acceptable only as deliberate, documented, testable product behavior.
+
 ## Reliability And Performance
 
 - Pass `CancellationToken` through async IO when nearby code does.

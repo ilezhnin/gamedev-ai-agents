@@ -12,12 +12,13 @@ Make narrow Unity C# changes that respect Unity serialization, assembly boundari
 ## Workflow
 
 1. Orient first if the relevant assembly, scene, prefab, or validation path is unclear.
-2. Inspect nearby code, asmdefs, tests, and serialized usages before editing public or `[SerializeField]` members.
-3. Keep edits small and local. Follow existing architecture instead of adding a new pattern.
-4. Preserve `.meta` files and GUIDs. Do not move or rename assets unless the task requires it.
-5. Avoid adding packages, assets, or project settings changes without a clear need.
-6. Add or update focused tests when the project already has a nearby EditMode, PlayMode, or pure C# test pattern.
-7. Run the cheapest meaningful validation. If Unity cannot be run, state exactly what was checked and what remains unverified.
+2. Read the project's `CODE_STYLE.md` when present and follow it over generic style habits.
+3. Inspect nearby code, asmdefs, tests, and serialized usages before editing public or `[SerializeField]` members.
+4. Keep edits small and local. Follow existing architecture instead of adding a new pattern.
+5. Preserve `.meta` files and GUIDs. Do not move or rename assets unless the task requires it.
+6. Avoid adding packages, assets, or project settings changes without a clear need. Update `DEPENDENCIES.md` (when the project keeps one) in the same change as any package change.
+7. Add or update focused tests when the project already has a nearby EditMode, PlayMode, or pure C# test pattern.
+8. Run the cheapest meaningful validation. If Unity cannot be run, state exactly what was checked and what remains unverified.
 
 ## Unity C# Rules
 
@@ -30,6 +31,8 @@ Make narrow Unity C# changes that respect Unity serialization, assembly boundari
 - Match existing async style: coroutine, UniTask, Task, event bus, or custom scheduler.
 - Handle disabled domain reload and object lifetime when subscribing to events or static state.
 - Prefer project-specific service locators, DI containers, save systems, and logging wrappers over new globals.
+- Build UI and hierarchies in scenes/prefabs; code wires refs, data, and state. Do not assemble layouts from raw GameObjects in code without a named reason.
+- Grow the codebase economically: check for an existing helper, extension point, or pattern before writing new code. No abstractions for single-use code (SRP and KISS over ceremony).
 
 ## Rationalizations To Reject
 

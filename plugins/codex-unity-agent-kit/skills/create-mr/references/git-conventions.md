@@ -20,9 +20,12 @@ Optional scope: `feat(inventory): add stack splitting`. Keep scopes short and co
 
 - Imperative mood: "add", not "added" or "adds".
 - Subject line lowercase after the type, no trailing period, aim for <= 72 characters.
-- Body (when needed) explains why, not what the diff already shows.
+- The subject states the behavioral result, usually through the domain/module: `fix: bound rewind audio retention by state history window`.
+- Prefer concrete behavioral verbs: add, remove, route, keep, prevent, preserve, expose, cover, trim, collapse, simplify.
+- Body (when needed) explains why, or lists concrete changes as `-` bullets - each bullet one specific change, check, or wiring detail. Mention important tests, docs, or diagnostics that were part of the work. A series of related cleanups may use conventional mini-headings (`refactor: ...`) followed by bullets.
 - Breaking changes: append `!` after the type (`feat!:`) and add a `BREAKING CHANGE:` footer describing the migration.
 - Banned messages: "Fix bug", "Update code", "Phase 1", "WIP", "Add convenience functions", "Misc changes".
+- No AI attribution, ever: no `Co-Authored-By` for the agent, no "Generated with" trailers, nothing crediting the AI in messages, PR bodies, or changelogs. Authorship belongs to the project's committer identity.
 
 ## Atomic Commits
 

@@ -4,7 +4,7 @@
 $script:KitRoot = Split-Path -Parent $PSScriptRoot
 $script:PluginSkillsRoot = Join-Path $script:KitRoot "plugins\codex-unity-agent-kit\skills"
 
-$script:SharedSkills = @("planning", "crossworking", "create-mr", "grill-me", "learn")
+$script:SharedSkills = @("planning", "crossworking", "arch-audit", "create-mr", "grill-me", "learn")
 $script:UnitySkills = @("unity-orient", "unity-implement", "unity-review", "unity-validate", "unity-debug", "unity-mcp", "unity-merge", "unity-build", "unity-upgrade", "unity-profile", "unity-tests")
 $script:BackendSkills = @("backend-orient", "backend-implement", "backend-review", "backend-validate", "backend-debug")
 
@@ -93,6 +93,8 @@ function New-InstallContext {
 }
 
 function Install-KitFile {
+    # ShouldProcess is delegated to the calling script's $PSCmdlet via -Cmdlet.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
     param(
         [Parameter(Mandatory = $true)] [hashtable] $Ctx,
         [Parameter(Mandatory = $true)] [string] $Source,
@@ -186,6 +188,8 @@ function Install-KitSkills {
 }
 
 function Complete-KitInstall {
+    # ShouldProcess is delegated to the calling script's $PSCmdlet via -Cmdlet.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
     param(
         [Parameter(Mandatory = $true)] [hashtable] $Ctx,
         [Parameter(Mandatory = $true)] $Cmdlet

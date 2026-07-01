@@ -44,6 +44,16 @@
 - Are findings classified by severity and backed by file/line evidence?
 - Are validation claims supported by actual commands, Unity console checks, or explicit blockers?
 
+## Overengineering And Principles
+
+- New abstraction (interface, facade, registry, base class) with a single implementation and no boundary/testing need - flag it; delete before abstracting.
+- Parallel `Manager`/`Service`/`Utils` created where a domain module already owns the responsibility.
+- New public surface with one internal caller; convenience members without multiple real call sites.
+- Missed reuse: an existing helper, extension point, prefab, or service already does this.
+- SRP breaches that hurt: a type accumulating unrelated reasons to change; a subsystem without a single public API/entry point; modules reaching into each other's internals instead of ports (spaghetti).
+- GoF patterns applied as decoration rather than to remove real coupling or duplication.
+- The diff grows production code during what was framed as cleanup - ask for the justification.
+
 ## Finding Classification
 
 - Severity: P0 blocks immediately, P1 must fix before merge, P2 should fix now, P3 optional/follow-up.

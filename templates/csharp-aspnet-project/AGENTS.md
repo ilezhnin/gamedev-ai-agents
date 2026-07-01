@@ -18,13 +18,38 @@ Declare the project's real stack so agents stop guessing. Replace the placeholde
 
 Maintenance rule: when code uses a technology not listed here, ask the user whether to add it to this list.
 
+## Module Map And Feature Routing
+
+Declare owners so features land in the right place. Replace the examples with the project's real layout:
+
+- <HTTP endpoints for domain X> -> <src/Api/Endpoints/X>
+- <Domain logic, invariants> -> <src/Domain/...>
+- <Persistence, repositories, migrations> -> <src/Data/...>
+- <Background jobs, queues> -> <src/Workers/...>
+- <External integrations (payments, auth provider)> -> <src/Integrations/<Provider>>
+
+Rules:
+
+- Before adding a feature, find the existing owner. Do not create a parallel service or helper when an existing layer owns the responsibility.
+- Cross-layer access goes through the owning service's public API, not into persistence or SDK internals.
+- External SDK types stay behind project-owned adapters; they must not leak into domain or API contracts.
+- Maintenance rule: when a module appears, disappears, or changes owner, update this map.
+
 ## Discovery
 
 - Read `global.json` before assuming the .NET SDK version.
-- Read solution files, project files, `Directory.Build.props`, `Directory.Packages.props`, and `NuGet.config` before changing build, packages, analyzers, or target frameworks.
+- Read solution files, project files, `Directory.Build.props`, `Directory.Packages.props`, and `NuGet.config` before changing build, packages, analyzers, or target frameworks; `DEPENDENCIES.md` explains why each package exists.
+- Read `CODE_STYLE.md` before writing or reviewing C#.
 - Read `Program.cs`, `Startup.cs`, endpoint maps, middleware, DI registrations, config binding, and nearby tests before changing request behavior.
 - Read `.agents/learnings.md` when it exists - it holds project-specific lessons.
 - Inspect CI workflows and README validation commands before inventing build or test commands.
+
+## Documentation Layout
+
+- Project-wide contracts live at the root: `AGENTS.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, and `ARCHITECTURE.md` when the project has one.
+- Module/service documentation lives next to the code in `<Module>/Documentation/*.md`, written as living docs: current state, not history.
+- `docs/qa/` - manual and regression checklists. `docs/tickets/` - implementation plans, architecture audits (from `$arch-audit`), and historical notes; a ticket is never a current contract.
+- When behavior changes, update the owning doc in place; move superseded plans to `docs/tickets/`.
 
 ## Core Discipline
 
@@ -53,7 +78,7 @@ The kit's global profile (`~/.codex/AGENTS.md`, installed from the kit's `global
 
 - Always: run focused validation after edits; parameterize SQL; validate input at external boundaries; keep `.agents/plans/` artifacts current during coordinated work; report unverified gaps.
 - Ask first: adding packages; changing public API contracts; auth behavior changes; EF migrations; touching production-like configuration; broad refactors.
-- Never: commit secrets or real connection strings; run migrations against shared/production databases; weaken auth checks; force-push shared branches; silence errors to make symptoms disappear.
+- Never: commit secrets or real connection strings; run migrations against shared/production databases; weaken auth checks; force-push shared branches; silence errors to make symptoms disappear; credit the AI agent as author or co-author anywhere - headers, commits, docs, changelogs.
 
 ## Skill Routing
 
@@ -63,6 +88,7 @@ Route by situation before acting. No task is "too small for a skill" - routing k
 | --- | --- |
 | Unfamiliar solution or service area, need the right files | `$backend-orient` |
 | Unclear requirements, risky design, plan needs stress-testing | `$grill-me` |
+| Module became spaghetti, needs an architecture audit and refactor backlog | `$arch-audit` |
 | Task needs a written plan or agent handoff | `$planning` |
 | Implement or refactor backend C# | `$backend-implement` |
 | Errors, failing tests, broken endpoints or deploys | `$backend-debug` |

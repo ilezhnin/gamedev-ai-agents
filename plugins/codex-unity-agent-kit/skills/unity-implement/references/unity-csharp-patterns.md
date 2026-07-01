@@ -22,12 +22,40 @@
 - Prefer non-alloc physics APIs in hot paths when existing project code does so.
 - Avoid LINQ in hot paths unless existing code accepts it.
 
-## Assembly Boundaries
+## Assembly Boundaries (asmdef)
 
-- Runtime assemblies must not reference `UnityEditor`.
-- Editor scripts belong in `Editor` folders or editor-only asmdefs.
-- Tests should reference the smallest assembly needed.
-- Do not add asmdef references that create cycles or platform leakage.
+Assembly definitions are the kit's default boundary-enforcement mechanism. Treat them as architecture, not build plumbing.
+
+- One asmdef per module or system: runtime asmdef, `Editor` asmdef, and test asmdefs per module. Avoid growing an `Assembly-CSharp` monolith - when a legacy project has outgrown it, propose introducing asmdefs (with approval) instead of adding to the pile.
+- Keep references minimal and explicit: a module references only what its public behavior needs. No cycles, no platform leakage, no editor references from runtime assemblies.
+- Namespace and folder structure mirror the asmdef, so ownership is readable from the path.
+- Editor scripts belong in `Editor` folders or editor-only asmdefs; use define constraints (`UNITY_EDITOR`, `UNITY_INCLUDE_TESTS`, platform defines) instead of scattering `#if` through shared files.
+- Tests reference the smallest assembly needed; use `InternalsVisibleTo` only for the module's own test assembly.
+- A dependency between modules that asmdef references cannot express cleanly is an architecture smell - add an adapter or a narrower port instead of a reference chain.
+
+## UI And Scene Wiring
+
+- Build UI and object hierarchies once in scenes/prefabs during implementation; code then wires serialized refs, subscriptions, data, state, commands, and validation.
+- Runtime `Instantiate` is for existing prefabs, row prefabs, and poolable views - not for assembling layouts from raw `GameObject`, `RectTransform`, `Button`, or `TextMeshProUGUI` in code.
+- If code-generated hierarchy is genuinely needed, name the reason next to the code: unbounded dynamic content, tooling generation, tests, or migration.
+- Never use scene-wide searches (`FindObjectOfType` and friends) as fallback for missing required references; wire through serialized fields or the owner's composition path, and fail loudly when a required reference is missing.
+
+## Determinism
+
+For gameplay-critical logic (anything that affects outcomes, saves, replays, or multiplayer):
+
+- Drive simulation by ticks, not render frame rate. No `Time.deltaTime`-derived gameplay outcomes.
+- No `DateTime.Now`, wall-clock time, static random state, or unordered dictionary iteration in simulation decisions.
+- Randomness comes from an explicit seeded source owned by the simulation or command context.
+- If async work or jobs contribute to gameplay state, order committed outputs by stable IDs before applying them.
+- Presentation, audio, VFX, and diagnostics must not feed back into simulation unless explicitly modeled.
+
+## Fail Loud
+
+- Broken required references, invalid content, missing catalog entries, and impossible states reject explicitly: validation error, typed failure result, exception, or visible error log per the local pattern.
+- No silent fallbacks, runtime repair, default-asset substitution, or empty IDs as failure markers.
+- Reject invalid authored data in editor validation, not deep in runtime.
+- A fallback is acceptable only as deliberate, documented, testable product behavior.
 
 ## Async and Coroutines
 
