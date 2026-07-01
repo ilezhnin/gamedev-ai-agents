@@ -26,7 +26,8 @@ if (-not $AllowNonDotnetTarget) {
 $ctx = New-InstallContext -TargetRoot $targetRoot -ManifestPath (Join-Path $targetRoot ".agents\kit-manifest.json") -Force:$Force -Update:$Update
 
 Install-KitTree -Ctx $ctx -SourceDir (Join-Path $script:KitRoot "templates\csharp-aspnet-project") -RelDestPrefix "" -Cmdlet $PSCmdlet
-Install-KitSkills -Ctx $ctx -SkillNames ($script:BackendSkills + $script:SharedSkills) -Cmdlet $PSCmdlet
+Install-KitSkills -Ctx $ctx -SkillNames ($script:BackendSkills + $script:SharedSkills) -Cmdlet $PSCmdlet -MirrorClaude
+Install-KitPlatformAdapters -Ctx $ctx -Stack "backend" -Cmdlet $PSCmdlet
 
 Complete-KitInstall -Ctx $ctx -Cmdlet $PSCmdlet
 Write-Host "C# ASP.NET Codex template installed to $targetRoot"

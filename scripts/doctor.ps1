@@ -59,6 +59,19 @@ if ($TargetProject) {
             if ($manifest.kitVersion -eq $kitVersion) { Say "PASS" "kit install is current ($kitVersion)" }
             else { Say "WARN" "kit install is $($manifest.kitVersion), kit source is $kitVersion" "re-run the project installer with -Update" }
         }
+
+        # Platform layer sync: Codex reads .agents/skills, Claude Code reads .claude/skills.
+        $agentsSkills = Join-Path $target ".agents\skills"
+        $claudeSkills = Join-Path $target ".claude\skills"
+        if ((Test-Path -LiteralPath $agentsSkills) -and (Test-Path -LiteralPath $claudeSkills)) {
+            $a = @(Get-ChildItem -LiteralPath $agentsSkills -Directory | ForEach-Object { $_.Name }) | Sort-Object
+            $c = @(Get-ChildItem -LiteralPath $claudeSkills -Directory | ForEach-Object { $_.Name }) | Sort-Object
+            if (($a -join ",") -eq ($c -join ",")) { Say "PASS" "Codex and Claude skill layers are in sync ($($a.Count) skills)" }
+            else { Say "WARN" "Codex (.agents/skills) and Claude (.claude/skills) skill sets differ" "re-run the project installer with -Update" }
+        }
+        elseif (Test-Path -LiteralPath $agentsSkills) {
+            Say "WARN" "Claude Code layer missing (.claude/skills not found)" "re-run the project installer with -Update to render both platform layers"
+        }
         else {
             Say "WARN" "no kit manifest in target - kit not installed or installed by an old script" "run scripts\install-unity-project-template.ps1 or install-csharp-aspnet-project-template.ps1"
         }

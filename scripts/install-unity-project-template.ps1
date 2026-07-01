@@ -24,8 +24,9 @@ if (-not $AllowNonUnityTarget) {
 $ctx = New-InstallContext -TargetRoot $targetRoot -ManifestPath (Join-Path $targetRoot ".agents\kit-manifest.json") -Force:$Force -Update:$Update
 
 Install-KitTree -Ctx $ctx -SourceDir (Join-Path $script:KitRoot "templates\unity-project") -RelDestPrefix "" -Cmdlet $PSCmdlet
-Install-KitSkills -Ctx $ctx -SkillNames ($script:UnitySkills + $script:SharedSkills) -Cmdlet $PSCmdlet
-Install-KitFile -Ctx $ctx -Source (Join-Path $PSScriptRoot "check-unity-meta.ps1") -RelDest ".codex\scripts\check-unity-meta.ps1" -Cmdlet $PSCmdlet
+Install-KitSkills -Ctx $ctx -SkillNames ($script:UnitySkills + $script:SharedSkills) -Cmdlet $PSCmdlet -MirrorClaude
+Install-KitPlatformAdapters -Ctx $ctx -Stack "unity" -Cmdlet $PSCmdlet
+Install-KitFile -Ctx $ctx -Source (Join-Path $PSScriptRoot "check-unity-meta.ps1") -RelDest ".agents\scripts\check-unity-meta.ps1" -Cmdlet $PSCmdlet
 
 Complete-KitInstall -Ctx $ctx -Cmdlet $PSCmdlet
 Write-Host "Unity Codex template installed to $targetRoot"

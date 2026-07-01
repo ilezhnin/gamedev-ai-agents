@@ -73,7 +73,7 @@ The kit's global profile (`~/.codex/AGENTS.md`, installed from the kit's `global
 - Do not edit `Library/`, `Temp/`, `Obj/`, `Build/`, `Builds/`, `Logs/`, `.vs/`, or `UserSettings/` unless explicitly needed.
 - Avoid hand-editing scene, prefab, or asset YAML unless the task requires it and the diff is easy to audit.
 - Keep runtime code out of `Editor` folders and editor-only assemblies, and editor code out of runtime assemblies.
-- Run `.codex/scripts/check-unity-meta.ps1` (installed by the kit) when in doubt about meta/GUID hygiene.
+- Run `.agents/scripts/check-unity-meta.ps1` (installed by the kit) when in doubt about meta/GUID hygiene.
 
 ## Validation
 

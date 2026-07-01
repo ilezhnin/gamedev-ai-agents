@@ -17,6 +17,10 @@ Never credit yourself (the AI agent) as author, co-author, or contributor anywhe
 
 Every repository artifact is written in English: code, identifiers, comments, documentation, commit messages, branch names, PR titles and bodies, changelogs, learnings, and plans. No other language is acceptable in artifacts, regardless of the language the user speaks. Converse with the user in the user's language; write into the repository only in English.
 
+## Durable State
+
+Durable knowledge and work state live only in repository files - `AGENTS.md`, `.agents/plans/`, `.agents/learnings.md`, `docs/tickets/`, module documentation - never in platform-local storage, session memory, or tool-specific caches. Any agent on any platform must be able to open the repository and continue the work with nothing lost.
+
 ## Engineering Discipline
 
 These rules bias agents toward careful, reviewable game-development and C# work. Explicit user instructions and repository-specific instructions override these rules when they are more specific. Existing project conventions override personal style preferences unless the user asks for a redesign.

@@ -102,33 +102,47 @@ $notInSets = @($onDisk | Where-Object { $allSets -notcontains $_ })
 Report ($notOnDisk.Count -eq 0) "skill sets: every declared skill exists on disk" ($notOnDisk -join ", ")
 Report ($notInSets.Count -eq 0) "skill sets: every skill on disk is declared in a set" ($notInSets -join ", ")
 
-# 6: agent TOML duplicates are byte-identical.
-foreach ($pair in @(
-        @{ Template = "templates\unity-project\.codex\agents" },
-        @{ Template = "templates\csharp-aspnet-project\.codex\agents" }
-    )) {
-    $templateDir = Join-Path $script:KitRoot $pair.Template
-    foreach ($file in Get-ChildItem -LiteralPath $templateDir -Filter "*.toml" -File) {
-        $globalFile = Join-Path (Join-Path $script:KitRoot "global\agents") $file.Name
-        if (-not (Test-Path -LiteralPath $globalFile)) {
-            Report $false "agents: $($file.Name) exists in global/agents"
-            continue
-        }
-        $same = (Get-FileSha256 -Path $file.FullName) -eq (Get-FileSha256 -Path $globalFile)
-        Report $same "agents: $($pair.Template)\$($file.Name) identical to global copy"
+# 6: canon files parse and renderers produce valid output for every role/stack.
+try {
+    $roles = (Get-KitCanon -Name "roles").roles
+    Report ($roles.Count -ge 8) "canon: roles.json parses with expected role count" "found $($roles.Count)"
+    foreach ($role in $roles) {
+        $fieldsOk = $role.name -and $role.description -and ($role.stack -in @("unity", "backend")) -and ($role.reasoning -in @("minimal", "low", "medium", "high", "xhigh")) -and $role.instructions.Count -gt 0
+        Report $fieldsOk "canon: role $($role.name) has valid fields"
+        $toml = ConvertTo-CodexAgentToml -Role $role
+        $md = ConvertTo-ClaudeAgentMd -Role $role
+        Report (($toml -match "developer_instructions") -and ($md -match "^---")) "canon: role $($role.name) renders to both platforms"
     }
 }
-
-# 7: rules identical ignoring the first comment line.
-$ruleBodies = @()
-foreach ($rulePath in @("global\rules\default.rules", "templates\unity-project\.codex\rules\default.rules", "templates\csharp-aspnet-project\.codex\rules\default.rules")) {
-    $full = Join-Path $script:KitRoot $rulePath
-    $lines = Get-Content -LiteralPath $full
-    if ($lines.Count -gt 0 -and $lines[0] -match "^#") { $lines = $lines[1..($lines.Count - 1)] }
-    $ruleBodies += , @{ Path = $rulePath; Body = ($lines -join "`n") }
+catch {
+    Report $false "canon: roles.json parses" $_.Exception.Message
 }
-$rulesOk = ($ruleBodies[1].Body -eq $ruleBodies[0].Body) -and ($ruleBodies[2].Body -eq $ruleBodies[0].Body)
-Report $rulesOk "rules: template rules match global rules (ignoring header comment)"
+
+try {
+    $permissions = Get-KitCanon -Name "permissions"
+    $rulesText = ConvertTo-CodexRules -Permissions $permissions
+    Report ($rulesText -match "prefix_rule\(") "canon: permissions render to Codex rules"
+    $hooksCanon = Get-KitCanon -Name "hooks"
+    foreach ($stack in @("unity", "backend")) {
+        $settings = ConvertTo-ClaudeSettingsJson -Permissions $permissions -Hooks $hooksCanon -Stack $stack
+        $parsed = $settings | ConvertFrom-Json
+        Report ($null -ne $parsed.permissions) "canon: Claude settings render valid JSON for $stack"
+    }
+    $codexHooks = ConvertTo-CodexHooksJson -Hooks $hooksCanon -Stack "unity"
+    Report ($null -ne ($codexHooks | ConvertFrom-Json).hooks) "canon: Codex hooks render valid JSON for unity"
+}
+catch {
+    Report $false "canon: permissions/hooks parse and render" $_.Exception.Message
+}
+
+# 7: platform adapters must NOT be stored in the kit - they are rendered at install time.
+foreach ($forbidden in @(
+        "global\agents", "global\rules",
+        "templates\unity-project\.codex\agents", "templates\unity-project\.codex\rules", "templates\unity-project\.codex\hooks.json", "templates\unity-project\.claude",
+        "templates\csharp-aspnet-project\.codex\agents", "templates\csharp-aspnet-project\.codex\rules", "templates\csharp-aspnet-project\.claude"
+    )) {
+    Report (-not (Test-Path -LiteralPath (Join-Path $script:KitRoot $forbidden))) "rendered-only: $forbidden is not stored in the kit"
+}
 
 # 8: ASCII policy - the kit is English-only, no exceptions.
 $asciiAllowlist = @()

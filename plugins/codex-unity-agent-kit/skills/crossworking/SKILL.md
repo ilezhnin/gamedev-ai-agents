@@ -26,7 +26,7 @@ If either file is missing, stale, or too vague to execute, use `$planning` first
 - Review agents must inspect fresh repository state and current diffs. They must not rely only on parent-thread summaries. When prompting a reviewer, do not pass your own conclusions - pass the diff scope and ask the reviewer to find issues or state explicitly that none were found.
 - Do not let reviewers edit code. Use a writer/fixer pass for accepted fixes.
 - Commit after each verified increment when the branch is task-local, so a broken state reverts to last-known-good instead of unwinding by hand. Keep each increment compilable.
-- Keep `.agents/plans/task_list.md` current as phases complete or blockers appear.
+- Keep `.agents/plans/task_list.md` current as phases complete or blockers appear. The plan artifacts are the handoff point: any agent on any platform (Codex, Claude Code) must be able to resume the task from them alone.
 - Do not create a PR/MR while tests are failing, blocking review findings remain, or unrelated working-tree changes are unresolved.
 
 ## Team Sizing

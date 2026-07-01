@@ -2,6 +2,7 @@
 param(
     [switch] $InstallAgentsMd,
     [switch] $InstallSkills,
+    [switch] $InstallClaude,
     [switch] $InstallWslSkills,
     [string] $WslCodexHome,
     [switch] $Force,
@@ -28,8 +29,13 @@ New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
 $ctx = New-InstallContext -TargetRoot $codexHome -ManifestPath (Join-Path $codexHome "kit-manifest.json") -Force:$Force -Update:$Update
 
 Install-KitFile -Ctx $ctx -Source (Join-Path $globalRoot "unity-codex.config.toml") -RelDest "unity-codex.config.toml" -Cmdlet $PSCmdlet
-Install-KitTree -Ctx $ctx -SourceDir (Join-Path $globalRoot "agents") -RelDestPrefix "agents" -Cmdlet $PSCmdlet
-Install-KitTree -Ctx $ctx -SourceDir (Join-Path $globalRoot "rules") -RelDestPrefix "rules" -Cmdlet $PSCmdlet
+
+# Agent roles and permission rules are rendered from global/canon at install time.
+$canonRoles = (Get-KitCanon -Name "roles").roles
+foreach ($role in $canonRoles) {
+    Install-KitRendered -Ctx $ctx -Content (ConvertTo-CodexAgentToml -Role $role) -RelDest (Join-Path "agents" "$($role.name).toml") -Cmdlet $PSCmdlet
+}
+Install-KitRendered -Ctx $ctx -Content (ConvertTo-CodexRules -Permissions (Get-KitCanon -Name "permissions")) -RelDest "rules\default.rules" -Cmdlet $PSCmdlet
 
 if ($InstallAgentsMd) {
     $agentsDest = Join-Path $codexHome "AGENTS.md"
@@ -81,6 +87,46 @@ if ($InstallSkills) {
     Write-Host "Skills installed to $agentsSkillsHome and $(Join-Path $codexHome 'skills')"
 }
 
+if ($InstallClaude) {
+    $claudeHome = Join-Path $HOME ".claude"
+    $allSkills = $script:UnitySkills + $script:BackendSkills + $script:SharedSkills
+
+    foreach ($name in $allSkills) {
+        $source = Join-Path $script:PluginSkillsRoot $name
+        if (-not (Test-Path -LiteralPath $source)) {
+            Write-Error "Bundled skill missing from kit: $name"
+            exit 1
+        }
+        $dest = Join-Path (Join-Path $claudeHome "skills") $name
+        if ((Test-Path -LiteralPath $dest) -and -not $Force -and -not $Update) {
+            Write-Host "SKIP existing $dest"
+            continue
+        }
+        if ($PSCmdlet.ShouldProcess($dest, "Copy skill")) {
+            New-Item -ItemType Directory -Force -Path $dest | Out-Null
+            Copy-Item -Path (Join-Path $source "*") -Destination $dest -Recurse -Force
+        }
+        Write-Host "COPY $dest"
+    }
+
+    foreach ($role in (Get-KitCanon -Name "roles").roles) {
+        $dest = Join-Path (Join-Path $claudeHome "agents") "$($role.name).md"
+        if ((Test-Path -LiteralPath $dest) -and -not $Force -and -not $Update) {
+            Write-Host "SKIP existing $dest"
+            continue
+        }
+        if ($PSCmdlet.ShouldProcess($dest, "Write agent definition")) {
+            $destDir = Split-Path -Parent $dest
+            if (-not (Test-Path -LiteralPath $destDir)) { New-Item -ItemType Directory -Force -Path $destDir | Out-Null }
+            [System.IO.File]::WriteAllText($dest, (ConvertTo-ClaudeAgentMd -Role $role), (New-Object System.Text.UTF8Encoding $false))
+        }
+        Write-Host "COPY $dest"
+    }
+
+    Write-Host "Claude Code layer installed under $claudeHome (skills + agents)."
+    Write-Host "NOTE: point your ~/.claude/CLAUDE.md at the kit discipline manually if you want it global."
+}
+
 function ConvertTo-WslPath {
     param([Parameter(Mandatory = $true)] [string] $WindowsPath)
     $resolvedPath = (Resolve-Path -LiteralPath $WindowsPath).Path
@@ -117,8 +163,18 @@ if ($InstallWslSkills) {
         $WslCodexHome = "$homeText/.codex"
     }
 
+    # Stage the rendered profile so WSL copies canon-derived content, not stored files.
+    $staging = Join-Path $env:TEMP ("codex-wsl-staging-" + [Guid]::NewGuid().ToString("N"))
+    New-Item -ItemType Directory -Force -Path (Join-Path $staging "agents"), (Join-Path $staging "rules") | Out-Null
+    Copy-Item -LiteralPath (Join-Path $globalRoot "unity-codex.config.toml") -Destination (Join-Path $staging "unity-codex.config.toml")
+    $utf8 = New-Object System.Text.UTF8Encoding $false
+    foreach ($role in (Get-KitCanon -Name "roles").roles) {
+        [System.IO.File]::WriteAllText((Join-Path (Join-Path $staging "agents") "$($role.name).toml"), (ConvertTo-CodexAgentToml -Role $role), $utf8)
+    }
+    [System.IO.File]::WriteAllText((Join-Path (Join-Path $staging "rules") "default.rules"), (ConvertTo-CodexRules -Permissions (Get-KitCanon -Name "permissions")), $utf8)
+
     $wslSkillsSrc = ConvertTo-WslPath -WindowsPath $script:PluginSkillsRoot
-    $wslGlobalSrc = ConvertTo-WslPath -WindowsPath $globalRoot
+    $wslGlobalSrc = ConvertTo-WslPath -WindowsPath $staging
     $wslHomeRoot = ($WslCodexHome.TrimEnd("/")) -replace "/\.codex$", ""
     $forceValue = if ($Force -or $Update) { "1" } else { "0" }
 
@@ -176,6 +232,9 @@ echo "COPY $codex_home/unity-codex.config.toml (+agents, +rules)"
     finally {
         if (Test-Path -LiteralPath $tempScript) {
             Remove-Item -LiteralPath $tempScript -Force
+        }
+        if (Test-Path -LiteralPath $staging) {
+            Remove-Item -LiteralPath $staging -Recurse -Force
         }
     }
     Write-Host "WSL profile installed under $WslCodexHome (skills also in $wslHomeRoot/.agents/skills)"

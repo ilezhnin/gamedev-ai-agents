@@ -175,7 +175,9 @@ function Install-KitSkills {
         [Parameter(Mandatory = $true)] [hashtable] $Ctx,
         [Parameter(Mandatory = $true)] [string[]] $SkillNames,
         [Parameter(Mandatory = $true)] $Cmdlet,
-        [string] $RelSkillsRoot = ".agents\skills"
+        [string] $RelSkillsRoot = ".agents\skills",
+        # Mirror each skill into .claude/skills so Claude Code discovers them natively.
+        [switch] $MirrorClaude
     )
     foreach ($name in $SkillNames) {
         $source = Join-Path $script:PluginSkillsRoot $name
@@ -184,6 +186,147 @@ function Install-KitSkills {
             exit 1
         }
         Install-KitTree -Ctx $Ctx -SourceDir $source -RelDestPrefix (Join-Path $RelSkillsRoot $name) -Cmdlet $Cmdlet
+        if ($MirrorClaude) {
+            Install-KitTree -Ctx $Ctx -SourceDir $source -RelDestPrefix (Join-Path ".claude\skills" $name) -Cmdlet $Cmdlet
+        }
+    }
+}
+
+# --- Canon loading and platform renderers -----------------------------------
+# The canon (global/canon/*.json) is the single source of truth; .codex/ and
+# .claude/ adapters are rendered from it at install time and never hand-edited.
+
+function Get-KitCanon {
+    param([Parameter(Mandatory = $true)] [ValidateSet("roles", "permissions", "hooks")] [string] $Name)
+    $path = Join-Path $script:KitRoot "global\canon\$Name.json"
+    return Get-Content -LiteralPath $path -Raw | ConvertFrom-Json
+}
+
+function ConvertTo-CodexAgentToml {
+    param([Parameter(Mandatory = $true)] $Role)
+    $lines = @()
+    $lines += "name = `"$($Role.name)`""
+    $lines += "description = `"$($Role.description)`""
+    if ($Role.readonly) { $lines += 'sandbox_mode = "read-only"' }
+    $lines += "model_reasoning_effort = `"$($Role.reasoning)`""
+    $lines += 'developer_instructions = """'
+    foreach ($instruction in $Role.instructions) { $lines += $instruction }
+    $lines += '"""'
+    $nicknames = ($Role.nicknames | ForEach-Object { '"' + $_ + '"' }) -join ", "
+    $lines += "nickname_candidates = [$nicknames]"
+    return ($lines -join "`n") + "`n"
+}
+
+function ConvertTo-ClaudeAgentMd {
+    param([Parameter(Mandatory = $true)] $Role)
+    $lines = @("---", "name: $($Role.name)", "description: $($Role.description)")
+    if ($Role.readonly) { $lines += "tools: Read, Grep, Glob" }
+    $lines += "---", ""
+    foreach ($instruction in $Role.instructions) { $lines += $instruction }
+    return ($lines -join "`n") + "`n"
+}
+
+function ConvertTo-CodexRules {
+    param([Parameter(Mandatory = $true)] $Permissions)
+    $lines = @("# Rendered from global/canon/permissions.json - do not edit by hand.", "")
+    foreach ($rule in $Permissions.rules) {
+        $pattern = ($rule.pattern | ForEach-Object { '"' + $_ + '"' }) -join ", "
+        $examples = ($rule.examples | ForEach-Object { '"' + $_ + '"' }) -join ", "
+        $lines += "prefix_rule("
+        $lines += "    pattern = [$pattern],"
+        $lines += "    decision = `"$($rule.decision)`","
+        $lines += "    justification = `"$($rule.justification)`","
+        $lines += "    match = [$examples],"
+        $lines += ")"
+        $lines += ""
+    }
+    return ($lines -join "`n")
+}
+
+function ConvertTo-CodexHooksJson {
+    param([Parameter(Mandatory = $true)] $Hooks, [Parameter(Mandatory = $true)] [string] $Stack)
+    $events = [ordered]@{}
+    foreach ($hook in $Hooks.hooks) {
+        if (-not ($hook.stacks -contains $Stack)) { continue }
+        if (-not $events.Contains($hook.event)) { $events[$hook.event] = @() }
+        $events[$hook.event] += , ([ordered]@{
+                matcher = $hook.codexMatcher
+                hooks   = @([ordered]@{ type = "command"; command = $hook.commandPwsh; commandWindows = $hook.command })
+            })
+    }
+    if ($events.Count -eq 0) { return $null }
+    return ([ordered]@{ hooks = $events } | ConvertTo-Json -Depth 10) + "`n"
+}
+
+function ConvertTo-ClaudeSettingsJson {
+    param(
+        [Parameter(Mandatory = $true)] $Permissions,
+        [Parameter(Mandatory = $true)] $Hooks,
+        [Parameter(Mandatory = $true)] [string] $Stack
+    )
+    $allow = @()
+    $deny = @()
+    foreach ($rule in $Permissions.rules) {
+        $entry = "Bash(" + ($rule.pattern -join " ") + ":*)"
+        if ($rule.decision -eq "allow") { $allow += $entry }
+        elseif ($rule.decision -eq "forbidden") { $deny += $entry }
+    }
+    $settings = [ordered]@{ permissions = [ordered]@{ allow = $allow; deny = $deny } }
+    $events = [ordered]@{}
+    foreach ($hook in $Hooks.hooks) {
+        if (-not ($hook.stacks -contains $Stack)) { continue }
+        if (-not $events.Contains($hook.event)) { $events[$hook.event] = @() }
+        $events[$hook.event] += , ([ordered]@{
+                matcher = $hook.claudeMatcher
+                hooks   = @([ordered]@{ type = "command"; command = $hook.command })
+            })
+    }
+    if ($events.Count -gt 0) { $settings["hooks"] = $events }
+    return ($settings | ConvertTo-Json -Depth 10) + "`n"
+}
+
+function Install-KitRendered {
+    # Routes rendered string content through the same manifest/update semantics as file copies.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
+    param(
+        [Parameter(Mandatory = $true)] [hashtable] $Ctx,
+        [Parameter(Mandatory = $true)] [string] $Content,
+        [Parameter(Mandatory = $true)] [string] $RelDest,
+        [Parameter(Mandatory = $true)] $Cmdlet
+    )
+    $temp = Join-Path ([System.IO.Path]::GetTempPath()) ("kit-render-" + [Guid]::NewGuid().ToString("N"))
+    try {
+        [System.IO.File]::WriteAllText($temp, $Content, (New-Object System.Text.UTF8Encoding $false))
+        Install-KitFile -Ctx $Ctx -Source $temp -RelDest $RelDest -Cmdlet $Cmdlet
+    }
+    finally {
+        Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Install-KitPlatformAdapters {
+    # Renders the Codex and Claude Code adapter layers for one stack from the canon.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
+    param(
+        [Parameter(Mandatory = $true)] [hashtable] $Ctx,
+        [Parameter(Mandatory = $true)] [ValidateSet("unity", "backend")] [string] $Stack,
+        [Parameter(Mandatory = $true)] $Cmdlet
+    )
+    $roles = (Get-KitCanon -Name "roles").roles | Where-Object { $_.stack -eq $Stack }
+    $permissions = Get-KitCanon -Name "permissions"
+    $hooks = Get-KitCanon -Name "hooks"
+
+    foreach ($role in $roles) {
+        Install-KitRendered -Ctx $Ctx -Content (ConvertTo-CodexAgentToml -Role $role) -RelDest ".codex\agents\$($role.name).toml" -Cmdlet $Cmdlet
+        Install-KitRendered -Ctx $Ctx -Content (ConvertTo-ClaudeAgentMd -Role $role) -RelDest ".claude\agents\$($role.name).md" -Cmdlet $Cmdlet
+    }
+
+    Install-KitRendered -Ctx $Ctx -Content (ConvertTo-CodexRules -Permissions $permissions) -RelDest ".codex\rules\default.rules" -Cmdlet $Cmdlet
+    Install-KitRendered -Ctx $Ctx -Content (ConvertTo-ClaudeSettingsJson -Permissions $permissions -Hooks $hooks -Stack $Stack) -RelDest ".claude\settings.json" -Cmdlet $Cmdlet
+
+    $codexHooks = ConvertTo-CodexHooksJson -Hooks $hooks -Stack $Stack
+    if ($codexHooks) {
+        Install-KitRendered -Ctx $Ctx -Content $codexHooks -RelDest ".codex\hooks.json" -Cmdlet $Cmdlet
     }
 }
 

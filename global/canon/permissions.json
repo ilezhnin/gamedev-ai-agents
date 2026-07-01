@@ -1,0 +1,29 @@
+{
+  "comment": "Canonical command permission policy. Rendered into .codex/rules/default.rules (Codex) and the permissions block of .claude/settings.json (Claude Code) by the installers - never edit rendered files by hand.",
+  "rules": [
+    {
+      "pattern": ["git", "status"],
+      "decision": "allow",
+      "justification": "Reading git status is safe.",
+      "examples": ["git status", "git status --short"]
+    },
+    {
+      "pattern": ["git", "diff"],
+      "decision": "allow",
+      "justification": "Reading git diffs is safe.",
+      "examples": ["git diff", "git diff --stat"]
+    },
+    {
+      "pattern": ["git", "reset"],
+      "decision": "forbidden",
+      "justification": "Never reset user work without an explicit request.",
+      "examples": ["git reset --hard", "git reset HEAD~1"]
+    },
+    {
+      "pattern": ["git", "clean"],
+      "decision": "forbidden",
+      "justification": "Never delete untracked files without an explicit request.",
+      "examples": ["git clean -fd", "git clean -fdx"]
+    }
+  ]
+}
