@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Profile And Optimize"
+  short_description: "Measure, fix, verify Unity performance"
+  default_prompt: "Use $unity-profile to baseline this Unity performance issue, fix the top cost, and verify with numbers."

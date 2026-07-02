@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Upgrade Editor And Packages"
+  short_description: "Stage Unity version and package upgrades"
+  default_prompt: "Use $unity-upgrade to upgrade this project's Unity editor/packages in staged, validated steps with churn triage."

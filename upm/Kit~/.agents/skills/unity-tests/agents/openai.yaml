@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Author Tests"
+  short_description: "Bootstrap and write Unity tests"
+  default_prompt: "Use $unity-tests to detect or bootstrap test infrastructure and author meaningful EditMode/PlayMode tests for this Unity code."

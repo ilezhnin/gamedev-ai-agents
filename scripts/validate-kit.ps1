@@ -151,7 +151,7 @@ foreach ($forbidden in @(
 # 8: ASCII policy - the kit is English-only, no exceptions.
 $asciiAllowlist = @()
 $nonAscii = @()
-foreach ($root in @("templates", "plugins")) {
+foreach ($root in @("templates", "plugins", "upm")) {
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $script:KitRoot $root) -Recurse -File) {
         if ($asciiAllowlist -contains $file.FullName) { continue }
         if (-not (Test-IsAscii -Path $file.FullName)) { $nonAscii += $file.FullName.Substring($script:KitRoot.Length + 1) }
@@ -161,6 +161,59 @@ Report ($nonAscii.Count -eq 0) "ascii: templates/ and plugins/ are ASCII (allowl
 
 # 9: duplication guard.
 Report (-not (Test-Path -LiteralPath (Join-Path $script:KitRoot "templates\unity-project\.agents\skills"))) "duplication: unity template does not embed skill copies"
+
+# 10: UPM package - manifest parses, name and version stay in lock-step with the kit.
+$upmPackageJsonPath = Join-Path $script:KitRoot "upm\package.json"
+try {
+    $upmPackage = Get-Content -LiteralPath $upmPackageJsonPath -Raw | ConvertFrom-Json
+    Report ($upmPackage.name -eq "com.ilezhnin.gamedev-agent-kit") "upm: package name is com.ilezhnin.gamedev-agent-kit" $upmPackage.name
+    Report ($upmPackage.version -eq (Get-KitVersion)) "upm: package.json version matches VERSION" "package $($upmPackage.version), kit $(Get-KitVersion)"
+}
+catch {
+    Report $false "upm: package.json parses" $_.Exception.Message
+}
+
+# 11: UPM payload - upm/Kit~ must match a fresh render (no drift, no hand edits).
+$payloadRoot = Join-Path $script:KitRoot "upm\Kit~"
+if (-not (Test-Path -LiteralPath $payloadRoot)) {
+    Report $false "upm: Kit~ payload exists" "run scripts\render-upm-payload.ps1"
+}
+else {
+    $tempRender = Join-Path ([System.IO.Path]::GetTempPath()) ("kit-payload-" + [Guid]::NewGuid().ToString("N"))
+    try {
+        & (Join-Path $PSScriptRoot "render-upm-payload.ps1") -OutDir $tempRender *> $null
+        if (-not (Test-Path -LiteralPath $tempRender)) { throw "render-upm-payload.ps1 produced no output" }
+
+        function Get-TreeHashes {
+            param([string] $Root)
+            $map = @{}
+            $rootFull = (Get-Item -LiteralPath $Root).FullName
+            foreach ($file in Get-ChildItem -LiteralPath $rootFull -Force -Recurse -File) {
+                $rel = $file.FullName.Substring($rootFull.Length).TrimStart("\", "/") -replace "\\", "/"
+                $map[$rel] = Get-FileSha256 -Path $file.FullName
+            }
+            return $map
+        }
+
+        $committed = Get-TreeHashes -Root $payloadRoot
+        $fresh = Get-TreeHashes -Root $tempRender
+        $driftDetails = @()
+        foreach ($key in $fresh.Keys) {
+            if (-not $committed.ContainsKey($key)) { $driftDetails += "missing: $key" }
+            elseif ($committed[$key] -ne $fresh[$key]) { $driftDetails += "differs: $key" }
+        }
+        foreach ($key in $committed.Keys) {
+            if (-not $fresh.ContainsKey($key)) { $driftDetails += "extra: $key" }
+        }
+        Report ($driftDetails.Count -eq 0) "upm: Kit~ payload matches a fresh render" (($driftDetails | Select-Object -First 5) -join ", ")
+    }
+    catch {
+        Report $false "upm: payload drift check runs" $_.Exception.Message
+    }
+    finally {
+        Remove-Item -LiteralPath $tempRender -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
 
 Write-Host ""
 Write-Host "validate-kit: $checks checks, $failures failed (kit $(Get-KitVersion))"

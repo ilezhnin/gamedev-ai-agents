@@ -1,0 +1,4 @@
+interface:
+  display_name: "Unity Orient Project"
+  short_description: "Map Unity structure before edits"
+  default_prompt: "Use $unity-orient to inspect this Unity project and identify the right files, commands, and risks."

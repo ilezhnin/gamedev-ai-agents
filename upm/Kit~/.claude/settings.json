@@ -1,0 +1,25 @@
+{
+    "permissions":  {
+                        "allow":  [
+                                      "Bash(git status:*)",
+                                      "Bash(git diff:*)"
+                                  ],
+                        "deny":  [
+                                     "Bash(git reset:*)",
+                                     "Bash(git clean:*)"
+                                 ]
+                    },
+    "hooks":  {
+                  "PostToolUse":  [
+                                      {
+                                          "matcher":  "Edit|Write|MultiEdit",
+                                          "hooks":  [
+                                                        {
+                                                            "type":  "command",
+                                                            "command":  "powershell -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/check-unity-meta.ps1"
+                                                        }
+                                                    ]
+                                      }
+                                  ]
+              }
+}

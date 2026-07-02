@@ -10,6 +10,7 @@ This repository stores a portable Codex environment kit for Unity and C#/ASP.NET
 - The canonical skill sets (unity / backend / shared) live in `scripts/kit-common.ps1`. Adding or renaming a skill means updating that file, the README skill list, and the relevant template `AGENTS.md` routing table.
 - `global/agents/*.toml` is the source for agent definitions; template copies under `templates/*/.codex/agents/` must stay byte-identical (validated by `scripts/validate-kit.ps1`).
 - The full engineering discipline lives only in `global/AGENTS.md`. Template `AGENTS.md` files carry a short core-discipline summary plus stack specifics - do not re-duplicate the full rulebook.
+- `upm/` is the Unity Package Manager wrapper. `upm/Kit~/` is a rendered artifact produced by `scripts/render-upm-payload.ps1` - never edit it by hand. Re-run the render script after changing templates, skills, or the canon; `validate-kit.ps1` fails on payload drift and on a `package.json` version that does not match `VERSION`.
 
 ## Editing Rules
 

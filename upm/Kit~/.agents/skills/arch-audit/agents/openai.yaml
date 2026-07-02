@@ -1,0 +1,4 @@
+interface:
+  display_name: "Architecture Audit"
+  short_description: "Audit a module, plan the refactor"
+  default_prompt: "Use $arch-audit to audit this module's architecture and produce a dependency-ordered refactor backlog."

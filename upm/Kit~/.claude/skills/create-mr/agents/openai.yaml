@@ -1,0 +1,6 @@
+interface:
+  display_name: "Create MR"
+  short_description: "Verify and open a PR or MR"
+  default_prompt: "Use $create-mr to verify, commit, push, and open a Pull Request or Merge Request."
+policy:
+  allow_implicit_invocation: false

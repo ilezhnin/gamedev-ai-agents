@@ -1,0 +1,24 @@
+# Project-scoped Codex defaults for Unity projects.
+# Project .codex layers load only when the project is trusted.
+
+approval_policy = "on-request"
+sandbox_mode = "workspace-write"
+model_reasoning_effort = "medium"
+project_doc_max_bytes = 65536
+project_doc_fallback_filenames = ["UNITY_AGENTS.md", "CLAUDE.md", ".cursorrules"]
+
+# hooks and multi_agent are enabled by default in current Codex; kept explicit for older builds.
+[features]
+hooks = true
+multi_agent = true
+shell_snapshot = true
+
+[agents]
+max_threads = 6
+max_depth = 1
+
+# Unity Editor MCP bridge used by the $unity-mcp skill.
+# Uncomment and point at your MCP-for-Unity server launcher to enable.
+# [mcp_servers.unity]
+# command = "<mcp-for-unity-launcher>"
+# args = []

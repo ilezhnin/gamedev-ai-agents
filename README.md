@@ -19,9 +19,11 @@ templates/
   csharp-aspnet-project/   same shape for ASP.NET
 plugins/
   codex-unity-agent-kit/   the plugin: 22 skills (single source of truth)
+upm/                       Unity Package Manager wrapper: editor setup window +
+                           pre-rendered payload in Kit~ (never edited by hand)
 .agents/plugins/           local marketplace pointing at the plugin
 scripts/                   installers (render platform adapters from canon), update/uninstall,
-                           validate-kit, doctor, check-unity-meta
+                           render-upm-payload, validate-kit, doctor, check-unity-meta
 ```
 
 ## Platform Independence
@@ -83,6 +85,20 @@ Shared:
 | `learn` | Capture reusable lessons into AGENTS.md / learnings / skills |
 
 ## Install Into A Unity Project
+
+### Option A: Unity Package Manager (recommended)
+
+In Unity 2020.3+: `Window -> Package Manager -> + -> Add package from git URL...`
+
+```text
+https://github.com/ilezhnin/gamedev-ai-agents.git?path=/upm
+```
+
+Append `#v<tag>` or `#<branch>` to pin a version. After the package loads, the setup window opens automatically (also at `Window -> Agent Kit -> Setup`); click Install and restart your agent CLI. The window installs the exact file set the PowerShell installer would (same `.agents/kit-manifest.json`, same hash semantics), so editor installs and script installs stay interchangeable: Update refreshes unmodified kit files and keeps local edits, Uninstall removes only unmodified kit files, and a Dry run previews any operation. When a new kit version ships, bump the package in Package Manager and the window offers Update.
+
+The package payload (`upm/Kit~`) is pre-rendered from the canon at kit-release time. When installing from a local clone instead of a git URL, run `scripts\render-upm-payload.ps1` first if `Kit~` is missing.
+
+### Option B: PowerShell installer
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path-to-unity-project>"

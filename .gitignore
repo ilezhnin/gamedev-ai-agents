@@ -1,5 +1,6 @@
-# Local Codex state. Template .codex/.agents directories under templates are tracked.
+# Local Codex / Claude Code state. Template .codex/.agents directories under templates are tracked.
 /.codex/
+/.claude/settings.local.json
 /.agents/cache/
 /.agents/logs/
 /.agents/plans/
@@ -20,6 +21,9 @@
 *.bak
 *.swp
 *~
+# The UPM payload is a committed rendered artifact; the trailing ~ only hides it
+# from the Unity asset importer, so exempt it from the *~ rule above.
+!upm/Kit~/
 
 # OS and editor noise.
 .DS_Store
