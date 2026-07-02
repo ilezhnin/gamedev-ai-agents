@@ -95,6 +95,7 @@ Route by situation before acting. No task is "too small for a skill" - routing k
 | --- | --- |
 | Unfamiliar project or feature area, need the right files | `$unity-orient` |
 | Unclear requirements, risky design, plan needs stress-testing | `$grill-me` |
+| New game or feature idea, needs a design contract first | `$gdd` |
 | Module became spaghetti, needs an architecture audit and refactor backlog | `$arch-audit` |
 | Task needs a written plan or agent handoff | `$planning` |
 | Implement or refactor C# | `$unity-implement` |
@@ -108,5 +109,6 @@ Route by situation before acting. No task is "too small for a skill" - routing k
 | Review a diff, PR, or branch | `$unity-review` |
 | Choose and run the right checks | `$unity-validate` |
 | Coordinate a planned task across agents to a PR | `$crossworking` |
+| Run the staged game pipeline: stage, milestone, or full auto | `$game-pipeline` |
 | Commit, push, and open the PR/MR | `$create-mr` |
 | Capture a reusable lesson | `$learn` |

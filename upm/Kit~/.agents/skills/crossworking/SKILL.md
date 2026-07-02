@@ -82,7 +82,7 @@ Choose the smallest team that can safely complete the task:
 
 Use this default team unless the repository or tools provide better named agents:
 
-Role hierarchy rule: prefer the most specialized role for each job - stack workers implement, stack validators test, stack reviewers review. Broader-profile roles (planner, oracle, researcher) sit above them for planning, consistency, and research; they never write production code.
+Role hierarchy rule: prefer the most specialized role for each job - stack workers implement, stack validators test, stack reviewers review. Broader-profile roles (planner, producer, architect, oracle, researcher) sit above them for planning, coordination, structure, consistency, and research; they never write production code.
 
 - **Planner** (`planner` role): applies `$planning`, updates `active_plan.md`, and tracks uncertainty.
 - **Context scout** (stack `*-explorer` role): maps relevant files, patterns, dependencies, and validation commands; emits the context-handoff artifacts.
@@ -91,6 +91,9 @@ Role hierarchy rule: prefer the most specialized role for each job - stack worke
 - **Validator** (stack `*-test-runner` role): runs compile, test, lint, generated-code, or Unity checks.
 - **Reviewers** (stack `*-reviewer` role): inspect the diff from independent angles without editing.
 - **Oracle** (`oracle` role, optional on long tasks): fresh-context drift check - verifies the current trajectory still matches the inherited decisions and constraints before the fix loop ends.
+- **QA** (`qa` role, optional when the plan carries acceptance criteria): acceptance and exploratory pass during the validation phase; reports findings, never fixes.
+- **Producer** (`producer` role, optional on multi-milestone runs, e.g. under `$game-pipeline`): keeps pipeline and task state current, enforces stage gates.
+- **Architect** (`architect` role, optional): arbitrates when the task forces a module-boundary or ownership decision.
 - **Fixer** (stack worker role): applies accepted review fixes.
 - **MR agent** (`pr-submitter` role): runs `$create-mr` or the project PR/MR workflow.
 

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Game Pipeline"
+  short_description: "Define-plan-build-test-review-ship over milestones"
+  default_prompt: "Use $game-pipeline to run the delivery pipeline for this game or feature."

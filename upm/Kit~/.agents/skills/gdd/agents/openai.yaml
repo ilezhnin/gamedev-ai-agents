@@ -1,0 +1,4 @@
+interface:
+  display_name: "GDD"
+  short_description: "Design contract: core loop, MVP, playable milestones"
+  default_prompt: "Use $gdd to turn this idea into a game design contract with playable milestones."
