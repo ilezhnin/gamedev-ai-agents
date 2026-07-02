@@ -17,9 +17,10 @@ Use Unity MCP with a resource-first workflow: inspect editor state and project c
 4. Read project info and console errors before mutating anything.
 5. Inspect scene hierarchy, GameObjects, components, assets, or tests with paged queries.
 6. Use batch operations for independent repeated changes.
-7. After script edits, wait for compilation and check console errors before attaching new components or running tests.
-8. Verify visual or scene changes with screenshots when the outcome is spatial or UI-driven.
-9. Save changed scenes/assets only when the task intends persistent Unity state changes.
+7. After editing scripts or assets with filesystem tools (outside the editor), request an asset database refresh through MCP: an unfocused editor does not auto-refresh, and without it the compilation you are waiting for never starts.
+8. After script edits, wait for compilation and check console errors before attaching new components or running tests.
+9. Verify visual or scene changes with screenshots when the outcome is spatial or UI-driven.
+10. Save changed scenes/assets only when the task intends persistent Unity state changes.
 
 ## Guardrails
 
@@ -29,6 +30,8 @@ Use Unity MCP with a resource-first workflow: inspect editor state and project c
 - Prefer project assets and reflected APIs over remembered Unity API details.
 - Do not assume packages such as TMP, Input System, Cinemachine, ProBuilder, URP, or HDRP are present. Detect them first.
 - Treat screenshots as verification, not decoration.
+- Check play mode before persistent edits: scene changes made during PlayMode are lost when it stops. Stop play mode first; PlayMode observations are evidence, not edits.
+- Prefer purpose-built tools over in-editor code execution. Run arbitrary C# only for one-off queries or checks no dedicated tool covers, never for destructive operations: its safety checks are not a sandbox, and executed code is not saved into the project.
 
 ## Recovery
 
@@ -36,3 +39,4 @@ Use Unity MCP with a resource-first workflow: inspect editor state and project c
 - If the connection drops during a domain reload, wait briefly and reconnect.
 - If a stale file or SHA error appears, reread the file or asset state before retrying the edit.
 - If a tool payload fails validation, inspect the component or resource schema and adapt field names and types.
+- If a mutation went wrong, use the editor's undo through MCP before rebuilding the state by hand.
