@@ -32,7 +32,7 @@ Resolve Unity YAML conflicts without corrupting fileID/GUID references. Prefer U
    - If the two sides carry different GUIDs for the same path, stop (see Stop Conditions).
 
 5. **Verify in Unity**
-   - Compile via batchmode (unity-validate templates) or open through unity-mcp and read the Console.
+   - Compile via batchmode ($unity-validate templates) or open through $unity-mcp and read the Console.
    - Scan logs for missing references: "Broken text asset", "Could not extract GUID", "missing script", orphaned .meta warnings.
    - Open and exercise the affected scene or prefab.
    - Do not claim the merge succeeded until Unity compiled or the Console was checked.

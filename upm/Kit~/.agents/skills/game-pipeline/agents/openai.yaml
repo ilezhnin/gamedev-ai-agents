@@ -2,3 +2,7 @@ interface:
   display_name: "Game Pipeline"
   short_description: "Define-plan-build-test-review-ship over milestones"
   default_prompt: "Use $game-pipeline to run the delivery pipeline for this game or feature."
+policy:
+  # Auto mode drives commits, pushes, and PR creation; the pipeline must be an
+  # explicit user decision, never an implicit match.
+  allow_implicit_invocation: false

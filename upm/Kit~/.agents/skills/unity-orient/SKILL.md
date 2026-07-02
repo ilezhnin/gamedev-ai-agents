@@ -32,6 +32,26 @@ Prefer these first:
 - `ProjectSettings/*.asset`
 - `Packages/manifest.json`
 
+## Stop Conditions
+
+Stop and ask before:
+
+- Expanding discovery into edits; hand off to $unity-implement (or $unity-debug for failures) once the map is built.
+- Opening scene, prefab, or asset YAML wholesale to "understand" them - query targeted names and GUIDs with `rg` instead.
+- Reading credentials, license files, or anything under user-specific paths.
+- Spending more time mapping when the task's candidate files are already identified - orientation is a means, not the deliverable.
+
+## Final Report
+
+Report:
+
+- Unity version and render pipeline; packages that matter for the task.
+- Relevant assemblies and their boundaries; where runtime, editor, and test code live.
+- Candidate files for the task, with one line on why each matters.
+- Serialization, asset, or GUID risks the change could touch.
+- Cheapest meaningful validation path for this project.
+- Recommended next action (skill and first concrete step).
+
 ## Reference
 
 Read `references/discovery-checklist.md` when the project is large, unfamiliar, or has multiple assemblies/packages.

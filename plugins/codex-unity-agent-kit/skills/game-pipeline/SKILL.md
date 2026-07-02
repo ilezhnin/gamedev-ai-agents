@@ -15,9 +15,9 @@ Execute the game design contract milestone by milestone through fixed stages, ke
 | --- | --- | --- | --- | --- |
 | 1 | Define | `$gdd` | game-designer | GDD exists; milestones have acceptance criteria |
 | 2 | Plan | `$planning`, `$grill-me` on risk | planner | No unresolved blocking questions |
-| 3 | Build | `$crossworking` -> `$unity-implement`, `$unity-mcp` | workers | Increment compiles and is committed |
-| 4 | Test | `$unity-validate`, `$unity-tests` | qa, test-runner | Acceptance criteria pass; console clean |
-| 5 | Review | `$unity-review` | reviewers | No blocking findings after the fix loop |
+| 3 | Build | `$crossworking` -> `$unity-implement`, `$unity-mcp` | unity-worker | Increment compiles and is committed |
+| 4 | Test | `$unity-validate`, `$unity-tests` | qa, unity-test-runner | Acceptance criteria pass; console clean |
+| 5 | Review | `$unity-review` | unity-reviewer | No blocking findings after the fix loop |
 | 6 | Ship | `$create-mr`; release milestones add `$unity-build` | pr-submitter, devops | PR opened / build artifact produced |
 
 The producer role keeps pipeline state current. The architect role arbitrates when a milestone forces a structural decision. Role contracts come from the kit canon; the role hierarchy rule applies.
@@ -32,7 +32,7 @@ The producer role keeps pipeline state current. The architect role arbitrates wh
 - **Milestone mode** ("run milestone N", "next milestone"): run stages 2-6 for one milestone without stopping between green gates.
 - **Auto mode** ("auto", "the whole game", "turnkey"): loop milestones until the MVP checklist in the GDD is complete. Stop only on stop conditions.
 
-In every mode: work on a task-local branch and commit after each green milestone (crossworking rules), so a broken state reverts to last-known-good instead of unwinding by hand.
+In every mode: work on a task-local branch and commit after each verified increment (crossworking rules); every milestone ends committed, so a broken state reverts to last-known-good instead of unwinding by hand.
 
 ## Stop Conditions
 

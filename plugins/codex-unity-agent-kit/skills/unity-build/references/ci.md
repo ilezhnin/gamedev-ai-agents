@@ -47,6 +47,6 @@ Base64-encode the keystore into a secret, decode in a step before the build, and
 
 ## Self-hosted Windows runners for IL2CPP
 
-- GameCI docker images are Linux; they cannot produce Windows IL2CPP players. `StandaloneWindows64` + IL2CPP needs a Windows machine with the Unity editor, the Windows IL2CPP module, and the Visual Studio C++ workload installed.
+- GameCI's default Linux docker images cannot produce Windows IL2CPP players. GameCI also publishes Windows editor images and unity-builder supports Windows runners, but they are slower and less mature - verify against current GameCI docs before relying on them. Otherwise `StandaloneWindows64` + IL2CPP needs a Windows machine with the Unity editor, the Windows IL2CPP module, and the Visual Studio C++ workload installed.
 - Practical setup: a self-hosted Windows runner with the pinned editor pre-installed via Unity Hub, running the batchmode templates from `references/build-commands.md` directly, keeping `Library/` on disk between runs instead of using the cache action.
 - iOS: any runner can export the Xcode project; producing a signed .ipa additionally needs a macOS runner with Xcode and signing assets (separate job, out of scope without credentials).

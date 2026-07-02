@@ -19,6 +19,16 @@ Review backend changes like a service owner. Lead with concrete bugs, security r
 6. Do not list style preferences unless they hide a real defect or maintainability risk.
 7. If no issues are found, say so and name the validation that was or was not run.
 
+## Quality Gates
+
+- Confirm the change is one coherent unit. Flag PRs that mix feature work, refactors, formatting, generated churn, and unrelated config edits.
+- Review tests before implementation when tests exist. Verify they cover behavior and regression risk, not only implementation details.
+- Check validation history: build, targeted tests, migration checks, manual endpoint verification, or explicit blockers.
+- Prefer existing project patterns and framework APIs over new abstractions or dependencies.
+- Treat new packages, auth changes, migration files, contract changes, and generated files as higher-risk review items.
+- Identify newly dead or unreachable code, but do not ask for deletion unless the evidence is clear.
+- Do not accept "fix later" for build breaks, data loss, broken contracts, failing tests, or misleading validation claims.
+
 ## Backend Risk Areas
 
 - Missing authentication, authorization, ownership, tenant, or policy checks.

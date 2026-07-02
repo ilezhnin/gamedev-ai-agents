@@ -19,7 +19,7 @@ Every repository artifact is written in English: code, identifiers, comments, do
 
 ## Durable State
 
-Durable knowledge and work state live only in repository files - `AGENTS.md`, `.agents/plans/`, `.agents/learnings.md`, `docs/tickets/`, module documentation - never in platform-local storage, session memory, or tool-specific caches. Any agent on any platform must be able to open the repository and continue the work with nothing lost.
+Durable knowledge and work state live only in repository files - `AGENTS.md`, `.agents/plans/`, `.agents/learnings.md`, `docs/tickets/`, module documentation - never in platform-local storage, session memory, or tool-specific caches. Any agent on any platform must be able to open the repository and continue the work with nothing lost. Scope note: `.agents/plans/` is gitignored by default, so continuity is per working copy - switching tools on one machine loses nothing, but a fresh clone starts without plan and pipeline state; commit or hand over plan files explicitly when work must move between machines.
 
 ## Engineering Discipline
 

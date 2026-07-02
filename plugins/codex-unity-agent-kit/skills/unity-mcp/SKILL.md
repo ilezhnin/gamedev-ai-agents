@@ -30,6 +30,9 @@ Use Unity MCP with a resource-first workflow: inspect editor state and project c
 - Do not assume packages such as TMP, Input System, Cinemachine, ProBuilder, URP, or HDRP are present. Detect them first.
 - Treat screenshots as verification, not decoration.
 
-## Reference
+## Recovery
 
-Read `references/editor-mcp-workflow.md` for the resource order, verification loop, and recovery checklist.
+- If Unity is busy, compiling, or reloading, wait and reread editor state instead of retrying blind.
+- If the connection drops during a domain reload, wait briefly and reconnect.
+- If a stale file or SHA error appears, reread the file or asset state before retrying the edit.
+- If a tool payload fails validation, inspect the component or resource schema and adapt field names and types.

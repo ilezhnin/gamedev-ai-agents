@@ -14,7 +14,7 @@ Add tests that pin real behavior and survive refactoring. Match existing test in
 1. **Detect existing infrastructure first**
    - Look for `Tests/` folders, `*Tests*.asmdef`, `com.unity.test-framework` in `Packages/manifest.json`, and CI test steps.
    - If tests exist, match their layout, naming, asmdef pattern, and assertion style exactly. Do not introduce a second convention.
-   - If the assembly layout is unclear, run unity-orient first.
+   - If the assembly layout is unclear, run $unity-orient first.
 
 2. **Bootstrap when absent**
    - Create EditMode and/or PlayMode test asmdefs per `references/test-setup.md`: reference the runtime asmdef under test plus `UnityEngine.TestRunner` and `UnityEditor.TestRunner`, set `overrideReferences: true` with precompiled `nunit.framework.dll`, and add the `UNITY_INCLUDE_TESTS` define constraint so tests strip from player builds.
@@ -38,7 +38,7 @@ Add tests that pin real behavior and survive refactoring. Match existing test in
    - A regression test that never failed proves nothing.
 
 7. **Run and report honestly**
-   - Run new tests via unity-validate paths: Unity MCP test runner, batchmode, or the project's own command.
+   - Run new tests via $unity-validate paths: Unity MCP test runner, batchmode, or the project's own command.
    - If Unity cannot be run, state that tests were authored but not executed. Never claim tests ran or passed unless they did.
 
 ## Test Quality Rules

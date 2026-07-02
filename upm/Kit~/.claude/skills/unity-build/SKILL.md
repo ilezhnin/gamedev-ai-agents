@@ -15,7 +15,7 @@ Produce a player build using the project's existing entry points when they exist
    - Search for existing build code: `rg "BuildPipeline.BuildPlayer|BuildPlayerOptions|executeMethod" Assets` and static methods under `Assets/**/Editor/`.
    - Check CI configs (`.github/workflows`, GitLab/Jenkins files) for commands the team already trusts.
    - On Unity 6+, look for BuildProfile assets (commonly `Assets/Settings/Build Profiles/*.asset`); batchmode accepts `-activeBuildProfile <asset-path>`.
-   - Prefer project commands over invented ones. If the layout is unclear, run unity-orient first.
+   - Prefer project commands over invented ones. If the layout is unclear, run $unity-orient first.
 
 2. **Confirm target and backend**
    - Read `ProjectSettings/ProjectVersion.txt` for the exact editor version and `ProjectSettings/ProjectSettings.asset` for scripting backend (Mono vs IL2CPP) and stripping level. Do not change them; see Stop Conditions.

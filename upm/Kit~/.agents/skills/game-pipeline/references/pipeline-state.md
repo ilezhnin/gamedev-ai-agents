@@ -33,5 +33,6 @@ Rules:
 - One row per milestone; stage cells hold `-`, `in progress`, `done`, or `blocked`.
 - Every `done` needs evidence in the matching Stage Record: the exact command and result, a commit hash, a PR link, or a screenshot path.
 - Blockers are never deleted - they get resolved with a note that names the resolving decision.
+- Define is global, not per milestone - that is why the table starts at Plan. The header's `GDD:` line records the Define result; when the pipeline itself created the GDD, add a `### Define` stage record with the gate evidence.
 - Rewrite tables freely; the Decision Log is append-only.
 - The file lives in `.agents/plans/` (kept out of commits by the plans `.gitignore`); it is working state, not documentation - durable design decisions belong in the GDD.

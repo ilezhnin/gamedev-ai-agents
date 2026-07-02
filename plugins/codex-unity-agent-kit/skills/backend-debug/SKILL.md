@@ -23,7 +23,7 @@ Stop feature work, preserve evidence, and fix the root cause of an ASP.NET/C# ba
 
 3. **Localize**
    - Identify the failing boundary: routing/model binding, middleware or filter order, auth, DI lifetime, application logic, EF Core/SQL, serialization, external service, configuration, or CI environment.
-   - Use targeted `rg`, nearby tests, DI registrations, and pipeline order before broad rewrites. Run backend-orient first if the solution shape is unclear.
+   - Use targeted `rg`, nearby tests, DI registrations, and pipeline order before broad rewrites. Run $backend-orient first if the solution shape is unclear.
    - For regressions, inspect the current diff first; use git history or bisect only when needed and safe.
 
 4. **Minimize**
@@ -37,12 +37,12 @@ Stop feature work, preserve evidence, and fix the root cause of an ASP.NET/C# ba
    - If a fix requires a schema, package, contract, or auth behavior change not already approved, stop and ask.
 
 6. **Prevent recurrence**
-   - Add or update the narrowest meaningful regression check when the project has a suitable test pattern.
+   - Add or update the narrowest meaningful regression check when the project has a suitable test pattern; $backend-tests covers bootstrapping when none exists.
    - Use unit tests for pure logic, validators, mappers, and serialization; WebApplicationFactory tests for routing, filters, auth, and binding; database-backed tests for EF/SQL behavior.
    - If no automated test is practical, document the manual verification path and why automation was not added.
 
 7. **Verify**
-   - Run the focused failing check first, then the cheapest broader validation: `dotnet build`, the owning test project, or the project CI command (see backend-validate).
+   - Run the focused failing check first, then the cheapest broader validation: `dotnet build`, the owning test project, or the project CI command (see $backend-validate).
    - Do not claim builds, tests, or migrations ran unless they actually ran; report blockers with the exact next command.
 
 ## Backend Failure Triage
@@ -57,6 +57,14 @@ Stop feature work, preserve evidence, and fix the root cause of an ASP.NET/C# ba
 - **Serialization mismatch**: System.Text.Json defaults differ from Newtonsoft: casing policy, enums as numbers, missing setters, nullability, ignore conditions. Confirm which serializer and options the pipeline actually uses.
 - **Culture/timezone bug**: parsing or formatting with current culture instead of `CultureInfo.InvariantCulture`, `DateTime.Now` vs `UtcNow`, `DateTimeKind` lost through serialization or the database.
 - **CI-only failure**: compare SDK vs `global.json`, missing service containers/databases, unset env vars or secrets, case-sensitive paths and file names on Linux runners, and the runner's culture defaults.
+
+## Red Flags
+
+- "It works now" without an explanation of why it broke - the bug is probably still there.
+- "The test is probably wrong" - verify the test before weakening it; it usually encodes real behavior.
+- "I know what the bug is" before reproducing - a meaningful share of first guesses are wrong; reproduce first.
+- The failure is intermittent and the fix never made it fail again on demand - you may have fixed nothing.
+- For flaky repros, branch by cause: timing-dependent (widen the race window, run under load), state-dependent (test order, shared database rows, static state), environment-dependent (SDK, container versions, CI runner), genuinely random (add guard logging and watch).
 
 ## Stop Conditions
 

@@ -2,6 +2,8 @@
 
 This document is the project-wide architecture contract. It governs module ownership, data flow, lifecycle, boundaries, and integration rules. `CODE_STYLE.md` governs source-level style; `AGENTS.md` holds the module map and working rules. Read this before starting module work, reviewing a refactor, adding a public contract, or introducing a new system boundary.
 
+This file installs as the kit's default contract. On install, review each section against the actual codebase: delete or adjust rules that do not describe this project (an existing project rarely matches all of them on day one). Until that review happens, treat divergence between code and this document as a discussion item for the user, not as a defect to fix toward the contract.
+
 ## Architecture Standard
 
 The service is organized around domain modules, narrow ports, adapters, explicit composition, and typed outcomes - not around framework artifacts. ASP.NET is the delivery mechanism at the boundary, not the owner of domain policy.

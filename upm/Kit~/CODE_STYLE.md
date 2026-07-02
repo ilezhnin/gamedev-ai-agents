@@ -45,7 +45,7 @@ If the project has no header convention, propose this one to the user before ado
 - `PascalCase`: types, interfaces, properties, methods, namespaces, public/protected fields, events.
 - `_camelCase`: private fields, including `[SerializeField] private`.
 - `camelCase`: locals and parameters.
-- `UPPER_SNAKE_CASE`: new constants and simulation/content/data-contract enum members. `static readonly` is not a constant - name by visibility.
+- `UPPER_SNAKE_CASE`: new constants and simulation/content/data-contract enum members, unless the codebase consistently uses `PascalCase` constants - then match it. `static readonly` is not a constant - name by visibility.
 - Booleans start with `Is`, `Can`, `Has`, `Should`, or `Try`. No vague `CheckX`.
 - Methods are verbs; types and properties are nouns. Collections are plural.
 - No tautology (`character.Move()`, not `character.CharacterMove()`); no vague names (`temp`, `data`, `obj`, `Manager`, `Helper`, `Utility`) when a responsibility-based name exists.

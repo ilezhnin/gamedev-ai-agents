@@ -22,7 +22,7 @@ if ($LASTEXITCODE -ne 0) {
 
 ## Unity 6+ build profile
 
-If the project has BuildProfile assets, prefer them over hand-rolled scripts:
+If the project has BuildProfile assets, prefer them over hand-rolled scripts. `-activeBuildProfile` only selects the profile; a build entry point is still required (`BuildActiveProfile` from the BuildScript below):
 
 ```powershell
 & $env:UNITY_EDITOR -batchmode -quit -projectPath (Get-Location).Path -activeBuildProfile "Assets/Settings/Build Profiles/Win64.asset" -executeMethod BuildScript.BuildActiveProfile -logFile "Logs/BuildProfile.log"
@@ -83,6 +83,29 @@ public static class BuildScript
     public static void BuildIOS() =>
         Build(BuildTarget.iOS, "Builds/iOS"); // exports an Xcode project directory
 
+#if UNITY_6000_0_OR_NEWER
+    // Entry point for the -activeBuildProfile command: builds whatever profile
+    // the CLI flag activated. Unity 6+ only (BuildProfile API).
+    public static void BuildActiveProfile()
+    {
+        var profile = UnityEditor.Build.Profile.BuildProfile.GetActiveBuildProfile();
+        if (profile == null)
+        {
+            Console.WriteLine("No active build profile; pass -activeBuildProfile <asset path>.");
+            EditorApplication.Exit(1);
+            return;
+        }
+        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerWithProfileOptions
+        {
+            buildProfile = profile,
+            locationPathName = "Builds/Profile/Game",
+        });
+        Console.WriteLine($"Build {report.summary.result}: {report.summary.totalSize} bytes, {report.summary.totalErrors} errors");
+        if (report.summary.result != BuildResult.Succeeded)
+            EditorApplication.Exit(1);
+    }
+#endif
+
     static void Build(BuildTarget target, string outputPath)
     {
         BuildReport report = BuildPipeline.BuildPlayer(Scenes, outputPath, target, BuildOptions.None);
@@ -98,6 +121,7 @@ public static class BuildScript
 Requires an asmdef reference to `Unity.Addressables.Editor` (or place next to existing Addressables editor code). Run this instead of the bare player method when the project uses Addressables:
 
 ```csharp
+using UnityEditor.AddressableAssets.Build;
 using UnityEditor.AddressableAssets.Settings;
 
 public static void BuildContentThenWin64()

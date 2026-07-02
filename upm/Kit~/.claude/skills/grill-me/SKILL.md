@@ -13,7 +13,7 @@ For game projects, stress-test both product intent and implementation reality: t
 
 ## Preflight Context
 
-Before asking the first decision question, collect baseline context from sources already available to Codex.
+Before asking the first decision question, collect baseline context from sources already available to the agent.
 
 - Use the current thread, loaded instructions, project `AGENTS.md`, `.codex`, `.agents`, README files, architecture/style/dependency docs, package manifests, config files, nearby module docs, and existing code.
 - If working in a codebase, search before asking. Prefer `rg` and targeted file reads.

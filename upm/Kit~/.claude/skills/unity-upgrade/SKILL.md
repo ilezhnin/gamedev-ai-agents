@@ -37,7 +37,7 @@ Move the project to the target editor or package versions in small verified stag
    - Classify every diff using the rules below before committing anything.
 
 7. **Validate**
-   - Ladder per stage: compile clean, EditMode, PlayMode, open key scenes (unity-mcp), and a player build if the project ships soon (delegate to unity-build). Use unity-validate for command templates.
+   - Ladder per stage: compile clean, EditMode, PlayMode, open key scenes ($unity-mcp), and a player build if the project ships soon (delegate to $unity-build). Use $unity-validate for command templates.
 
 ## Churn Triage
 
