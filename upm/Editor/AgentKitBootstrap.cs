@@ -1,5 +1,7 @@
 using System;
+using System.Linq;
 using UnityEditor;
+using UnityEditor.PackageManager;
 using UnityEngine;
 
 namespace GamedevAgentKit.Editor
@@ -7,6 +9,8 @@ namespace GamedevAgentKit.Editor
     /// <summary>
     /// Opens the setup window once per editor session when the kit is not
     /// installed in the project yet or is older than the package payload.
+    /// Re-adding the package resets the once-per-session latch, so a remove
+    /// and re-add within one editor session prompts again.
     /// </summary>
     [InitializeOnLoad]
     internal static class AgentKitBootstrap
@@ -20,6 +24,22 @@ namespace GamedevAgentKit.Editor
         static AgentKitBootstrap()
         {
             EditorApplication.delayCall += PromptIfNeeded;
+            Events.registeredPackages += OnRegisteredPackages;
+        }
+
+        private static void OnRegisteredPackages(PackageRegistrationEventArgs args)
+        {
+            // A fresh add of this package must prompt even when the window was
+            // already shown earlier in this editor session: SessionState
+            // survives domain reloads, so without the reset a remove + re-add
+            // stays silent until the editor restarts.
+            if (!args.added.Any(package => package.name == AgentKitPaths.PackageName))
+            {
+                return;
+            }
+
+            SessionState.SetBool(SessionKey, false);
+            PromptIfNeeded();
         }
 
         private static void PromptIfNeeded()

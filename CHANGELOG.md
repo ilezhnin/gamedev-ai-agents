@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.2 - 2026-07-01
+
+### Fixed
+- Re-adding the package within the same editor session no longer skips the setup window. The once-per-session latch lives in SessionState, which survives domain reloads, so after a remove + re-add the bootstrap stayed silent until the editor restarted (the "do not open automatically" preference was never involved). A `registeredPackages` watcher now resets the latch when this package is freshly added and re-runs the prompt, which still opens only when the kit is missing or older than the package.
+
 ## 0.4.1 - 2026-07-01
 
 ### Fixed
