@@ -1,51 +1,102 @@
-# Gamedev AI Agents
+<h1 align="center">Gamedev AI Agents</h1>
 
-Platform-independent AI agent kit for Unity, C#, and ASP.NET game development. The kit is a source repository: project templates with architecture/style/dependency contracts, 24 reusable skills, canonical agent roles and policies rendered into per-platform adapters, and manifest-based installers with a real update/uninstall story.
+<p align="center"><b>Build Unity games with AI agents: one prompt in, a playable milestone out.</b></p>
 
-Platforms: OpenAI Codex, Anthropic Claude Code, and Google Antigravity (Gemini and its other models) as equals, Windows-first with WSL support, plus a Cursor pointer. One canon, rendered adapter layers per platform - switching platforms loses nothing.
+<p align="center">
+  <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
+  <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Antigravity-blueviolet">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.3.0-blue">
+  <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
+</p>
 
-## Layout
+<p align="center">
+  <b>English</b> | <a href="README.ru.md">Русский</a>
+  &nbsp;&middot;&nbsp;
+  <a href="#quick-start">Quick Start</a>
+  &nbsp;&middot;&nbsp;
+  <a href="#the-pipeline">Pipeline</a>
+  &nbsp;&middot;&nbsp;
+  <a href="#whats-inside">What's Inside</a>
+  &nbsp;&middot;&nbsp;
+  <a href="CHANGELOG.md">Changelog</a>
+</p>
+
+This kit turns your AI coding agent - OpenAI Codex, Anthropic Claude Code, or Google Antigravity - into a small game studio inside your Unity project. A game designer role writes the design contract, a planner slices it into playable milestones, workers implement, QA plays the build, reviewers audit the diff, and a release agent ships the PR. Run it stage by stage under your control, or fully automatic from a single prompt.
+
+- **2-minute install** - add one git URL in Unity Package Manager, click Install, done.
+- **Idea to playable** - `gdd` turns a one-line idea into a design contract; `game-pipeline` executes it through gated stages. Every milestone ends playable: compiles, PlayMode enters clean, the new mechanic is reachable in-game.
+- **24 skills** for real gamedev work: scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
+- **A studio of roles** - game designer, producer, architect, QA, devops, plus workers, reviewers, and researchers - rendered natively for every platform.
+- **Platform-independent by design** - one canon, thin rendered adapters. All state lives in repo files, so switching Codex <-> Claude Code <-> Antigravity mid-task loses nothing.
+- **Safe lifecycle** - hash-manifest installs: updates refresh only unmodified files, your local edits always survive, uninstall removes exactly what the kit shipped.
+
+## Quick Start
+
+**1. Install the package.** In Unity 2020.3+: `Window -> Package Manager -> + -> Add package from git URL...`
 
 ```text
-AGENTS.md                  kit-repo editing rules and validation
-VERSION / CHANGELOG.md     semver + release notes
-global/
-  AGENTS.md                full engineering discipline (global profile)
-  unity-codex.config.toml  Codex profile
-  canon/                   SINGLE SOURCE OF TRUTH: roles.json, permissions.json, hooks.json
-templates/
-  unity-project/           AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md, DEPENDENCIES.md,
-                           CLAUDE.md, .cursor/, .codex/config.toml
-  csharp-aspnet-project/   same shape for ASP.NET
-plugins/
-  codex-unity-agent-kit/   the plugin: 24 skills (single source of truth)
-upm/                       Unity Package Manager wrapper: editor setup window +
-                           pre-rendered payload in Kit~ (never edited by hand)
-.agents/plugins/           local marketplace pointing at the plugin
-scripts/                   installers (render platform adapters from canon), update/uninstall,
-                           render-upm-payload, validate-kit, doctor, check-unity-meta
+https://github.com/ilezhnin/gamedev-ai-agents.git?path=/upm
 ```
 
-## Platform Independence
+Append `#v<tag>` to pin a version.
 
-The kit treats platforms as render targets. All knowledge and all state live in neutral repository files; `.codex/` and `.claude/` are thin adapters rendered from `global/canon/` at install time and are never edited by hand:
+**2. Click Install.** The Agent Kit window opens automatically (or via `Window -> Agent Kit -> Setup`). It copies the project contracts, skills, roles, permissions, and hooks into your project root and records everything in a manifest.
 
-| Concern | Canon | Codex | Claude Code | Antigravity |
-| --- | --- | --- | --- | --- |
-| Instructions | `AGENTS.md` + contracts | native | via `CLAUDE.md` pointer | native (since v1.20.3) |
-| Skills | `plugins/.../skills/` | `.agents/skills/` | `.claude/skills/` mirror | `.agents/skills/` native |
-| Subagent roles | `canon/roles.json` | `.codex/agents/*.toml` | `.claude/agents/*.md` | `.agents/rules/kit-agent-roles.md` (dynamic orchestration) |
-| Permissions | `canon/permissions.json` | `.codex/rules/default.rules` | `.claude/settings.json` | `.agents/rules/kit-permissions.md` (IDE lists are GUI-only) |
-| Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` | `.agents/rules/kit-automation.md` (behavioral) |
-| Work state / memory | `.agents/plans/`, `.agents/learnings.md`, `docs/tickets/` | shared | shared | shared |
+**3. Make a game.** Restart your agent CLI (or open a new session from the project) and prompt:
 
-Antigravity notes: it reads `AGENTS.md` and discovers `.agents/skills/` natively, so half the kit needs no adapter at all; it has no static subagent format (dynamic orchestration), so roles ship as a `model_decision` rules file; IDE terminal allow/deny lists are not file-configurable, so permissions ship as an always-on behavioral rule; its file-hook protocol is CLI-verified but IDE-uncertain, so automation ships as a rule instead of `hooks.json`.
+```text
+$gdd "cozy island farming sim, mobile, 5-minute sessions"   # Codex
+/gdd "cozy island farming sim, mobile, 5-minute sessions"   # Claude Code
+```
 
-Durable state never lives in platform storage, so switching Codex <-> Claude Code <-> Antigravity mid-task loses nothing: the next agent resumes from `.agents/plans/` and the repo contracts. `doctor.ps1` reports when layers drift; installers' `-Update` re-syncs all of them.
+Then run the pipeline your way:
 
-## Skills
+```text
+$game-pipeline           # one gated stage at a time, you approve each step
+$game-pipeline auto      # the whole MVP from one prompt, stops only on blockers
+```
 
-Invocation: `$skill-name` in Codex, `/skill-name` or automatic description matching in Claude Code - same names, same content on both platforms.
+Antigravity reads `AGENTS.md` and `.agents/skills/` natively - just describe what you want.
+
+## The Pipeline
+
+```mermaid
+flowchart LR
+    IDEA([Idea]) --> D
+    subgraph loop [per milestone]
+        direction LR
+        P[Plan] --> B[Build] --> T[Test] --> R[Review] --> S[Ship]
+    end
+    D[Define<br/>gdd] --> P
+    S -->|next milestone| P
+    S --> PR([PR / release build])
+```
+
+| Stage | Skills | Lead role | Gate to pass |
+| --- | --- | --- | --- |
+| Define | `gdd` | game-designer | Design contract exists; milestones have acceptance criteria |
+| Plan | `planning`, `grill-me` | planner | No unresolved blocking questions |
+| Build | `crossworking` -> `unity-implement`, `unity-mcp` | workers | Increment compiles and is committed |
+| Test | `unity-validate`, `unity-tests` | qa, test-runner | Acceptance criteria pass; console clean |
+| Review | `unity-review` | reviewers | No blocking findings |
+| Ship | `create-mr`, `unity-build` | pr-submitter, devops | PR opened / build artifact produced |
+
+Three modes: **stage** (default - run one stage, stop), **milestone** (stages 2-6 without pauses between green gates), **auto** (loop milestones until the GDD's MVP checklist is done). Pipeline state lives in `.agents/plans/pipeline.md`, the design contract in `docs/design/game-design.md` - any agent on any platform resumes from files, never from chat memory.
+
+Milestones are vertical slices: "player moves and jumps in a graybox level", never "input system done". Balance lives in data assets with tuning ranges, art starts as placeholders so implementation never blocks, and QA captures PlayMode evidence (console, screenshots) through the Unity editor via MCP.
+
+## What's Inside
+
+### Skills
+
+Invocation: `$skill-name` in Codex, `/skill-name` or automatic matching in Claude Code - same names, same content everywhere.
+
+Game pipeline:
+
+| Skill | Purpose |
+| --- | --- |
+| `gdd` | Game design contract: core loop, mechanics, balance data, scope-boxed MVP, playable milestones |
+| `game-pipeline` | Staged delivery over GDD milestones: define -> plan -> build -> test -> review -> ship; stage, milestone, and auto modes |
 
 Unity (`unity-...`):
 
@@ -63,23 +114,6 @@ Unity (`unity-...`):
 | `unity-upgrade` | Staged editor/package upgrades with churn triage |
 | `unity-profile` | Measure-first performance loop with numeric budgets |
 
-Game pipeline (Unity stack):
-
-| Skill | Purpose |
-| --- | --- |
-| `gdd` | Game design contract: core loop, mechanics, balance data, scope-boxed MVP, playable milestones |
-| `game-pipeline` | Staged delivery over GDD milestones: define -> plan -> build -> test -> review -> ship; stage, milestone, and auto modes |
-
-C# backend (`backend-...`):
-
-| Skill | Purpose |
-| --- | --- |
-| `backend-orient` | Map an ASP.NET solution: SDK, projects, DI, endpoints, EF, config, tests |
-| `backend-implement` | Safe backend changes: contracts, auth, persistence, migrations |
-| `backend-debug` | Root-cause backend debugging with an ASP.NET failure triage table |
-| `backend-review` | Service-owner review: security, data integrity, STRIDE pass |
-| `backend-validate` | Targeted dotnet build/test, migration and contract checks |
-
 Shared:
 
 | Skill | Purpose |
@@ -91,110 +125,134 @@ Shared:
 | `create-mr` | Verify, commit, push, open the PR/MR; conventional commits |
 | `learn` | Capture reusable lessons into AGENTS.md / learnings / skills |
 
-## Game Pipeline
+C# backend (`backend-...`), for game servers and services: `backend-orient`, `backend-implement`, `backend-debug`, `backend-review`, `backend-validate` - same discipline, ASP.NET flavored, installed by the backend template.
 
-For game work the kit layers a studio-shaped delivery pipeline on top of the skills. `$gdd` turns an idea into the design contract (`docs/design/game-design.md`): core loop, mechanics mapped to module owners, balance as data, a scope-boxed MVP, and milestones that each end in a playable state. `$game-pipeline` executes that contract through fixed gated stages - define -> plan -> build -> test -> review -> ship - with all state in `.agents/plans/pipeline.md`, in three modes: stage by stage, per milestone, or fully automatic from one prompt until the MVP checklist is done.
+### Roles
 
-Studio roles from the canon back the stages and render to every platform like the rest: `game-designer` (Unity stack), plus shared `producer`, `architect`, `devops`, and `qa` alongside the existing planner / workers / reviewers / oracle / researcher / pr-submitter.
+Canonical role contracts, rendered natively per platform (Codex agent TOMLs, Claude Code subagents, Antigravity orchestration rules):
 
-## Install Into A Unity Project
+- **Studio**: `game-designer` (owns the GDD), `producer` (stage gates, scope cuts, pipeline state), `architect` (guards ARCHITECTURE.md, arbitrates boundaries), `qa` (acceptance + exploratory playtesting), `devops` (CI, batchmode builds, release discipline).
+- **Delivery**: `planner`, `unity-worker` / `backend-worker`, `unity-explorer` / `backend-explorer`, `unity-reviewer` / `backend-reviewer`, `unity-test-runner` / `backend-test-runner`, `oracle` (drift check on long tasks), `researcher`, `pr-submitter`.
 
-### Option A: Unity Package Manager (recommended)
+Hierarchy rule: specialized stack roles implement, test, and review; broader-profile roles coordinate above them and never write production code.
 
-In Unity 2020.3+: `Window -> Package Manager -> + -> Add package from git URL...`
+### Project Contracts
 
-```text
-https://github.com/ilezhnin/gamedev-ai-agents.git?path=/upm
-```
+The install places living contracts in your project root that keep agents on rails: `AGENTS.md` (tech stack, module map, boundaries, skill routing), `ARCHITECTURE.md` (module shape, asmdef boundaries, determinism, serialization compatibility), `CODE_STYLE.md`, `DEPENDENCIES.md` (every package justified). Agents read them before acting; `learn` keeps project lessons in `.agents/learnings.md`.
 
-Append `#v<tag>` or `#<branch>` to pin a version. After the package loads, the setup window opens automatically (also at `Window -> Agent Kit -> Setup`); click Install and restart your agent CLI. The window installs the exact file set the PowerShell installer would (same `.agents/kit-manifest.json`, same hash semantics), so editor installs and script installs stay interchangeable: Update refreshes unmodified kit files and keeps local edits, Uninstall removes only unmodified kit files, and a Dry run previews any operation. When a new kit version ships, bump the package in Package Manager and the window offers Update.
+## Platforms
 
-The package payload (`upm/Kit~`) is pre-rendered from the canon at kit-release time. When installing from a local clone instead of a git URL, run `scripts\render-upm-payload.ps1` first if `Kit~` is missing.
+One canon, rendered adapters - `.codex/` and `.claude/` are generated at install time and never edited by hand:
 
-### Option B: PowerShell installer
+| Concern | Canon | Codex | Claude Code | Antigravity |
+| --- | --- | --- | --- | --- |
+| Instructions | `AGENTS.md` + contracts | native | via `CLAUDE.md` pointer | native |
+| Skills | `plugins/.../skills/` | `.agents/skills/` | `.claude/skills/` mirror | `.agents/skills/` native |
+| Subagent roles | `canon/roles.json` | `.codex/agents/*.toml` | `.claude/agents/*.md` | `.agents/rules/` (dynamic orchestration) |
+| Permissions | `canon/permissions.json` | `.codex/rules/` | `.claude/settings.json` | `.agents/rules/` (behavioral) |
+| Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` | `.agents/rules/` (behavioral) |
+| Work state | `.agents/plans/`, `docs/` | shared | shared | shared |
+
+Both Codex and Claude Code get a working post-edit hook that runs the kit's `.meta`/GUID hygiene check after edits. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
+
+## Updating And Uninstalling
+
+Bump the package in Package Manager - the Agent Kit window offers **Update**: refreshes files you have not modified, keeps every local edit with a `KEEP` notice, removes files the kit no longer ships. **Uninstall** removes only unmodified kit files. **Dry run** previews any operation without writing. Script installs share the same manifest, so you can mix editor and script flows freely.
+
+<details>
+<summary><b>Other ways to install (PowerShell, backend template, global profile, plugin)</b></summary>
+
+All scripted installers support `-Update`, `-Force`, and `-WhatIf` with the same manifest semantics.
+
+**Unity project via script** (same result as the package window):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path-to-unity-project>"
 ```
 
-Copies the template tree (`AGENTS.md`, `ARCHITECTURE.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, `CLAUDE.md`, `.cursor/rules/agents.mdc`, `.codex/config.toml`, `.agents/plans/.gitignore`), installs the 19 Unity+shared skills into both `.agents/skills/` (Codex) and `.claude/skills/` (Claude Code), renders both platform adapter layers from the canon (`.codex/` agents + rules + hooks; `.claude/` agents + settings), and places `.agents/scripts/check-unity-meta.ps1`. Writes `.agents/kit-manifest.json` (kit version + per-file hashes).
+Installs the template contracts, the 19 Unity+shared skills into `.agents/skills/` and `.claude/skills/`, renders all platform adapters from the canon, and writes `.agents/kit-manifest.json`. The target must contain `Assets/` and `ProjectSettings/` (`-AllowNonUnityTarget` to override).
 
-The target must contain `Assets/` and `ProjectSettings/` (override with `-AllowNonUnityTarget`). Restart Codex / Claude Code or open a new thread from the project after installing.
-
-## Install Into A C# ASP.NET Project
+**C# ASP.NET backend project** (game servers, services):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-aspnet-project-template.ps1 -TargetProject "<path-to-backend-project>"
 ```
 
-Copies the backend template tree (including `ARCHITECTURE.md`, `CODE_STYLE.md`, and `DEPENDENCIES.md`), installs the 11 backend+shared skills into both platform skill locations, and renders both adapter layers from the canon. The target must contain a `.sln`, `.slnx`, or `.csproj` (override with `-AllowNonDotnetTarget`).
+Same shape: backend contracts, the 11 backend+shared skills, rendered adapters. The target must contain a `.sln`, `.slnx`, or `.csproj`.
 
-## Update, Preview, Uninstall
-
-All installers share the same semantics:
-
-- Plain run: copies new files, skips existing ones (warns how many were skipped).
-- `-Update`: refreshes files you have not modified (hash matches the manifest), keeps locally modified files with a `KEEP` notice, and removes unmodified files the kit no longer ships.
-- `-Force`: overwrites everything.
-- `-WhatIf`: previews any of the above without writing.
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path>" -Update
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-project-template.ps1 -TargetProject "<path>"
-```
-
-Uninstall removes kit files whose hash still matches the manifest, keeps your modified copies (delete them too with `-Force`), and cleans up empty directories.
-
-## Global Profile
+**Global profile** (optional, engineering discipline for all projects):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1
 ```
 
-Installs into `$env:CODEX_HOME` (default `~/.codex`): the `unity-codex` profile (run Codex with `codex --profile unity-codex`), custom agents, and rules.
+Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 24 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
 
-- `global/AGENTS.md` (the full 18-section engineering discipline) is installed as the inert `AGENTS.unity-template.md` by default. Activate it with `-InstallAgentsMd` - your existing `~/.codex/AGENTS.md` is backed up first.
-- `-InstallSkills` copies all 24 skills to both `~/.agents/skills` (documented user-scope location) and `~/.codex/skills` (legacy compatibility).
-- `-InstallClaude` installs the Claude Code global layer: all skills to `~/.claude/skills` and the agent roles to `~/.claude/agents`.
-- `-InstallWslSkills` installs the full profile (skills, config, rendered agents and rules) into the WSL Codex home for the VS Code extension running Codex through WSL. Use `-WslCodexHome` to override detection.
-- `-Update` / `-Force` / `-WhatIf` work as for project installs.
-
-## Use As A Plugin (Codex-only)
-
-The repo-local marketplace at `.agents/plugins/marketplace.json` points to `plugins/codex-unity-agent-kit`. Claude Code users get the same content through the installers. If Codex does not discover the marketplace automatically:
+**Codex plugin marketplace**:
 
 ```powershell
 codex plugin marketplace add "<path-to-this-kit>"
 ```
 
-Also useful: `codex plugin marketplace list`, `... upgrade`, `... remove`.
-
-## Utilities
+**Uninstall via script**:
 
 ```powershell
-# Kit self-lint: frontmatter, openai.yaml, references, manifests, skill sets, drift, ASCII policy.
-powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-kit.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-project-template.ps1 -TargetProject "<path>"
+```
 
+</details>
+
+<details>
+<summary><b>Utilities: doctor, kit self-lint, meta check</b></summary>
+
+```powershell
 # Environment health: git/gh/dotnet/UNITY_EDITOR/Unity Hub/YAMLMerge/kit version, with fix commands.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor.ps1 -TargetProject "<path>"
 
-# Unity meta/GUID hygiene (installed into projects; also wired as a post-edit hook).
+# Kit self-lint: frontmatter, references, manifests, skill sets, adapter drift, UPM payload drift, ASCII policy.
+powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-kit.ps1
+
+# Unity meta/GUID hygiene (also installed into projects and wired as a post-edit hook).
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-unity-meta.ps1 -ProjectRoot "<path>" -Full
 ```
 
-## How Configuration Layers
+`doctor.ps1` also reports when an installed project is behind the kit version or a rendered adapter layer drifted.
 
-1. Global instructions (optional): `~/.codex/AGENTS.md` for Codex, `~/.claude/CLAUDE.md` for Claude Code - full engineering discipline.
-2. Project `AGENTS.md` (from the template) - Tech Stack manifest, module map, boundaries, skill routing - plus the project contracts `ARCHITECTURE.md`, `CODE_STYLE.md`, and `DEPENDENCIES.md`.
-3. Rendered platform adapters: `.codex/` (config, agents, rules, hooks; trusted projects only) and `.claude/` (agents, settings, skills mirror).
-4. `.agents/skills/` - project-scope skills; `.agents/learnings.md` - project lessons captured by `$learn`; `.agents/scripts/` - platform-neutral automation scripts.
+</details>
 
-Both platforms get a working post-edit hook that runs `.agents/scripts/check-unity-meta.ps1` after edits in Unity projects. Project hooks require trust review via `/hooks` in Codex. A commented `[mcp_servers.unity]` block in the Unity template's `.codex/config.toml` shows where to wire an MCP-for-Unity server for `$unity-mcp`; Claude Code reads MCP servers from `.mcp.json`.
+<details>
+<summary><b>Repository layout (for contributors)</b></summary>
 
-## What Does Not Transfer
+```text
+AGENTS.md                  kit-repo editing rules and validation
+VERSION / CHANGELOG.md     semver + release notes
+global/
+  AGENTS.md                full engineering discipline (global profile)
+  unity-codex.config.toml  Codex profile
+  canon/                   SINGLE SOURCE OF TRUTH: roles.json, permissions.json, hooks.json
+templates/
+  unity-project/           AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md, DEPENDENCIES.md,
+                           CLAUDE.md, .cursor/, .codex/config.toml
+  csharp-aspnet-project/   same shape for ASP.NET
+plugins/
+  codex-unity-agent-kit/   the plugin: 24 skills (single source of truth)
+upm/                       Unity Package Manager wrapper: editor setup window +
+                           pre-rendered payload in Kit~ (generated, never hand-edited)
+.agents/plugins/           local marketplace pointing at the plugin
+scripts/                   installers (render platform adapters from canon), update/uninstall,
+                           render-upm-payload, validate-kit, doctor, check-unity-meta
+```
 
-Never commit or copy as part of this kit: Codex or Claude auth files and API keys, OAuth tokens, machine-specific Unity license state, user-specific cloud environments, hook trust state. Keep secrets in environment variables, the OS keychain, or each platform's normal auth flow.
+How configuration layers in an installed project: global instructions (optional) -> project `AGENTS.md` + contracts -> rendered platform adapters (`.codex/`, `.claude/`) -> project-scope skills and learnings under `.agents/`.
+
+Contributions: run `scripts\validate-kit.ps1` before committing; after changing templates, skills, or the canon, re-render the UPM payload with `scripts\render-upm-payload.ps1`. English only, ASCII in templates/plugins/upm.
+
+</details>
+
+## Security Notes
+
+The kit never ships or copies: Codex/Claude auth files, API keys, OAuth tokens, machine-specific Unity license state, hook trust state. Keep secrets in environment variables, the OS keychain, or each platform's normal auth flow. Project hooks require trust review (`/hooks`) in Codex.
 
 ## Versioning
 
-Semver in `VERSION`, releases described in `CHANGELOG.md`. Installed projects record their kit version in `.agents/kit-manifest.json`; `doctor.ps1` reports when a project is behind. MIT license.
+Semver in `VERSION`, releases in [CHANGELOG.md](CHANGELOG.md). Installed projects record their kit version in `.agents/kit-manifest.json`; `doctor.ps1` reports when a project is behind. MIT license.
