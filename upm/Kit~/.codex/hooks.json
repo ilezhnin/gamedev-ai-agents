@@ -1,16 +1,16 @@
 {
-    "hooks":  {
-                  "PostToolUse":  [
-                                      {
-                                          "matcher":  "apply_patch",
-                                          "hooks":  [
-                                                        {
-                                                            "type":  "command",
-                                                            "command":  "pwsh -NoProfile -File .agents/scripts/check-unity-meta.ps1",
-                                                            "commandWindows":  "powershell -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/check-unity-meta.ps1"
-                                                        }
-                                                    ]
-                                      }
-                                  ]
-              }
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "apply_patch",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "pwsh -NoProfile -File .agents/scripts/check-unity-meta.ps1",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/check-unity-meta.ps1"
+          }
+        ]
+      }
+    ]
+  }
 }

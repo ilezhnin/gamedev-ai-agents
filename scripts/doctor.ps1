@@ -21,14 +21,14 @@ if (Get-Command git -ErrorAction SilentlyContinue) { Say "PASS" "git available" 
 else { Say "FAIL" "git not found" "install Git for Windows and ensure it is on PATH" }
 
 if (Get-Command gh -ErrorAction SilentlyContinue) {
-    & gh auth status 2>&1 | Out-Null
+    Invoke-KitNativeQuiet { gh auth status } | Out-Null
     if ($LASTEXITCODE -eq 0) { Say "PASS" "gh authenticated" }
     else { Say "WARN" "gh present but not authenticated (create-mr will be blocked)" "gh auth login" }
 }
 else { Say "WARN" "gh (GitHub CLI) not found - create-mr cannot open PRs" "winget install GitHub.cli" }
 
 if (Get-Command dotnet -ErrorAction SilentlyContinue) {
-    $sdk = (& dotnet --version 2>$null)
+    $sdk = Invoke-KitNativeQuiet { dotnet --version }
     Say "PASS" "dotnet SDK $sdk"
 }
 else { Say "WARN" "dotnet SDK not found - backend validation unavailable" "winget install Microsoft.DotNet.SDK.8" }
@@ -58,6 +58,21 @@ if ($TargetProject) {
             $kitVersion = Get-KitVersion
             if ($manifest.kitVersion -eq $kitVersion) { Say "PASS" "kit install is current ($kitVersion)" }
             else { Say "WARN" "kit install is $($manifest.kitVersion), kit source is $kitVersion" "re-run the project installer with -Update" }
+
+            # Layer drift: compare every manifest-tracked file against disk.
+            $driftMissing = 0
+            $driftModified = 0
+            foreach ($key in $manifest.files.Keys) {
+                $path = Join-Path $target ($key -replace "/", "\")
+                if (-not (Test-Path -LiteralPath $path)) { $driftMissing++ }
+                elseif ((Get-FileSha256 -Path $path) -ne $manifest.files[$key]) { $driftModified++ }
+            }
+            if ($driftMissing -eq 0 -and $driftModified -eq 0) {
+                Say "PASS" "all $($manifest.files.Count) manifest-tracked kit files present and unmodified"
+            }
+            else {
+                Say "WARN" "kit files drifted from the manifest: $driftModified modified, $driftMissing missing" "re-run the project installer with -Update (local edits are preserved)"
+            }
         }
 
         # Platform layer sync: Codex reads .agents/skills, Claude Code reads .claude/skills.
@@ -72,8 +87,11 @@ if ($TargetProject) {
         elseif (Test-Path -LiteralPath $agentsSkills) {
             Say "WARN" "Claude Code layer missing (.claude/skills not found)" "re-run the project installer with -Update to render both platform layers"
         }
+        elseif ($manifest) {
+            Say "WARN" "kit manifest exists but .agents/skills is missing" "re-run the project installer with -Update"
+        }
         else {
-            Say "WARN" "no kit manifest in target - kit not installed or installed by an old script" "run scripts\install-unity-project-template.ps1 or install-csharp-aspnet-project-template.ps1"
+            Say "WARN" "kit not installed in target (no manifest, no .agents/skills)" "run scripts\install-unity-project-template.ps1 or install-csharp-aspnet-project-template.ps1"
         }
 
         $versionFile = Join-Path $target "ProjectSettings\ProjectVersion.txt"
@@ -86,16 +104,18 @@ if ($TargetProject) {
                 else { Say "WARN" "Unity $unityVersion not found under the default Hub path" "install it via Unity Hub, or set UNITY_EDITOR manually" }
             }
 
-            & git -C $target config merge.unityyamlmerge.driver 2>$null | Out-Null
-            if ($LASTEXITCODE -eq 0) { Say "PASS" "UnityYAMLMerge merge driver configured" }
-            else { Say "WARN" "UnityYAMLMerge merge driver not configured - scene/prefab conflicts will be manual" "see `$unity-merge skill (references/unityyamlmerge-setup.md)" }
+            if (Get-Command git -ErrorAction SilentlyContinue) {
+                Invoke-KitNativeQuiet { git -C $target config merge.unityyamlmerge.driver } | Out-Null
+                if ($LASTEXITCODE -eq 0) { Say "PASS" "UnityYAMLMerge merge driver configured" }
+                else { Say "WARN" "UnityYAMLMerge merge driver not configured - scene/prefab conflicts will be manual" "see `$unity-merge skill (references/unityyamlmerge-setup.md)" }
+            }
         }
 
         $globalJson = Join-Path $target "global.json"
         if ((Test-Path -LiteralPath $globalJson) -and (Get-Command dotnet -ErrorAction SilentlyContinue)) {
             try {
                 $wanted = (Get-Content -LiteralPath $globalJson -Raw | ConvertFrom-Json).sdk.version
-                $actual = (& dotnet --version 2>$null)
+                $actual = Invoke-KitNativeQuiet { dotnet --version }
                 if ($wanted -and $actual -and -not $actual.StartsWith(($wanted -split "\.")[0])) {
                     Say "WARN" "dotnet SDK $actual does not match global.json ($wanted)" "install the pinned SDK: winget install Microsoft.DotNet.SDK.$(($wanted -split '\.')[0])"
                 }

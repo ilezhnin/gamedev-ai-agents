@@ -1,7 +1,8 @@
-# Unity .meta / GUID hygiene check. Installed into Unity projects at .codex/scripts/.
+# Unity .meta / GUID hygiene check. Installed into Unity projects at .agents/scripts/.
 # Quick mode (default) checks only files touched per git status; -Full scans all of Assets/.
 [CmdletBinding()]
 param(
+    [Alias("TargetProject")]
     [string] $ProjectRoot = ".",
     [switch] $Full
 )
@@ -19,16 +20,27 @@ $issues = 0
 function Get-GitStatus {
     param([string] $Root)
     # PS 5.1 turns native stderr into error records under EAP=Stop; keep git quiet.
+    # core.quotepath=off keeps non-ASCII paths raw instead of octal-escaped, so
+    # Test-Path can actually find them.
     $prev = $ErrorActionPreference
     $ErrorActionPreference = "Continue"
     try {
-        $out = & git -C $Root status --porcelain 2>$null
+        $out = & git -C $Root -c core.quotepath=off status --porcelain 2>$null
         if ($LASTEXITCODE -ne 0) { return $null }
         return $out
     }
     finally {
         $ErrorActionPreference = $prev
     }
+}
+
+function Get-StatusPath {
+    # Extracts the current path from one porcelain line; renames report "old -> new".
+    param([string] $Line)
+    $rel = $Line.Substring(3)
+    $arrow = $rel.IndexOf(" -> ")
+    if ($arrow -ge 0) { $rel = $rel.Substring($arrow + 4) }
+    return $rel.Trim('"')
 }
 
 function Test-NeedsMeta {
@@ -46,7 +58,7 @@ function Test-NeedsMeta {
     return $true
 }
 
-function Check-Pair {
+function Test-MetaPair {
     param([string] $Path)
     if ($Path.EndsWith(".meta")) {
         $asset = $Path.Substring(0, $Path.Length - 5)
@@ -66,7 +78,7 @@ function Check-Pair {
 
 if ($Full) {
     foreach ($item in Get-ChildItem -LiteralPath $assetsRoot -Recurse -Force) {
-        Check-Pair -Path $item.FullName
+        Test-MetaPair -Path $item.FullName
     }
 
     # Duplicate GUID scan (Full mode only - it reads every .meta).
@@ -89,11 +101,21 @@ else {
     $status = Get-GitStatus -Root $root
     if ($status) {
         foreach ($line in $status) {
-            $rel = $line.Substring(3).Trim('"')
             if ($line.Substring(0, 2).Contains("D")) { continue }
+            $rel = Get-StatusPath -Line $line
             if (-not ($rel -replace "/", "\").StartsWith("Assets\")) { continue }
             $full = Join-Path $root ($rel -replace "/", "\")
-            if (Test-Path -LiteralPath $full) { Check-Pair -Path $full }
+            if (-not (Test-Path -LiteralPath $full)) { continue }
+            # Untracked directories appear as a single "?? dir/" line; check contents.
+            if (Test-Path -LiteralPath $full -PathType Container) {
+                Test-MetaPair -Path (Get-Item -LiteralPath $full).FullName
+                foreach ($item in Get-ChildItem -LiteralPath $full -Recurse -Force) {
+                    Test-MetaPair -Path $item.FullName
+                }
+            }
+            else {
+                Test-MetaPair -Path $full
+            }
         }
     }
 }
@@ -101,15 +123,22 @@ else {
 # Pending changes must never touch Unity's generated folders.
 $status = Get-GitStatus -Root $root
 if ($status) {
-    $forbidden = @("Library/", "Temp/", "obj/", "Logs/", "UserSettings/", "Build/", "Builds/")
+    # obj/ is handled by the anywhere-in-tree check below.
+    $forbidden = @("Library/", "Temp/", "Logs/", "UserSettings/", "Build/", "Builds/")
     foreach ($line in $status) {
-        $rel = $line.Substring(3).Trim('"')
+        $rel = Get-StatusPath -Line $line
         foreach ($prefix in $forbidden) {
             if ($rel.StartsWith($prefix)) {
                 Write-Host "FORBIDDEN PATH IN DIFF: $rel"
                 $script:issues++
                 break
             }
+        }
+        # Compiler artifact folders are forbidden anywhere in the tree, not only
+        # at the root (embedded packages and nested csproj builds generate them).
+        if ($rel -match "(^|/)obj/") {
+            Write-Host "FORBIDDEN PATH IN DIFF: $rel"
+            $script:issues++
         }
     }
 }

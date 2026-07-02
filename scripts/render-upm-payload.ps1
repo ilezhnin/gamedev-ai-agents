@@ -16,21 +16,28 @@ $ErrorActionPreference = "Stop"
 
 $defaultOut = Join-Path $script:KitRoot "upm\Kit~"
 if (-not $OutDir) { $OutDir = $defaultOut }
-$isDefaultOut = ($OutDir -eq $defaultOut)
+# Compare resolved paths so a trailing slash, relative form, or different casing
+# of the default target still triggers the package.json version sync.
+$outDirFull = [System.IO.Path]::GetFullPath($OutDir).TrimEnd("\", "/")
+$isDefaultOut = [string]::Equals($outDirFull, $defaultOut, [System.StringComparison]::OrdinalIgnoreCase)
 
 if (Test-Path -LiteralPath $OutDir) {
+    # The wipe must honor -WhatIf like everything downstream; without this guard
+    # a dry run would delete the committed payload and copy nothing back.
+    if (-not $PSCmdlet.ShouldProcess($OutDir, "Delete previous payload and re-render")) {
+        Write-Host "WhatIf: skipping render (would delete and re-render $OutDir)"
+        return
+    }
     Remove-Item -LiteralPath $OutDir -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
-# Same content set as install-unity-project-template.ps1. No manifest is written
-# here: the in-editor installer writes .agents/kit-manifest.json at install time.
+# Same content set as install-unity-project-template.ps1 (both call
+# Install-KitUnityContent). No manifest is written here: the in-editor
+# installer writes .agents/kit-manifest.json at install time.
 $ctx = New-InstallContext -TargetRoot $OutDir -ManifestPath (Join-Path $OutDir ".agents\kit-manifest.json") -Force
 
-Install-KitTree -Ctx $ctx -SourceDir (Join-Path $script:KitRoot "templates\unity-project") -RelDestPrefix "" -Cmdlet $PSCmdlet
-Install-KitSkills -Ctx $ctx -SkillNames ($script:UnitySkills + $script:SharedSkills) -Cmdlet $PSCmdlet -MirrorClaude
-Install-KitPlatformAdapters -Ctx $ctx -Stack "unity" -Cmdlet $PSCmdlet
-Install-KitFile -Ctx $ctx -Source (Join-Path $PSScriptRoot "check-unity-meta.ps1") -RelDest ".agents\scripts\check-unity-meta.ps1" -Cmdlet $PSCmdlet
+Install-KitUnityContent -Ctx $ctx -Cmdlet $PSCmdlet
 
 # Keep the UPM manifest version in lock-step with VERSION, but only when
 # rendering the committed payload (drift checks must not mutate the repo).

@@ -8,6 +8,23 @@ $script:SharedSkills = @("planning", "crossworking", "arch-audit", "create-mr", 
 $script:UnitySkills = @("unity-orient", "unity-implement", "unity-review", "unity-validate", "unity-debug", "unity-mcp", "unity-merge", "unity-build", "unity-upgrade", "unity-profile", "unity-tests", "gdd", "game-pipeline")
 $script:BackendSkills = @("backend-orient", "backend-implement", "backend-review", "backend-validate", "backend-debug")
 
+function Stop-KitWithError {
+    param([Parameter(Mandatory = $true)] [string] $Message)
+    Write-Host "ERROR: $Message" -ForegroundColor Red
+    exit 1
+}
+
+function Invoke-KitNativeQuiet {
+    # Runs a native command with stderr suppressed. Windows PowerShell 5.1 turns
+    # redirected native stderr into terminating error records under EAP=Stop, so
+    # the redirect has to happen with EAP temporarily relaxed.
+    param([Parameter(Mandatory = $true)] [scriptblock] $Command)
+    $prev = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try { return (& $Command 2>$null) }
+    finally { $ErrorActionPreference = $prev }
+}
+
 function Get-KitVersion {
     $versionFile = Join-Path $script:KitRoot "VERSION"
     if (Test-Path -LiteralPath $versionFile) {
@@ -25,13 +42,11 @@ function Resolve-KitTarget {
     # Friendly target validation: returns the resolved directory path or exits with a clear error.
     param([Parameter(Mandatory = $true)] [string] $TargetProject)
     if (-not (Test-Path -LiteralPath $TargetProject)) {
-        Write-Error "Target does not exist: $TargetProject"
-        exit 1
+        Stop-KitWithError "Target does not exist: $TargetProject"
     }
     $item = Get-Item -LiteralPath $TargetProject
     if (-not $item.PSIsContainer) {
-        Write-Error "Target is a file, not a directory: $TargetProject"
-        exit 1
+        Stop-KitWithError "Target is a file, not a directory: $TargetProject"
     }
     return $item.FullName
 }
@@ -72,10 +87,12 @@ function New-InstallContext {
         [switch] $Force,
         [switch] $Update
     )
+    if ($Force -and $Update) {
+        Stop-KitWithError "-Force and -Update are mutually exclusive: -Update refreshes unmodified kit files, -Force overwrites everything including local edits."
+    }
     $old = Read-KitManifest -Path $ManifestPath
     if ($Update -and -not $old) {
-        Write-Error "-Update requires a previous install (manifest not found at $ManifestPath). Run a plain install first."
-        exit 1
+        Stop-KitWithError "-Update requires a previous install (manifest not found at $ManifestPath). Run a plain install first."
     }
     return @{
         Target       = $TargetRoot
@@ -142,14 +159,20 @@ function Install-KitFile {
             $Ctx.Refreshed++
         }
         else {
-            # Manifest keeps the kit-content hash, so the local edit stays
-            # recognized as a local edit on every future update.
+            # Carry the previous kit hash forward: the local edit stays recognized
+            # as a local edit, and reverting it back to the old kit content makes
+            # the file updatable again.
+            if ($null -ne $oldHash) { $Ctx.New[$key] = $oldHash }
             Write-Host "KEEP (locally modified) $key"
             $Ctx.Preserved++
         }
         return
     }
 
+    # Plain install never touches an existing file, so the manifest must keep the
+    # hash it already had. Recording the new payload hash for a file that was not
+    # copied would make every future -Update misread it as locally modified.
+    if ($Ctx.Old -and $Ctx.Old.files.ContainsKey($key)) { $Ctx.New[$key] = $Ctx.Old.files[$key] }
     Write-Host "SKIP existing $key"
     $Ctx.Skipped++
 }
@@ -182,8 +205,7 @@ function Install-KitSkills {
     foreach ($name in $SkillNames) {
         $source = Join-Path $script:PluginSkillsRoot $name
         if (-not (Test-Path -LiteralPath $source)) {
-            Write-Error "Bundled skill missing from kit: $name (expected at $source)"
-            exit 1
+            Stop-KitWithError "Bundled skill missing from kit: $name (expected at $source)"
         }
         Install-KitTree -Ctx $Ctx -SourceDir $source -RelDestPrefix (Join-Path $RelSkillsRoot $name) -Cmdlet $Cmdlet
         if ($MirrorClaude) {
@@ -245,6 +267,37 @@ function ConvertTo-CodexRules {
     return ($lines -join "`n")
 }
 
+function ConvertTo-KitJson {
+    # Deterministic JSON writer: 2-space indent, LF newlines, insertion key order.
+    # ConvertTo-Json formats differently across PowerShell editions (5.1 vs 7),
+    # which made rendered payload bytes depend on the machine that rendered them;
+    # every rendered JSON artifact must go through this writer instead.
+    param($Value, [int] $Depth = 0)
+    $pad = "  " * $Depth
+    $childPad = "  " * ($Depth + 1)
+    if ($Value -is [System.Collections.IDictionary]) {
+        if ($Value.Count -eq 0) { return "{}" }
+        $items = foreach ($key in $Value.Keys) {
+            $childPad + '"' + $key + '": ' + (ConvertTo-KitJson -Value $Value[$key] -Depth ($Depth + 1))
+        }
+        return "{`n" + ($items -join ",`n") + "`n$pad}"
+    }
+    if ($Value -is [bool]) { if ($Value) { return "true" } else { return "false" } }
+    if ($Value -is [string]) {
+        $escaped = $Value.Replace("\", "\\").Replace('"', '\"').Replace("`r", "\r").Replace("`n", "\n").Replace("`t", "\t")
+        return '"' + $escaped + '"'
+    }
+    if ($Value -is [System.Collections.IEnumerable]) {
+        $array = @($Value)
+        if ($array.Count -eq 0) { return "[]" }
+        $items = foreach ($item in $array) {
+            $childPad + (ConvertTo-KitJson -Value $item -Depth ($Depth + 1))
+        }
+        return "[`n" + ($items -join ",`n") + "`n$pad]"
+    }
+    return '"' + [string]$Value + '"'
+}
+
 function ConvertTo-CodexHooksJson {
     param([Parameter(Mandatory = $true)] $Hooks, [Parameter(Mandatory = $true)] [string] $Stack)
     $events = [ordered]@{}
@@ -257,7 +310,7 @@ function ConvertTo-CodexHooksJson {
             })
     }
     if ($events.Count -eq 0) { return $null }
-    return ([ordered]@{ hooks = $events } | ConvertTo-Json -Depth 10) + "`n"
+    return (ConvertTo-KitJson -Value ([ordered]@{ hooks = $events })) + "`n"
 }
 
 function ConvertTo-ClaudeSettingsJson {
@@ -268,12 +321,16 @@ function ConvertTo-ClaudeSettingsJson {
     )
     $allow = @()
     $deny = @()
+    $ask = @()
     foreach ($rule in $Permissions.rules) {
         $entry = "Bash(" + ($rule.pattern -join " ") + ":*)"
         if ($rule.decision -eq "allow") { $allow += $entry }
         elseif ($rule.decision -eq "forbidden") { $deny += $entry }
+        else { $ask += $entry }
     }
-    $settings = [ordered]@{ permissions = [ordered]@{ allow = $allow; deny = $deny } }
+    $permissionLists = [ordered]@{ allow = $allow; deny = $deny }
+    if ($ask.Count -gt 0) { $permissionLists["ask"] = $ask }
+    $settings = [ordered]@{ permissions = $permissionLists }
     $events = [ordered]@{}
     foreach ($hook in $Hooks.hooks) {
         if (-not ($hook.stacks -contains $Stack)) { continue }
@@ -284,7 +341,7 @@ function ConvertTo-ClaudeSettingsJson {
             })
     }
     if ($events.Count -gt 0) { $settings["hooks"] = $events }
-    return ($settings | ConvertTo-Json -Depth 10) + "`n"
+    return (ConvertTo-KitJson -Value $settings) + "`n"
 }
 
 function ConvertTo-AntigravityRolesRule {
@@ -404,6 +461,94 @@ function Install-KitPlatformAdapters {
     }
 }
 
+function Install-KitUnityContent {
+    # The single definition of a Unity install's content set. Used by both
+    # install-unity-project-template.ps1 and render-upm-payload.ps1 so the
+    # script-install and UPM-install paths cannot diverge.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
+    param(
+        [Parameter(Mandatory = $true)] [hashtable] $Ctx,
+        [Parameter(Mandatory = $true)] $Cmdlet
+    )
+    Install-KitTree -Ctx $Ctx -SourceDir (Join-Path $script:KitRoot "templates\unity-project") -RelDestPrefix "" -Cmdlet $Cmdlet
+    Install-KitSkills -Ctx $Ctx -SkillNames ($script:UnitySkills + $script:SharedSkills) -Cmdlet $Cmdlet -MirrorClaude
+    Install-KitPlatformAdapters -Ctx $Ctx -Stack "unity" -Cmdlet $Cmdlet
+    Install-KitFile -Ctx $Ctx -Source (Join-Path $script:KitRoot "scripts\check-unity-meta.ps1") -RelDest ".agents\scripts\check-unity-meta.ps1" -Cmdlet $Cmdlet
+}
+
+function Install-KitBackendContent {
+    # The single definition of a backend install's content set.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
+    param(
+        [Parameter(Mandatory = $true)] [hashtable] $Ctx,
+        [Parameter(Mandatory = $true)] $Cmdlet
+    )
+    Install-KitTree -Ctx $Ctx -SourceDir (Join-Path $script:KitRoot "templates\csharp-aspnet-project") -RelDestPrefix "" -Cmdlet $Cmdlet
+    Install-KitSkills -Ctx $Ctx -SkillNames ($script:BackendSkills + $script:SharedSkills) -Cmdlet $Cmdlet -MirrorClaude
+    Install-KitPlatformAdapters -Ctx $Ctx -Stack "backend" -Cmdlet $Cmdlet
+}
+
+function Uninstall-KitManifestTree {
+    # Removes every manifest-tracked kit file under TargetRoot, keeping locally
+    # modified files unless -Force, then removes the manifest and now-empty
+    # directories. Returns $true when a manifest was found and processed.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
+    param(
+        [Parameter(Mandatory = $true)] [string] $TargetRoot,
+        [Parameter(Mandatory = $true)] [string] $ManifestPath,
+        [switch] $Force,
+        [Parameter(Mandatory = $true)] $Cmdlet
+    )
+    $manifest = Read-KitManifest -Path $ManifestPath
+    if (-not $manifest) { return $false }
+
+    $removed = 0
+    $kept = 0
+    $missing = 0
+    $dirs = New-Object System.Collections.Generic.HashSet[string]
+
+    foreach ($key in $manifest.files.Keys) {
+        $path = Join-Path $TargetRoot ($key -replace "/", "\")
+        if (-not (Test-Path -LiteralPath $path)) { $missing++; continue }
+        $hash = Get-FileSha256 -Path $path
+        if ($hash -eq $manifest.files[$key] -or $Force) {
+            if ($Cmdlet.ShouldProcess($path, "Remove kit file")) {
+                Remove-Item -LiteralPath $path -Force
+            }
+            Write-Host "REMOVE $key"
+            $removed++
+            $dir = Split-Path -Parent $path
+            while ($dir -and $dir.Length -gt $TargetRoot.Length) {
+                [void]$dirs.Add($dir)
+                $dir = Split-Path -Parent $dir
+            }
+        }
+        else {
+            Write-Host "KEEP (locally modified) $key"
+            $kept++
+        }
+    }
+
+    if ($Cmdlet.ShouldProcess($ManifestPath, "Remove kit manifest")) {
+        Remove-Item -LiteralPath $ManifestPath -Force -ErrorAction SilentlyContinue
+    }
+
+    # Clean up now-empty directories, deepest first.
+    foreach ($dir in ($dirs | Sort-Object { $_.Length } -Descending)) {
+        if ((Test-Path -LiteralPath $dir) -and -not (Get-ChildItem -LiteralPath $dir -Force)) {
+            if ($Cmdlet.ShouldProcess($dir, "Remove empty directory")) {
+                Remove-Item -LiteralPath $dir -Force
+            }
+        }
+    }
+
+    Write-Host "Summary for ${TargetRoot}: removed $removed, kept (modified) $kept, already missing $missing"
+    if ($kept -gt 0) {
+        Write-Warning "Locally modified kit files were kept. Re-run with -Force to delete them too."
+    }
+    return $true
+}
+
 function Complete-KitInstall {
     # ShouldProcess is delegated to the calling script's $PSCmdlet via -Cmdlet.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
@@ -413,7 +558,10 @@ function Complete-KitInstall {
     )
     $staleRemoved = 0
     $staleKept = 0
-    if ($Ctx.Update -and $Ctx.Old) {
+    # Sweep files the kit no longer ships whenever a previous install exists -
+    # not only on -Update. A -Force refresh would otherwise orphan them forever:
+    # left on disk and dropped from the rewritten manifest.
+    if ($Ctx.Old) {
         foreach ($key in $Ctx.Old.files.Keys) {
             if ($Ctx.New.ContainsKey($key)) { continue }
             $path = Join-Path $Ctx.Target ($key -replace "/", "\")
