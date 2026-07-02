@@ -16,8 +16,7 @@ $globalRoot = Join-Path $script:KitRoot "global"
 
 if ($env:CODEX_HOME) {
     if (-not [System.IO.Path]::IsPathRooted($env:CODEX_HOME)) {
-        Write-Error "CODEX_HOME must be an absolute path, got: $($env:CODEX_HOME)"
-        exit 1
+        Stop-KitWithError "CODEX_HOME must be an absolute path, got: $($env:CODEX_HOME)"
     }
     $codexHome = $env:CODEX_HOME
 }
@@ -25,7 +24,9 @@ else {
     $codexHome = Join-Path $HOME ".codex"
 }
 
-New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
+if ($PSCmdlet.ShouldProcess($codexHome, "Ensure directory exists")) {
+    New-Item -ItemType Directory -Force -Path $codexHome | Out-Null
+}
 $ctx = New-InstallContext -TargetRoot $codexHome -ManifestPath (Join-Path $codexHome "kit-manifest.json") -Force:$Force -Update:$Update
 
 Install-KitFile -Ctx $ctx -Source (Join-Path $globalRoot "unity-codex.config.toml") -RelDest "unity-codex.config.toml" -Cmdlet $PSCmdlet
@@ -38,19 +39,28 @@ foreach ($role in $canonRoles) {
 Install-KitRendered -Ctx $ctx -Content (ConvertTo-CodexRules -Permissions (Get-KitCanon -Name "permissions")) -RelDest "rules\default.rules" -Cmdlet $PSCmdlet
 
 if ($InstallAgentsMd) {
+    $agentsSource = Join-Path $globalRoot "AGENTS.md"
     $agentsDest = Join-Path $codexHome "AGENTS.md"
-    if (Test-Path -LiteralPath $agentsDest) {
-        $existingHash = Get-FileSha256 -Path $agentsDest
-        $incomingHash = Get-FileSha256 -Path (Join-Path $globalRoot "AGENTS.md")
-        if ($existingHash -ne $incomingHash) {
-            $backup = Join-Path $codexHome ("AGENTS.md.bak-" + [DateTime]::Now.ToString("yyyyMMdd-HHmmss"))
-            if ($PSCmdlet.ShouldProcess($backup, "Back up existing global AGENTS.md")) {
-                Copy-Item -LiteralPath $agentsDest -Destination $backup -Force
-            }
-            Write-Host "BACKUP existing AGENTS.md -> $backup"
+    $differs = (Test-Path -LiteralPath $agentsDest) -and ((Get-FileSha256 -Path $agentsDest) -ne (Get-FileSha256 -Path $agentsSource))
+    if ($differs) {
+        # -InstallAgentsMd is an explicit activation request: back the existing
+        # file up, then overwrite it even in plain mode. Without the overwrite the
+        # SKIP branch would leave the old file active plus a junk backup.
+        $backup = Join-Path $codexHome ("AGENTS.md.bak-" + [DateTime]::Now.ToString("yyyyMMdd-HHmmss"))
+        if ($PSCmdlet.ShouldProcess($backup, "Back up existing global AGENTS.md")) {
+            Copy-Item -LiteralPath $agentsDest -Destination $backup -Force
         }
+        Write-Host "BACKUP existing AGENTS.md -> $backup"
+        if ($PSCmdlet.ShouldProcess($agentsDest, "Activate kit AGENTS.md")) {
+            Copy-Item -LiteralPath $agentsSource -Destination $agentsDest -Force
+        }
+        Write-Host "FORCE AGENTS.md"
+        $ctx.New["AGENTS.md"] = Get-FileSha256 -Path $agentsSource
+        $ctx.Refreshed++
     }
-    Install-KitFile -Ctx $ctx -Source (Join-Path $globalRoot "AGENTS.md") -RelDest "AGENTS.md" -Cmdlet $PSCmdlet
+    else {
+        Install-KitFile -Ctx $ctx -Source $agentsSource -RelDest "AGENTS.md" -Cmdlet $PSCmdlet
+    }
 }
 else {
     Install-KitFile -Ctx $ctx -Source (Join-Path $globalRoot "AGENTS.md") -RelDest "AGENTS.unity-template.md" -Cmdlet $PSCmdlet
@@ -58,71 +68,39 @@ else {
     Write-Host "NOTE: Re-run with -InstallAgentsMd to activate it (your existing AGENTS.md is backed up first)."
 }
 
+function New-SideInstallContext {
+    # Side layers (~/.agents, ~/.claude) live outside CODEX_HOME and get their own
+    # manifest so updates and uninstall honor the same hash semantics as projects.
+    # First -Update after upgrading from a pre-manifest kit finds no side manifest;
+    # refresh everything once (the old blind-copy behavior) and record the manifest,
+    # so every later update recognizes local edits.
+    param([Parameter(Mandatory = $true)] [string] $Root)
+    $manifestPath = Join-Path $Root "kit-manifest.json"
+    $bootstrapForce = $Update -and -not (Test-Path -LiteralPath $manifestPath)
+    return New-InstallContext -TargetRoot $Root -ManifestPath $manifestPath -Force:($Force -or $bootstrapForce) -Update:($Update -and -not $bootstrapForce)
+}
+
 if ($InstallSkills) {
     $allSkills = $script:UnitySkills + $script:BackendSkills + $script:SharedSkills
     foreach ($name in $allSkills) {
-        if (-not (Test-Path -LiteralPath (Join-Path $script:PluginSkillsRoot $name))) {
-            Write-Error "Bundled skill missing from kit: $name"
-            exit 1
-        }
-    }
-    # CODEX_HOME/skills is manifest-tracked; ~/.agents/skills (the documented user-scope
-    # location) lives outside CODEX_HOME, so it gets a plain copy with the same semantics.
-    foreach ($name in $allSkills) {
         Install-KitTree -Ctx $ctx -SourceDir (Join-Path $script:PluginSkillsRoot $name) -RelDestPrefix (Join-Path "skills" $name) -Cmdlet $PSCmdlet
     }
-    $agentsSkillsHome = Join-Path $HOME ".agents\skills"
-    foreach ($name in $allSkills) {
-        $dest = Join-Path $agentsSkillsHome $name
-        if ((Test-Path -LiteralPath $dest) -and -not $Force -and -not $Update) {
-            Write-Host "SKIP existing $dest"
-            continue
-        }
-        if ($PSCmdlet.ShouldProcess($dest, "Copy skill")) {
-            New-Item -ItemType Directory -Force -Path $dest | Out-Null
-            Copy-Item -Path (Join-Path (Join-Path $script:PluginSkillsRoot $name) "*") -Destination $dest -Recurse -Force
-        }
-        Write-Host "COPY $dest"
-    }
-    Write-Host "Skills installed to $agentsSkillsHome and $(Join-Path $codexHome 'skills')"
+    $agentsHome = Join-Path $HOME ".agents"
+    $agentsCtx = New-SideInstallContext -Root $agentsHome
+    Install-KitSkills -Ctx $agentsCtx -SkillNames $allSkills -Cmdlet $PSCmdlet -RelSkillsRoot "skills"
+    Complete-KitInstall -Ctx $agentsCtx -Cmdlet $PSCmdlet
+    Write-Host "Skills installed to $(Join-Path $agentsHome 'skills') and $(Join-Path $codexHome 'skills')"
 }
 
 if ($InstallClaude) {
     $claudeHome = Join-Path $HOME ".claude"
+    $claudeCtx = New-SideInstallContext -Root $claudeHome
     $allSkills = $script:UnitySkills + $script:BackendSkills + $script:SharedSkills
-
-    foreach ($name in $allSkills) {
-        $source = Join-Path $script:PluginSkillsRoot $name
-        if (-not (Test-Path -LiteralPath $source)) {
-            Write-Error "Bundled skill missing from kit: $name"
-            exit 1
-        }
-        $dest = Join-Path (Join-Path $claudeHome "skills") $name
-        if ((Test-Path -LiteralPath $dest) -and -not $Force -and -not $Update) {
-            Write-Host "SKIP existing $dest"
-            continue
-        }
-        if ($PSCmdlet.ShouldProcess($dest, "Copy skill")) {
-            New-Item -ItemType Directory -Force -Path $dest | Out-Null
-            Copy-Item -Path (Join-Path $source "*") -Destination $dest -Recurse -Force
-        }
-        Write-Host "COPY $dest"
-    }
-
+    Install-KitSkills -Ctx $claudeCtx -SkillNames $allSkills -Cmdlet $PSCmdlet -RelSkillsRoot "skills"
     foreach ($role in (Get-KitCanon -Name "roles").roles) {
-        $dest = Join-Path (Join-Path $claudeHome "agents") "$($role.name).md"
-        if ((Test-Path -LiteralPath $dest) -and -not $Force -and -not $Update) {
-            Write-Host "SKIP existing $dest"
-            continue
-        }
-        if ($PSCmdlet.ShouldProcess($dest, "Write agent definition")) {
-            $destDir = Split-Path -Parent $dest
-            if (-not (Test-Path -LiteralPath $destDir)) { New-Item -ItemType Directory -Force -Path $destDir | Out-Null }
-            [System.IO.File]::WriteAllText($dest, (ConvertTo-ClaudeAgentMd -Role $role), (New-Object System.Text.UTF8Encoding $false))
-        }
-        Write-Host "COPY $dest"
+        Install-KitRendered -Ctx $claudeCtx -Content (ConvertTo-ClaudeAgentMd -Role $role) -RelDest (Join-Path "agents" "$($role.name).md") -Cmdlet $PSCmdlet
     }
-
+    Complete-KitInstall -Ctx $claudeCtx -Cmdlet $PSCmdlet
     Write-Host "Claude Code layer installed under $claudeHome (skills + agents)."
     Write-Host "NOTE: point your ~/.claude/CLAUDE.md at the kit discipline manually if you want it global."
 }
@@ -149,9 +127,12 @@ function ConvertTo-ShSingleQuotedValue {
 
 if ($InstallWslSkills) {
     if (-not (Get-Command wsl.exe -ErrorAction SilentlyContinue)) {
-        Write-Error "wsl.exe was not found. Install WSL or run without -InstallWslSkills."
-        exit 1
+        Stop-KitWithError "wsl.exe was not found. Install WSL or run without -InstallWslSkills."
     }
+
+    # wsl.exe emits UTF-16LE on redirected stdout; without this the captured home
+    # path comes back NUL-interleaved and poisons every generated path.
+    $env:WSL_UTF8 = "1"
 
     if (-not $WslCodexHome) {
         # Single-quoted PowerShell string keeps $HOME literal for the WSL shell on both PS 5.1 and 7.
