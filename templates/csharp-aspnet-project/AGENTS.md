@@ -91,6 +91,7 @@ Route by situation before acting. No task is "too small for a skill" - routing k
 | Module became spaghetti, needs an architecture audit and refactor backlog | `$arch-audit` |
 | Task needs a written plan or agent handoff | `$planning` |
 | Implement or refactor backend C# | `$backend-implement` |
+| Bootstrap or author tests (unit, WebApplicationFactory, Testcontainers) | `$backend-tests` |
 | Errors, failing tests, broken endpoints or deploys | `$backend-debug` |
 | Review a diff, PR, or branch | `$backend-review` |
 | Choose and run the right checks | `$backend-validate` |

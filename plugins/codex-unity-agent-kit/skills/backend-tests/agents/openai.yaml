@@ -1,0 +1,4 @@
+interface:
+  display_name: "C# Backend Author Tests"
+  short_description: "Bootstrap and write .NET backend tests"
+  default_prompt: "Use $backend-tests to detect or bootstrap test infrastructure and author meaningful unit and integration tests for this C# backend code."

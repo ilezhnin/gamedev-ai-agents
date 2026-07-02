@@ -6,7 +6,7 @@ $script:PluginSkillsRoot = Join-Path $script:KitRoot "plugins\codex-unity-agent-
 
 $script:SharedSkills = @("planning", "crossworking", "arch-audit", "create-mr", "grill-me", "learn")
 $script:UnitySkills = @("unity-orient", "unity-implement", "unity-review", "unity-validate", "unity-debug", "unity-mcp", "unity-merge", "unity-build", "unity-upgrade", "unity-profile", "unity-tests", "gdd", "game-pipeline")
-$script:BackendSkills = @("backend-orient", "backend-implement", "backend-review", "backend-validate", "backend-debug")
+$script:BackendSkills = @("backend-orient", "backend-implement", "backend-review", "backend-validate", "backend-debug", "backend-tests")
 
 function Stop-KitWithError {
     param([Parameter(Mandatory = $true)] [string] $Message)
