@@ -1,6 +1,6 @@
-# Codex Gamedev AI Agents
+# Gamedev AI Agents
 
-Portable Codex environment for Unity, C#, and ASP.NET game development. The kit is a source repository: project templates, 22 reusable skills, custom agents, rules, a local plugin marketplace, and manifest-based installers with a real update/uninstall story.
+Platform-independent AI agent kit for Unity, C#, and ASP.NET game development. The kit is a source repository: project templates with architecture/style/dependency contracts, 22 reusable skills, canonical agent roles and policies rendered into per-platform adapters, and manifest-based installers with a real update/uninstall story.
 
 Platforms: OpenAI Codex and Anthropic Claude Code as equals, Windows-first with WSL support, plus a Cursor pointer. One canon, two rendered adapter layers - switching platforms loses nothing.
 
@@ -41,7 +41,9 @@ Durable state never lives in platform storage, so switching Codex <-> Claude Cod
 
 ## Skills
 
-Unity (`$unity-...`):
+Invocation: `$skill-name` in Codex, `/skill-name` or automatic description matching in Claude Code - same names, same content on both platforms.
+
+Unity (`unity-...`):
 
 | Skill | Purpose |
 | --- | --- |
@@ -57,7 +59,7 @@ Unity (`$unity-...`):
 | `unity-upgrade` | Staged editor/package upgrades with churn triage |
 | `unity-profile` | Measure-first performance loop with numeric budgets |
 
-C# backend (`$backend-...`):
+C# backend (`backend-...`):
 
 | Skill | Purpose |
 | --- | --- |
@@ -86,7 +88,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-proj
 
 Copies the template tree (`AGENTS.md`, `ARCHITECTURE.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, `CLAUDE.md`, `.cursor/rules/agents.mdc`, `.codex/config.toml`, `.agents/plans/.gitignore`), installs the 17 Unity+shared skills into both `.agents/skills/` (Codex) and `.claude/skills/` (Claude Code), renders both platform adapter layers from the canon (`.codex/` agents + rules + hooks; `.claude/` agents + settings), and places `.agents/scripts/check-unity-meta.ps1`. Writes `.agents/kit-manifest.json` (kit version + per-file hashes).
 
-The target must contain `Assets/` and `ProjectSettings/` (override with `-AllowNonUnityTarget`). Restart Codex or open a new thread from the project after installing.
+The target must contain `Assets/` and `ProjectSettings/` (override with `-AllowNonUnityTarget`). Restart Codex / Claude Code or open a new thread from the project after installing.
 
 ## Install Into A C# ASP.NET Project
 
@@ -126,9 +128,9 @@ Installs into `$env:CODEX_HOME` (default `~/.codex`): the `unity-codex` profile 
 - `-InstallWslSkills` installs the full profile (skills, config, rendered agents and rules) into the WSL Codex home for the VS Code extension running Codex through WSL. Use `-WslCodexHome` to override detection.
 - `-Update` / `-Force` / `-WhatIf` work as for project installs.
 
-## Use As A Plugin
+## Use As A Plugin (Codex-only)
 
-The repo-local marketplace at `.agents/plugins/marketplace.json` points to `plugins/codex-unity-agent-kit`. If Codex does not discover it automatically:
+The repo-local marketplace at `.agents/plugins/marketplace.json` points to `plugins/codex-unity-agent-kit`. Claude Code users get the same content through the installers. If Codex does not discover the marketplace automatically:
 
 ```powershell
 codex plugin marketplace add "<path-to-this-kit>"
@@ -151,7 +153,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\check-unity-meta.p
 
 ## How Configuration Layers
 
-1. `~/.codex/AGENTS.md` (global, optional) - full engineering discipline.
+1. Global instructions (optional): `~/.codex/AGENTS.md` for Codex, `~/.claude/CLAUDE.md` for Claude Code - full engineering discipline.
 2. Project `AGENTS.md` (from the template) - Tech Stack manifest, module map, boundaries, skill routing - plus the project contracts `ARCHITECTURE.md`, `CODE_STYLE.md`, and `DEPENDENCIES.md`.
 3. Rendered platform adapters: `.codex/` (config, agents, rules, hooks; trusted projects only) and `.claude/` (agents, settings, skills mirror).
 4. `.agents/skills/` - project-scope skills; `.agents/learnings.md` - project lessons captured by `$learn`; `.agents/scripts/` - platform-neutral automation scripts.
@@ -160,7 +162,7 @@ Both platforms get a working post-edit hook that runs `.agents/scripts/check-uni
 
 ## What Does Not Transfer
 
-Never commit or copy as part of this kit: Codex auth files and API keys, OAuth tokens, machine-specific Unity license state, user-specific cloud environments, hook trust state. Keep secrets in environment variables, the OS keychain, or the normal Codex auth flow.
+Never commit or copy as part of this kit: Codex or Claude auth files and API keys, OAuth tokens, machine-specific Unity license state, user-specific cloud environments, hook trust state. Keep secrets in environment variables, the OS keychain, or each platform's normal auth flow.
 
 ## Versioning
 
