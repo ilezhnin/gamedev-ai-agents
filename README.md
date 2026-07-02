@@ -6,6 +6,7 @@
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Antigravity-blueviolet">
   <img alt="Kit" src="https://img.shields.io/badge/kit-0.3.0-blue">
+  <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
 
@@ -25,7 +26,7 @@ This kit turns your AI coding agent - OpenAI Codex, Anthropic Claude Code, or Go
 
 - **2-minute install** - add one git URL in Unity Package Manager, click Install, done.
 - **Idea to playable** - `gdd` turns a one-line idea into a design contract; `game-pipeline` executes it through gated stages. Every milestone ends playable: compiles, PlayMode enters clean, the new mechanic is reachable in-game.
-- **24 skills** for real gamedev work: scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
+- **25 skills** for real gamedev work: scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
 - **A studio of roles** - game designer, producer, architect, QA, devops, plus workers, reviewers, and researchers - rendered natively for every platform.
 - **Platform-independent by design** - one canon, thin rendered adapters. All state lives in repo files, so switching Codex <-> Claude Code <-> Antigravity mid-task loses nothing.
 - **Safe lifecycle** - hash-manifest installs: updates refresh only unmodified files, your local edits always survive, uninstall removes exactly what the kit shipped.
@@ -125,7 +126,7 @@ Shared:
 | `create-mr` | Verify, commit, push, open the PR/MR; conventional commits |
 | `learn` | Capture reusable lessons into AGENTS.md / learnings / skills |
 
-C# backend (`backend-...`), for game servers and services: `backend-orient`, `backend-implement`, `backend-debug`, `backend-review`, `backend-validate` - same discipline, ASP.NET flavored, installed by the backend template.
+C# backend (`backend-...`), for game servers and services: `backend-orient`, `backend-implement`, `backend-tests`, `backend-debug`, `backend-review`, `backend-validate` - same discipline, ASP.NET flavored, installed by the backend template.
 
 ### Roles
 
@@ -162,7 +163,7 @@ Bump the package in Package Manager - the Agent Kit window offers **Update**: re
 <details>
 <summary><b>Other ways to install (PowerShell, backend template, global profile, plugin)</b></summary>
 
-All scripted installers support `-Update`, `-Force`, and `-WhatIf` with the same manifest semantics.
+All scripted installers support `-Update`, `-Force`, and `-WhatIf` with the same manifest semantics. The scripts target Windows (PowerShell 5.1 and pwsh 7); other platforms are currently out of scope.
 
 **Unity project via script** (same result as the package window):
 
@@ -178,7 +179,7 @@ Installs the template contracts, the 19 Unity+shared skills into `.agents/skills
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-aspnet-project-template.ps1 -TargetProject "<path-to-backend-project>"
 ```
 
-Same shape: backend contracts, the 11 backend+shared skills, rendered adapters. The target must contain a `.sln`, `.slnx`, or `.csproj`.
+Same shape: backend contracts, the 12 backend+shared skills, rendered adapters. The target must contain a `.sln`, `.slnx`, or `.csproj` (`-AllowNonDotnetTarget` to override).
 
 **Global profile** (optional, engineering discipline for all projects):
 
@@ -186,7 +187,7 @@ Same shape: backend contracts, the 11 backend+shared skills, rendered adapters. 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1
 ```
 
-Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 24 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
+Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 25 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
 
 **Codex plugin marketplace**:
 
@@ -194,7 +195,7 @@ Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-c
 codex plugin marketplace add "<path-to-this-kit>"
 ```
 
-**Uninstall via script**:
+**Uninstall via script** (`-Global` removes the global profile from `~/.codex`, `~/.agents`, and `~/.claude` instead of a project):
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-project-template.ps1 -TargetProject "<path>"
@@ -209,7 +210,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\uninstall-project-
 # Environment health: git/gh/dotnet/UNITY_EDITOR/Unity Hub/YAMLMerge/kit version, with fix commands.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\doctor.ps1 -TargetProject "<path>"
 
-# Kit self-lint: frontmatter, references, manifests, skill sets, adapter drift, UPM payload drift, ASCII policy.
+# Kit self-lint: frontmatter, references, manifests, skill sets, canon rendering, docs paths, UPM payload drift, ASCII policy.
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\validate-kit.ps1
 
 # Unity meta/GUID hygiene (also installed into projects and wired as a post-edit hook).
@@ -235,7 +236,7 @@ templates/
                            CLAUDE.md, .cursor/, .codex/config.toml
   csharp-aspnet-project/   same shape for ASP.NET
 plugins/
-  codex-unity-agent-kit/   the plugin: 24 skills (single source of truth)
+  codex-unity-agent-kit/   the plugin: 25 skills (single source of truth)
 upm/                       Unity Package Manager wrapper: editor setup window +
                            pre-rendered payload in Kit~ (generated, never hand-edited)
 .agents/plugins/           local marketplace pointing at the plugin
