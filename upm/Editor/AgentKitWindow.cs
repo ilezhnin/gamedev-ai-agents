@@ -1,11 +1,14 @@
 using UnityEditor;
+using UnityEditor.PackageManager;
 using UnityEngine;
 
 namespace GamedevAgentKit.Editor
 {
     /// <summary>
     /// Setup window for the kit: shows the installed vs packaged kit version and
-    /// runs install, update, force reinstall, and uninstall with an optional dry run.
+    /// runs install, update, force reinstall, and uninstall with an optional dry
+    /// run. Portable mode git-excludes every kit file, and the package reference
+    /// itself can be removed so a portable install leaves no trace in the repo.
     /// </summary>
     internal sealed class AgentKitWindow : EditorWindow
     {
@@ -13,6 +16,7 @@ namespace GamedevAgentKit.Editor
         private KitOperationReport _lastReport;
         private KitManifest _manifest;
         private bool _dryRun;
+        private bool _portable;
 
         // Resolved once per refresh instead of per OnGUI repaint: package info
         // and payload lookup hit the Package Manager and the file system.
@@ -37,6 +41,9 @@ namespace GamedevAgentKit.Editor
         private void OnEnable()
         {
             RefreshManifest();
+            // Initialized once, not on every focus: the toggle carries the user's
+            // intent for the next operation and must not snap back to disk state.
+            _portable = KitGitExclude.BlockExists(_projectRoot);
         }
 
         private void OnFocus()
@@ -85,6 +92,12 @@ namespace GamedevAgentKit.Editor
 
             _dryRun = EditorGUILayout.ToggleLeft("Dry run (preview only, write nothing)", _dryRun);
 
+            _portable = EditorGUILayout.ToggleLeft(
+                new GUIContent(
+                    "Portable install (git-exclude all kit files)",
+                    "Lists every kit file in the repository's .git/info/exclude - a local ignore file that is never committed - so the kit stays out of git status. Applied by Install, Update, and Force Reinstall; unchecking it removes the entries on the next operation. Uninstall always removes them."),
+                _portable);
+
             var dontAutoOpen = EditorPrefs.GetBool(AgentKitBootstrap.DontAutoOpenKey, false);
             var dontAutoOpenNew = EditorGUILayout.ToggleLeft("Do not open this window automatically for this project", dontAutoOpen);
             if (dontAutoOpenNew != dontAutoOpen)
@@ -99,7 +112,7 @@ namespace GamedevAgentKit.Editor
             {
                 if (GUILayout.Button(new GUIContent("Install", _manifest != null ? "Already installed - use Update or Force Reinstall." : "Copy the kit files into the project.")))
                 {
-                    RunOperation(() => AgentKitInstaller.Run(KitInstallMode.Install, _dryRun));
+                    RunInstall(KitInstallMode.Install);
                 }
             }
 
@@ -107,24 +120,26 @@ namespace GamedevAgentKit.Editor
             {
                 if (GUILayout.Button("Update"))
                 {
-                    RunOperation(() => AgentKitInstaller.Run(KitInstallMode.Update, _dryRun));
+                    RunInstall(KitInstallMode.Update);
                 }
             }
 
             if (GUILayout.Button("Force Reinstall") && ConfirmDestructive("Force reinstall", "Overwrite ALL kit files in the project, including your local edits?"))
             {
-                RunOperation(() => AgentKitInstaller.Run(KitInstallMode.Force, _dryRun));
+                RunInstall(KitInstallMode.Force);
             }
 
             using (new EditorGUI.DisabledScope(_manifest == null))
             {
                 if (GUILayout.Button("Uninstall") && ConfirmDestructive("Uninstall kit", "Remove all unmodified kit files from the project? Locally modified files are kept (run Force Reinstall first if you want them removed too)."))
                 {
-                    RunOperation(() => AgentKitInstaller.Uninstall(_dryRun));
+                    RunUninstall();
                 }
             }
 
             EditorGUILayout.EndHorizontal();
+
+            DrawRemovePackageReference();
 
             if (_lastReport != null)
             {
@@ -147,9 +162,67 @@ namespace GamedevAgentKit.Editor
             }
         }
 
-        private void RunOperation(System.Func<KitOperationReport> operation)
+        private void DrawRemovePackageReference()
         {
-            _lastReport = operation();
+            // The final step of a fully portable setup: with the kit files
+            // installed (and git-excluded), dropping the package reference wipes
+            // the last committed trace - Packages/manifest.json and the lock file.
+            var package = AgentKitPaths.Package;
+            var embedded = package != null && package.source == PackageSource.Embedded;
+            using (new EditorGUI.DisabledScope(package == null || embedded || _dryRun))
+            {
+                var tooltip = embedded
+                    ? "The package is embedded under Packages/ - delete its folder manually instead."
+                    : "Remove " + AgentKitPaths.PackageName + " from Packages/manifest.json and the lock file. Installed kit files stay in the project and keep working; add the package again to update or uninstall the kit later.";
+                if (GUILayout.Button(new GUIContent("Remove Package Reference", tooltip))
+                    && EditorUtility.DisplayDialog(
+                        "Remove package reference",
+                        "Remove " + AgentKitPaths.PackageName + " from Packages/manifest.json?\n\nThe installed kit files stay in the project and keep working. To update or uninstall the kit later, add the package again.\n\nUnity will resolve packages and this window will close.",
+                        "Remove",
+                        "Cancel"))
+                {
+                    Client.Remove(AgentKitPaths.PackageName);
+                    Close();
+                }
+            }
+        }
+
+        private void RunInstall(KitInstallMode mode)
+        {
+            _lastReport = AgentKitInstaller.Run(mode, _dryRun);
+            if (!_lastReport.Failed)
+            {
+                if (_portable)
+                {
+                    // The installer has just written the manifest; its file set is
+                    // exactly what must be excluded (same source as the PS installers).
+                    var manifest = KitManifest.Load(AgentKitPaths.ManifestPath);
+                    if (manifest != null)
+                    {
+                        KitGitExclude.Write(_projectRoot, manifest.Files.Keys, _lastReport, _dryRun);
+                    }
+                    else if (_dryRun)
+                    {
+                        _lastReport.Lines.Add("PORTABLE (dry run) would write the git exclude block after installing.");
+                    }
+                }
+                else
+                {
+                    KitGitExclude.Remove(_projectRoot, _lastReport, _dryRun);
+                }
+            }
+
+            RefreshManifest();
+        }
+
+        private void RunUninstall()
+        {
+            _lastReport = AgentKitInstaller.Uninstall(_dryRun);
+            if (!_lastReport.Failed)
+            {
+                KitGitExclude.Remove(_projectRoot, _lastReport, _dryRun);
+            }
+
             RefreshManifest();
         }
 

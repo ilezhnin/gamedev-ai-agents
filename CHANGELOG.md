@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 - 2026-07-01
+
+Root-minimal install layout and portable (no-trace) installs.
+
+### Added
+- Portable installs (no trace in the repo): `-Portable` on the project installers and a "Portable install" toggle in the Agent Kit window list every manifest-tracked kit file in the repository's `.git/info/exclude` - a local, never-committed ignore file - so nothing shows in `git status` and `.gitignore` stays untouched. The block refreshes automatically on later installs/updates, uninstall removes it, nested project targets get repo-relative prefixes, and the transient `.agents/plans/` directory is excluded as a directory (its own `.gitignore` re-includes itself, which overrides file-level entries). The window also gained "Remove Package Reference": drops the package entry from `Packages/manifest.json` and the lock file via the Package Manager API - installed kit files keep working, and re-adding the package restores update/uninstall.
+
+### Changed
+- Near-single-folder install layout: `ARCHITECTURE.md`, `CODE_STYLE.md`, and `DEPENDENCIES.md` moved from the project root into `.agents/`, and `CLAUDE.md` moved to `.claude/CLAUDE.md` (a documented auto-load location; parent-relative `@../AGENTS.md` imports verified against a live Claude Code session). `AGENTS.md` is now the only root file the kit ships - the discovery contracts of Codex, Cursor, and Antigravity require it there. Existing installs migrate on `-Update`/window Update via the stale-file sweep; locally edited contracts at the old root locations are kept with a warning and should be moved into `.agents/` manually. The dead `project_doc_fallback_filenames = ["CLAUDE.md"]` entry was dropped from both template Codex configs, and validate-kit's rendered-only guard now forbids only the rendered `.claude` parts (agents, settings.json, skills), allowing the static template `CLAUDE.md` pointer.
+
 ## 0.3.0 - 2026-07-01
 
 Conventions ported from a production Unity project (SandboxWrestling) and generalized.

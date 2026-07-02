@@ -40,3 +40,4 @@ $manifestPath = Join-Path $targetRoot ".agents\kit-manifest.json"
 if (-not (Uninstall-KitManifestTree -TargetRoot $targetRoot -ManifestPath $manifestPath -Force:$Force -Cmdlet $PSCmdlet)) {
     Stop-KitWithError "No kit manifest found at $manifestPath - nothing to uninstall (or the kit was installed by an old script version)."
 }
+Remove-KitGitExclude -TargetRoot $targetRoot -Cmdlet $PSCmdlet

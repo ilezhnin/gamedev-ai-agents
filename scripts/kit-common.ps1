@@ -549,6 +549,115 @@ function Uninstall-KitManifestTree {
     return $true
 }
 
+# --- Portable installs: git-exclude the kit ---------------------------------
+# A portable install keeps every kit file out of version control by listing the
+# manifest-tracked paths in the containing repository's .git/info/exclude - a
+# per-clone ignore file that is itself never committed. .gitignore is untouched.
+# The C# UPM installer (upm/Editor/KitGitExclude.cs) writes the same block with
+# the same markers, so either installer can refresh or remove it.
+
+$script:GitExcludeBegin = "# >>> gamedev-agent-kit >>>"
+$script:GitExcludeEnd = "# <<< gamedev-agent-kit <<<"
+
+function Get-KitGitExcludeInfo {
+    # Resolves where exclude entries for a target directory must go: the exclude
+    # file of the containing repository (worktree-aware via --git-path) and the
+    # target's path prefix relative to the repository root, because the project
+    # may live in a subdirectory of the repo. $null when git is unavailable or
+    # the target is not inside a work tree.
+    param([Parameter(Mandatory = $true)] [string] $TargetRoot)
+    $inside = Invoke-KitNativeQuiet { git -C $TargetRoot rev-parse --is-inside-work-tree }
+    if ("$inside".Trim() -ne "true") { return $null }
+    $excludeRel = "$(Invoke-KitNativeQuiet { git -C $TargetRoot rev-parse --git-path info/exclude })".Trim()
+    $repoRoot = "$(Invoke-KitNativeQuiet { git -C $TargetRoot rev-parse --show-toplevel })".Trim()
+    if (-not $excludeRel -or -not $repoRoot) { return $null }
+    $excludePath = if ([System.IO.Path]::IsPathRooted($excludeRel)) { $excludeRel } else { [System.IO.Path]::GetFullPath((Join-Path $TargetRoot $excludeRel)) }
+    $repoRootFull = ([System.IO.Path]::GetFullPath($repoRoot) -replace "\\", "/").TrimEnd("/")
+    $targetFull = ([System.IO.Path]::GetFullPath($TargetRoot) -replace "\\", "/").TrimEnd("/")
+    if (-not $targetFull.StartsWith($repoRootFull, [System.StringComparison]::OrdinalIgnoreCase)) { return $null }
+    $prefix = $targetFull.Substring($repoRootFull.Length).Trim("/")
+    if ($prefix) { $prefix += "/" }
+    return @{ ExcludePath = $excludePath; Prefix = $prefix }
+}
+
+function Merge-KitGitExcludeContent {
+    # Returns the exclude file content with the kit block replaced by $Block
+    # (or dropped when $Block is empty). Non-kit content is preserved verbatim.
+    param(
+        [AllowEmptyString()] [string] $Existing,
+        [AllowEmptyString()] [string] $Block
+    )
+    $pattern = "(?s)" + [regex]::Escape($script:GitExcludeBegin) + ".*?" + [regex]::Escape($script:GitExcludeEnd) + "(\r?\n)?"
+    $stripped = ([regex]::Replace($Existing, $pattern, "")).TrimEnd("`r", "`n")
+    if (-not $Block) {
+        if ($stripped) { return $stripped + "`n" }
+        return ""
+    }
+    if ($stripped) { return $stripped + "`n`n" + $Block + "`n" }
+    return $Block + "`n"
+}
+
+function Test-KitGitExclude {
+    # True when the target's repository already carries a kit exclude block -
+    # used to keep refreshing it on updates even without an explicit -Portable.
+    param([Parameter(Mandatory = $true)] [string] $TargetRoot)
+    $info = Get-KitGitExcludeInfo -TargetRoot $TargetRoot
+    if (-not $info -or -not (Test-Path -LiteralPath $info.ExcludePath)) { return $false }
+    return ((Get-Content -LiteralPath $info.ExcludePath -Raw) -like ("*" + $script:GitExcludeBegin + "*"))
+}
+
+function Write-KitGitExclude {
+    # Writes (or refreshes) the kit exclude block from the freshly built
+    # manifest file set. ShouldProcess is delegated via -Cmdlet.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
+    param(
+        [Parameter(Mandatory = $true)] [hashtable] $Ctx,
+        [Parameter(Mandatory = $true)] $Cmdlet
+    )
+    $info = Get-KitGitExcludeInfo -TargetRoot $Ctx.Target
+    if (-not $info) {
+        Write-Warning "Portable: target is not inside a git work tree (or git is unavailable) - no exclude entries written."
+        return
+    }
+    $keys = @(@($Ctx.New.Keys) + ".agents/kit-manifest.json" | Sort-Object -Unique)
+    $lines = @($script:GitExcludeBegin)
+    $lines += "# Every kit-installed file, mirrored from .agents/kit-manifest.json."
+    $lines += "# Managed by the kit installers: refreshed on install/update, removed on uninstall."
+    foreach ($key in $keys) { $lines += "/" + $info.Prefix + $key }
+    # .agents/plans/.gitignore re-includes itself ("!.gitignore"), and per-directory
+    # ignore files override info/exclude entries. Excluding the whole transient plans
+    # directory wins: git cannot re-include files under an excluded directory.
+    $lines += "/" + $info.Prefix + ".agents/plans/"
+    $lines += $script:GitExcludeEnd
+    $existing = ""
+    if (Test-Path -LiteralPath $info.ExcludePath) { $existing = Get-Content -LiteralPath $info.ExcludePath -Raw }
+    $merged = Merge-KitGitExcludeContent -Existing $existing -Block ($lines -join "`n")
+    if ($Cmdlet.ShouldProcess($info.ExcludePath, "Write kit exclude block ($($keys.Count) entries)")) {
+        $dir = Split-Path -Parent $info.ExcludePath
+        if (-not (Test-Path -LiteralPath $dir)) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+        [System.IO.File]::WriteAllText($info.ExcludePath, $merged, (New-Object System.Text.UTF8Encoding $false))
+    }
+    Write-Host "PORTABLE $($keys.Count) kit paths excluded via $($info.ExcludePath)"
+}
+
+function Remove-KitGitExclude {
+    # Removes the kit exclude block; other exclude content stays untouched.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
+    param(
+        [Parameter(Mandatory = $true)] [string] $TargetRoot,
+        [Parameter(Mandatory = $true)] $Cmdlet
+    )
+    $info = Get-KitGitExcludeInfo -TargetRoot $TargetRoot
+    if (-not $info -or -not (Test-Path -LiteralPath $info.ExcludePath)) { return }
+    $existing = Get-Content -LiteralPath $info.ExcludePath -Raw
+    if ($existing -notlike ("*" + $script:GitExcludeBegin + "*")) { return }
+    $merged = Merge-KitGitExcludeContent -Existing $existing -Block ""
+    if ($Cmdlet.ShouldProcess($info.ExcludePath, "Remove kit exclude block")) {
+        [System.IO.File]::WriteAllText($info.ExcludePath, $merged, (New-Object System.Text.UTF8Encoding $false))
+    }
+    Write-Host "PORTABLE kit exclude block removed from $($info.ExcludePath)"
+}
+
 function Complete-KitInstall {
     # ShouldProcess is delegated to the calling script's $PSCmdlet via -Cmdlet.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]

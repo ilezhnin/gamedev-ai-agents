@@ -153,11 +153,13 @@ catch {
     Report $false "canon: permissions/hooks parse and render" $_.Exception.Message
 }
 
-# 7: platform adapters must NOT be stored in the kit - they are rendered at install time.
+# 7: platform adapters must NOT be stored in the kit - they are rendered at install
+# time. Template .claude may carry only the static CLAUDE.md pointer; the rendered
+# parts (agents, settings.json, the skills mirror) stay forbidden.
 foreach ($forbidden in @(
         "global\agents", "global\rules",
-        "templates\unity-project\.codex\agents", "templates\unity-project\.codex\rules", "templates\unity-project\.codex\hooks.json", "templates\unity-project\.claude", "templates\unity-project\.agents\rules",
-        "templates\csharp-aspnet-project\.codex\agents", "templates\csharp-aspnet-project\.codex\rules", "templates\csharp-aspnet-project\.claude", "templates\csharp-aspnet-project\.agents\rules"
+        "templates\unity-project\.codex\agents", "templates\unity-project\.codex\rules", "templates\unity-project\.codex\hooks.json", "templates\unity-project\.claude\agents", "templates\unity-project\.claude\settings.json", "templates\unity-project\.claude\skills", "templates\unity-project\.agents\rules",
+        "templates\csharp-aspnet-project\.codex\agents", "templates\csharp-aspnet-project\.codex\rules", "templates\csharp-aspnet-project\.claude\agents", "templates\csharp-aspnet-project\.claude\settings.json", "templates\csharp-aspnet-project\.claude\skills", "templates\csharp-aspnet-project\.agents\rules"
     )) {
     Report (-not (Test-Path -LiteralPath (Join-Path $script:KitRoot $forbidden))) "rendered-only: $forbidden is not stored in the kit"
 }

@@ -11,7 +11,7 @@ Use this when the project is unfamiliar or has more than one assembly/package.
 - `Assets/**/Tests/**`: test layout and naming.
 - `ProjectSettings/EditorBuildSettings.asset`: scenes included in builds.
 - `ProjectSettings/ProjectSettings.asset`: scripting backend, API compatibility, input mode, active color space.
-- Root contracts when present: `AGENTS.md` (module map, routing), `ARCHITECTURE.md`, `CODE_STYLE.md`, `DEPENDENCIES.md`, `.agents/learnings.md`.
+- Project contracts when present: `AGENTS.md` at the root (module map, routing); `ARCHITECTURE.md`, `CODE_STYLE.md`, `DEPENDENCIES.md` under `.agents/` (kit default) or at the root; `.agents/learnings.md`.
 - `Packages/` subdirectories: embedded packages carry their own asmdefs, tests, and metas.
 
 ## Search Patterns

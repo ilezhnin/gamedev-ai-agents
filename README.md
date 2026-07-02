@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.3.0-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.0-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -30,6 +30,7 @@ This kit turns your AI coding agent - OpenAI Codex, Anthropic Claude Code, or Go
 - **A studio of roles** - game designer, producer, architect, QA, devops, plus workers, reviewers, and researchers - rendered natively for every platform.
 - **Platform-independent by design** - one canon, thin rendered adapters. All state lives in repo files, so switching Codex <-> Claude Code <-> Antigravity mid-task loses nothing.
 - **Safe lifecycle** - hash-manifest installs: updates refresh only unmodified files, your local edits always survive, uninstall removes exactly what the kit shipped.
+- **Portable mode** - optional zero-trace installs: one root file (`AGENTS.md`), everything else under `.agents/`, `.claude/`, `.codex/`, `.cursor/`; a portable install git-excludes every kit file locally and the package reference itself can be removed, so nothing about the kit ever reaches your repo.
 
 ## Quick Start
 
@@ -139,7 +140,7 @@ Hierarchy rule: specialized stack roles implement, test, and review; broader-pro
 
 ### Project Contracts
 
-The install places living contracts in your project root that keep agents on rails: `AGENTS.md` (tech stack, module map, boundaries, skill routing), `ARCHITECTURE.md` (module shape, asmdef boundaries, determinism, serialization compatibility), `CODE_STYLE.md`, `DEPENDENCIES.md` (every package justified). Agents read them before acting; `learn` keeps project lessons in `.agents/learnings.md`.
+The install places living contracts that keep agents on rails: `AGENTS.md` at the project root (tech stack, module map, boundaries, skill routing) and, under `.agents/`: `ARCHITECTURE.md` (module shape, asmdef boundaries, determinism, serialization compatibility), `CODE_STYLE.md`, `DEPENDENCIES.md` (every package justified). `AGENTS.md` is the only root file the kit ships - discovery contracts of Codex, Cursor, and Antigravity require it there. Agents read the contracts before acting; `learn` keeps project lessons in `.agents/learnings.md`.
 
 ## Platforms
 
@@ -147,7 +148,7 @@ One canon, rendered adapters - `.codex/` and `.claude/` are generated at install
 
 | Concern | Canon | Codex | Claude Code | Antigravity |
 | --- | --- | --- | --- | --- |
-| Instructions | `AGENTS.md` + contracts | native | via `CLAUDE.md` pointer | native |
+| Instructions | `AGENTS.md` + contracts | native | via `.claude/CLAUDE.md` pointer | native |
 | Skills | `plugins/.../skills/` | `.agents/skills/` | `.claude/skills/` mirror | `.agents/skills/` native |
 | Subagent roles | `canon/roles.json` | `.codex/agents/*.toml` | `.claude/agents/*.md` | `.agents/rules/` (dynamic orchestration) |
 | Permissions | `canon/permissions.json` | `.codex/rules/` | `.claude/settings.json` | `.agents/rules/` (behavioral) |
@@ -160,10 +161,12 @@ Both Codex and Claude Code get a working post-edit hook that runs the kit's `.me
 
 Bump the package in Package Manager - the Agent Kit window offers **Update**: refreshes files you have not modified, keeps every local edit with a `KEEP` notice, removes files the kit no longer ships. **Uninstall** removes only unmodified kit files. **Dry run** previews any operation without writing. Script installs share the same manifest, so you can mix editor and script flows freely.
 
+**Portable install (no trace in the repo).** Do not want the kit in version control? Check **Portable install** in the Agent Kit window (or pass `-Portable` to the script installers): every kit file is listed in the repository's `.git/info/exclude` - a local ignore file that is itself never committed - so nothing appears in `git status` and `.gitignore` stays untouched. Later installs and updates refresh the entries automatically; uninstall removes them. **Remove Package Reference** then deletes the last committed trace, the package entry in `Packages/manifest.json` and the lock file - the installed kit files keep working, and re-adding the package restores update/uninstall. Note the flip side: your filled-in contracts (`AGENTS.md`, `.agents/ARCHITECTURE.md`, ...) stay local-only too, so teams that want shared contracts should commit those and keep portable mode off.
+
 <details>
 <summary><b>Other ways to install (PowerShell, backend template, global profile, plugin)</b></summary>
 
-All scripted installers support `-Update`, `-Force`, and `-WhatIf` with the same manifest semantics. The scripts target Windows (PowerShell 5.1 and pwsh 7); other platforms are currently out of scope.
+All scripted installers support `-Update`, `-Force`, `-Portable`, and `-WhatIf` with the same manifest semantics. The scripts target Windows (PowerShell 5.1 and pwsh 7); other platforms are currently out of scope.
 
 **Unity project via script** (same result as the package window):
 
@@ -232,8 +235,8 @@ global/
   unity-codex.config.toml  Codex profile
   canon/                   SINGLE SOURCE OF TRUTH: roles.json, permissions.json, hooks.json
 templates/
-  unity-project/           AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md, DEPENDENCIES.md,
-                           CLAUDE.md, .cursor/, .codex/config.toml
+  unity-project/           AGENTS.md (root); .agents/ ARCHITECTURE.md, CODE_STYLE.md,
+                           DEPENDENCIES.md; .claude/CLAUDE.md, .cursor/, .codex/config.toml
   csharp-aspnet-project/   same shape for ASP.NET
 plugins/
   codex-unity-agent-kit/   the plugin: 25 skills (single source of truth)

@@ -5,7 +5,12 @@ param(
 
     [switch] $Force,
     [switch] $Update,
-    [switch] $AllowNonDotnetTarget
+    [switch] $AllowNonDotnetTarget,
+
+    # Portable install: list every kit file in the repository's .git/info/exclude
+    # (a local, never-committed ignore file) so the kit stays out of git status.
+    # Later installs/updates refresh the block automatically; uninstall removes it.
+    [switch] $Portable
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,4 +32,9 @@ $ctx = New-InstallContext -TargetRoot $targetRoot -ManifestPath (Join-Path $targ
 Install-KitBackendContent -Ctx $ctx -Cmdlet $PSCmdlet
 
 Complete-KitInstall -Ctx $ctx -Cmdlet $PSCmdlet
+
+if ($Portable -or (Test-KitGitExclude -TargetRoot $targetRoot)) {
+    Write-KitGitExclude -Ctx $ctx -Cmdlet $PSCmdlet
+}
+
 Write-Host "C# ASP.NET Codex template installed to $targetRoot"
