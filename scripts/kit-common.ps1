@@ -287,6 +287,69 @@ function ConvertTo-ClaudeSettingsJson {
     return ($settings | ConvertTo-Json -Depth 10) + "`n"
 }
 
+function ConvertTo-AntigravityRolesRule {
+    # Antigravity has no static subagent format; personas are delivered as a rules file
+    # for its dynamic orchestration (official codelab pattern).
+    param([Parameter(Mandatory = $true)] $Roles)
+    $lines = @("---", "trigger: model_decision", "description: Agent role definitions for delegated and multi-agent work (crossworking team shape)", "---", "")
+    $lines += "# Agent Roles (rendered from kit canon)"
+    $lines += ""
+    $lines += "When orchestrating subagents or adopting a persona for a delegated task, use these role contracts. Prefer the most specialized role for each job; broader-profile roles (planner, oracle, researcher) coordinate and never write production code."
+    foreach ($role in $Roles) {
+        $lines += ""
+        $lines += "## $($role.name)"
+        $lines += ""
+        $lines += $role.description
+        if ($role.readonly) { $lines += "Read-only role: inspects and reports, never edits files." }
+        $lines += ""
+        foreach ($instruction in $role.instructions) { $lines += "- $instruction" }
+    }
+    return ($lines -join "`n") + "`n"
+}
+
+function ConvertTo-AntigravityPermissionsRule {
+    param([Parameter(Mandatory = $true)] $Permissions)
+    $lines = @("---", "trigger: always_on", "---", "")
+    $lines += "# Command Permissions (rendered from kit canon)"
+    $lines += ""
+    foreach ($rule in $Permissions.rules) {
+        $prefix = $rule.pattern -join " "
+        if ($rule.decision -eq "allow") {
+            $lines += "- Safe without asking: ``$prefix`` - $($rule.justification)"
+        }
+        elseif ($rule.decision -eq "forbidden") {
+            $lines += "- Forbidden without an explicit user request: ``$prefix`` - $($rule.justification)"
+        }
+        else {
+            $lines += "- Ask before running: ``$prefix`` - $($rule.justification)"
+        }
+    }
+    $lines += ""
+    $lines += "Antigravity's IDE terminal Allow/Deny lists are GUI-only; mirror these entries there manually when configuring the workspace."
+    return ($lines -join "`n") + "`n"
+}
+
+function ConvertTo-AntigravityAutomationRule {
+    # Hooks are behavioral here: Antigravity's file hook protocol is CLI-verified but
+    # IDE-uncertain, so the kit delivers the same automation as an always-on rule.
+    param([Parameter(Mandatory = $true)] $Hooks, [Parameter(Mandatory = $true)] [string] $Stack)
+    $matched = @($Hooks.hooks | Where-Object { $_.stacks -contains $Stack })
+    if ($matched.Count -eq 0) { return $null }
+    $lines = @("---", "trigger: always_on", "---", "")
+    $lines += "# Post-Edit Automation (rendered from kit canon)"
+    foreach ($hook in $matched) {
+        $lines += ""
+        $lines += "After creating, editing, moving, or deleting project files in this task, run:"
+        $lines += ""
+        $lines += '```'
+        $lines += $hook.command
+        $lines += '```'
+        $lines += ""
+        $lines += "Fix every reported issue before finishing the task. Do not skip this check."
+    }
+    return ($lines -join "`n") + "`n"
+}
+
 function Install-KitRendered {
     # Routes rendered string content through the same manifest/update semantics as file copies.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
@@ -329,6 +392,15 @@ function Install-KitPlatformAdapters {
     $codexHooks = ConvertTo-CodexHooksJson -Hooks $hooks -Stack $Stack
     if ($codexHooks) {
         Install-KitRendered -Ctx $Ctx -Content $codexHooks -RelDest ".codex\hooks.json" -Cmdlet $Cmdlet
+    }
+
+    # Antigravity layer: AGENTS.md and .agents/skills are read natively (no adapter
+    # needed); roles, permissions, and automation are delivered as rules files.
+    Install-KitRendered -Ctx $Ctx -Content (ConvertTo-AntigravityRolesRule -Roles $roles) -RelDest ".agents\rules\kit-agent-roles.md" -Cmdlet $Cmdlet
+    Install-KitRendered -Ctx $Ctx -Content (ConvertTo-AntigravityPermissionsRule -Permissions $permissions) -RelDest ".agents\rules\kit-permissions.md" -Cmdlet $Cmdlet
+    $agAutomation = ConvertTo-AntigravityAutomationRule -Hooks $hooks -Stack $Stack
+    if ($agAutomation) {
+        Install-KitRendered -Ctx $Ctx -Content $agAutomation -RelDest ".agents\rules\kit-automation.md" -Cmdlet $Cmdlet
     }
 }
 

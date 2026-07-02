@@ -2,7 +2,7 @@
 
 Platform-independent AI agent kit for Unity, C#, and ASP.NET game development. The kit is a source repository: project templates with architecture/style/dependency contracts, 22 reusable skills, canonical agent roles and policies rendered into per-platform adapters, and manifest-based installers with a real update/uninstall story.
 
-Platforms: OpenAI Codex and Anthropic Claude Code as equals, Windows-first with WSL support, plus a Cursor pointer. One canon, two rendered adapter layers - switching platforms loses nothing.
+Platforms: OpenAI Codex, Anthropic Claude Code, and Google Antigravity (Gemini and its other models) as equals, Windows-first with WSL support, plus a Cursor pointer. One canon, rendered adapter layers per platform - switching platforms loses nothing.
 
 ## Layout
 
@@ -28,16 +28,18 @@ scripts/                   installers (render platform adapters from canon), upd
 
 The kit treats platforms as render targets. All knowledge and all state live in neutral repository files; `.codex/` and `.claude/` are thin adapters rendered from `global/canon/` at install time and are never edited by hand:
 
-| Concern | Canon | Codex render | Claude Code render |
-| --- | --- | --- | --- |
-| Instructions | `AGENTS.md` + contracts | native | via `CLAUDE.md` pointer |
-| Skills | `plugins/.../skills/` | `.agents/skills/` | `.claude/skills/` mirror |
-| Subagent roles | `canon/roles.json` | `.codex/agents/*.toml` | `.claude/agents/*.md` |
-| Permissions | `canon/permissions.json` | `.codex/rules/default.rules` | `.claude/settings.json` |
-| Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` |
-| Work state / memory | `.agents/plans/`, `.agents/learnings.md`, `docs/tickets/` | shared | shared |
+| Concern | Canon | Codex | Claude Code | Antigravity |
+| --- | --- | --- | --- | --- |
+| Instructions | `AGENTS.md` + contracts | native | via `CLAUDE.md` pointer | native (since v1.20.3) |
+| Skills | `plugins/.../skills/` | `.agents/skills/` | `.claude/skills/` mirror | `.agents/skills/` native |
+| Subagent roles | `canon/roles.json` | `.codex/agents/*.toml` | `.claude/agents/*.md` | `.agents/rules/kit-agent-roles.md` (dynamic orchestration) |
+| Permissions | `canon/permissions.json` | `.codex/rules/default.rules` | `.claude/settings.json` | `.agents/rules/kit-permissions.md` (IDE lists are GUI-only) |
+| Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` | `.agents/rules/kit-automation.md` (behavioral) |
+| Work state / memory | `.agents/plans/`, `.agents/learnings.md`, `docs/tickets/` | shared | shared | shared |
 
-Durable state never lives in platform storage, so switching Codex <-> Claude Code mid-task loses nothing: the next agent resumes from `.agents/plans/` and the repo contracts. `doctor.ps1` reports when the two layers drift; installers' `-Update` re-syncs both.
+Antigravity notes: it reads `AGENTS.md` and discovers `.agents/skills/` natively, so half the kit needs no adapter at all; it has no static subagent format (dynamic orchestration), so roles ship as a `model_decision` rules file; IDE terminal allow/deny lists are not file-configurable, so permissions ship as an always-on behavioral rule; its file-hook protocol is CLI-verified but IDE-uncertain, so automation ships as a rule instead of `hooks.json`.
+
+Durable state never lives in platform storage, so switching Codex <-> Claude Code <-> Antigravity mid-task loses nothing: the next agent resumes from `.agents/plans/` and the repo contracts. `doctor.ps1` reports when layers drift; installers' `-Update` re-syncs all of them.
 
 ## Skills
 

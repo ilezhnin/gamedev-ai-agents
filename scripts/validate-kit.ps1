@@ -130,6 +130,10 @@ try {
     }
     $codexHooks = ConvertTo-CodexHooksJson -Hooks $hooksCanon -Stack "unity"
     Report ($null -ne ($codexHooks | ConvertFrom-Json).hooks) "canon: Codex hooks render valid JSON for unity"
+    $agRoles = ConvertTo-AntigravityRolesRule -Roles $roles
+    $agPerms = ConvertTo-AntigravityPermissionsRule -Permissions $permissions
+    $agAuto = ConvertTo-AntigravityAutomationRule -Hooks $hooksCanon -Stack "unity"
+    Report (($agRoles -match "trigger: model_decision") -and ($agPerms -match "trigger: always_on") -and ($agAuto -match "check-unity-meta")) "canon: Antigravity rules render for roles, permissions, and automation"
 }
 catch {
     Report $false "canon: permissions/hooks parse and render" $_.Exception.Message
@@ -138,8 +142,8 @@ catch {
 # 7: platform adapters must NOT be stored in the kit - they are rendered at install time.
 foreach ($forbidden in @(
         "global\agents", "global\rules",
-        "templates\unity-project\.codex\agents", "templates\unity-project\.codex\rules", "templates\unity-project\.codex\hooks.json", "templates\unity-project\.claude",
-        "templates\csharp-aspnet-project\.codex\agents", "templates\csharp-aspnet-project\.codex\rules", "templates\csharp-aspnet-project\.claude"
+        "templates\unity-project\.codex\agents", "templates\unity-project\.codex\rules", "templates\unity-project\.codex\hooks.json", "templates\unity-project\.claude", "templates\unity-project\.agents\rules",
+        "templates\csharp-aspnet-project\.codex\agents", "templates\csharp-aspnet-project\.codex\rules", "templates\csharp-aspnet-project\.claude", "templates\csharp-aspnet-project\.agents\rules"
     )) {
     Report (-not (Test-Path -LiteralPath (Join-Path $script:KitRoot $forbidden))) "rendered-only: $forbidden is not stored in the kit"
 }
