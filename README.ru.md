@@ -1,4 +1,4 @@
-<h1 align="center">Gamedev AI Agents</h1>
+<h1 align="center">AI Agents for Unity</h1>
 
 <p align="center"><b>Разработка игр в Unity с ИИ-агентами: на входе промпт, на выходе играбельный майлстоун.</b></p>
 

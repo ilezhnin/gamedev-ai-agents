@@ -1,4 +1,4 @@
-<h1 align="center">Gamedev AI Agents</h1>
+<h1 align="center">AI Agents for Unity</h1>
 
 <p align="center"><b>Build Unity games with AI agents: one prompt in, a playable milestone out.</b></p>
 
