@@ -181,6 +181,9 @@ namespace GamedevAgentKit.Editor
                         "Remove",
                         "Cancel"))
                 {
+                    // The portable flow keeps the installed files: flag the
+                    // pending removal so AgentKitPackageCleanup skips them.
+                    SessionState.SetBool(AgentKitPackageCleanup.KeepFilesKey, true);
                     Client.Remove(AgentKitPaths.PackageName);
                     Close();
                 }

@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.0-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.1-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -159,7 +159,7 @@ Both Codex and Claude Code get a working post-edit hook that runs the kit's `.me
 
 ## Updating And Uninstalling
 
-Bump the package in Package Manager - the Agent Kit window offers **Update**: refreshes files you have not modified, keeps every local edit with a `KEEP` notice, removes files the kit no longer ships. **Uninstall** removes only unmodified kit files. **Dry run** previews any operation without writing. Script installs share the same manifest, so you can mix editor and script flows freely.
+Bump the package in Package Manager - the Agent Kit window offers **Update**: refreshes files you have not modified, keeps every local edit with a `KEEP` notice, removes files the kit no longer ships. **Uninstall** removes only unmodified kit files. **Dry run** previews any operation without writing. Script installs share the same manifest, so you can mix editor and script flows freely. Removing the package itself in Package Manager also offers to remove the installed kit files (same semantics: local edits are kept); only the window's **Remove Package Reference** deliberately leaves them in place.
 
 **Portable install (no trace in the repo).** Do not want the kit in version control? Check **Portable install** in the Agent Kit window (or pass `-Portable` to the script installers): every kit file is listed in the repository's `.git/info/exclude` - a local ignore file that is itself never committed - so nothing appears in `git status` and `.gitignore` stays untouched. Later installs and updates refresh the entries automatically; uninstall removes them. **Remove Package Reference** then deletes the last committed trace, the package entry in `Packages/manifest.json` and the lock file - the installed kit files keep working, and re-adding the package restores update/uninstall. Note the flip side: your filled-in contracts (`AGENTS.md`, `.agents/ARCHITECTURE.md`, ...) stay local-only too, so teams that want shared contracts should commit those and keep portable mode off.
 

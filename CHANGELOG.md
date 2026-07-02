@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.1 - 2026-07-01
+
+### Fixed
+- Removing the package through the Package Manager left every installed kit file behind. A `registeringPackages` watcher (raised before the package assemblies unload - afterwards the kit's code no longer exists in the project) now offers to remove the installed files with the usual uninstall semantics (locally modified files are kept) and clears the portable git-exclude block. The window's "Remove Package Reference" sets a session flag so the portable flow still keeps the files, and batch mode never deletes files on package operations - it logs the manual uninstall paths instead.
+
 ## 0.4.0 - 2026-07-01
 
 Root-minimal install layout and portable (no-trace) installs.
