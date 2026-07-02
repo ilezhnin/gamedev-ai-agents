@@ -82,14 +82,16 @@ Choose the smallest team that can safely complete the task:
 
 Use this default team unless the repository or tools provide better named agents:
 
-- **Planner**: applies `$planning`, updates `active_plan.md`, and tracks uncertainty.
-- **Context scout**: maps relevant files, patterns, dependencies, and validation commands; emits the context-handoff artifacts.
+Role hierarchy rule: prefer the most specialized role for each job - stack workers implement, stack validators test, stack reviewers review. Broader-profile roles (planner, oracle, researcher) sit above them for planning, consistency, and research; they never write production code.
+
+- **Planner** (`planner` role): applies `$planning`, updates `active_plan.md`, and tracks uncertainty.
+- **Context scout** (stack `*-explorer` role): maps relevant files, patterns, dependencies, and validation commands; emits the context-handoff artifacts.
 - **Researcher** (`researcher` role): source-backed web research when the task depends on external docs, APIs, or current library behavior.
-- **Worker**: writes code and tests for the approved plan.
-- **Validator**: runs compile, test, lint, generated-code, or Unity checks.
-- **Reviewers**: inspect the diff from independent angles without editing.
+- **Worker** (stack `unity-worker` / `backend-worker` role): writes code and tests for the approved plan.
+- **Validator** (stack `*-test-runner` role): runs compile, test, lint, generated-code, or Unity checks.
+- **Reviewers** (stack `*-reviewer` role): inspect the diff from independent angles without editing.
 - **Oracle** (`oracle` role, optional on long tasks): fresh-context drift check - verifies the current trajectory still matches the inherited decisions and constraints before the fix loop ends.
-- **Fixer**: applies accepted review fixes.
+- **Fixer** (stack worker role): applies accepted review fixes.
 - **MR agent** (`pr-submitter` role): runs `$create-mr` or the project PR/MR workflow.
 
 ## Stop Conditions
