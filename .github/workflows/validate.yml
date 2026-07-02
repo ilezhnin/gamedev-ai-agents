@@ -1,0 +1,15 @@
+name: validate
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  validate-kit:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run kit validation
+        shell: pwsh
+        run: ./scripts/validate-kit.ps1 -Quiet

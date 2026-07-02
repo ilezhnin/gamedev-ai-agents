@@ -56,9 +56,13 @@ foreach ($dir in $skillDirs) {
         Report $false "skill $($dir.Name): agents/openai.yaml exists"
     }
 
+    # SKILL.md stays procedural; detail belongs in references/ (budget from AGENTS.md).
+    $lineCount = ($text -split "`n").Count
+    Report ($lineCount -le 130) "skill $($dir.Name): SKILL.md within the 130-line budget" "$lineCount lines"
+
     # References mentioned must exist; files present must be mentioned.
     $mentioned = @()
-    foreach ($m in [regex]::Matches($text, "references/([A-Za-z0-9._-]+\.md)")) {
+    foreach ($m in [regex]::Matches($text, "references/([A-Za-z0-9._-]+\.[A-Za-z0-9]+)")) {
         $mentioned += $m.Groups[1].Value
     }
     $mentioned = $mentioned | Sort-Object -Unique
@@ -130,6 +134,16 @@ try {
     }
     $codexHooks = ConvertTo-CodexHooksJson -Hooks $hooksCanon -Stack "unity"
     Report ($null -ne ($codexHooks | ConvertFrom-Json).hooks) "canon: Codex hooks render valid JSON for unity"
+    # Every hook command must point at a script the payload actually ships.
+    foreach ($hook in $hooksCanon.hooks) {
+        foreach ($command in @($hook.command, $hook.commandPwsh)) {
+            if ($command -match "-File\s+(\S+)") {
+                $hookTarget = $matches[1]
+                $shipped = Test-Path -LiteralPath (Join-Path $script:KitRoot ("upm\Kit~\" + ($hookTarget -replace "/", "\")))
+                Report $shipped "canon: hook target $hookTarget is shipped in the payload"
+            }
+        }
+    }
     $agRoles = ConvertTo-AntigravityRolesRule -Roles $roles
     $agPerms = ConvertTo-AntigravityPermissionsRule -Permissions $permissions
     $agAuto = ConvertTo-AntigravityAutomationRule -Hooks $hooksCanon -Stack "unity"
@@ -149,15 +163,53 @@ foreach ($forbidden in @(
 }
 
 # 8: ASCII policy - the kit is English-only, no exceptions.
-$asciiAllowlist = @()
 $nonAscii = @()
-foreach ($root in @("templates", "plugins", "upm")) {
+foreach ($root in @("templates", "plugins", "upm", "scripts")) {
     foreach ($file in Get-ChildItem -LiteralPath (Join-Path $script:KitRoot $root) -Recurse -File) {
-        if ($asciiAllowlist -contains $file.FullName) { continue }
         if (-not (Test-IsAscii -Path $file.FullName)) { $nonAscii += $file.FullName.Substring($script:KitRoot.Length + 1) }
     }
 }
-Report ($nonAscii.Count -eq 0) "ascii: templates/ and plugins/ are ASCII (allowlisted exceptions aside)" ($nonAscii -join ", ")
+Report ($nonAscii.Count -eq 0) "ascii: templates/, plugins/, upm/, and scripts/ are ASCII" ($nonAscii -join ", ")
+
+# 8b: docs must reference paths that exist. Inline-code path references in the
+# contributor docs are checked against disk; for glob references the directory
+# prefix before the first wildcard must exist. This catches contracts that
+# survive refactors only on paper (e.g. a renamed source-of-truth directory).
+foreach ($docName in @("AGENTS.md", "README.md", "README.ru.md")) {
+    $docPath = Join-Path $script:KitRoot $docName
+    if (-not (Test-Path -LiteralPath $docPath)) { continue }
+    $docText = Get-Content -LiteralPath $docPath -Raw
+    $badPaths = @()
+    foreach ($m in [regex]::Matches($docText, "``([A-Za-z0-9._][^``\r\n]*)``")) {
+        $token = $m.Groups[1].Value.Trim()
+        if ($token -notmatch "^(scripts|global|templates|plugins|upm)[/\\]") { continue }
+        if ($token -match "[<>:|?]") { continue }
+        if ($token -match "\.\.\.") { continue }
+        $probe = $token
+        $wildcard = $probe.IndexOf("*")
+        if ($wildcard -ge 0) {
+            $probe = Split-Path -Parent $probe.Substring(0, $wildcard)
+            if (-not $probe) { continue }
+        }
+        $probe = $probe.TrimEnd("/", "\") -replace "/", "\"
+        if (-not (Test-Path -LiteralPath (Join-Path $script:KitRoot $probe))) { $badPaths += $token }
+    }
+    $badPaths = $badPaths | Sort-Object -Unique
+    Report (@($badPaths).Count -eq 0) "docs: every kit path referenced in $docName exists" ($badPaths -join ", ")
+}
+
+# 8c: the RU README mirror must keep structural parity with the EN original.
+$readmeEn = Get-Content -LiteralPath (Join-Path $script:KitRoot "README.md") -Raw
+$readmeRu = Get-Content -LiteralPath (Join-Path $script:KitRoot "README.ru.md") -Raw
+$enHeadings = [regex]::Matches($readmeEn, "(?m)^#{1,4} ").Count
+$ruHeadings = [regex]::Matches($readmeRu, "(?m)^#{1,4} ").Count
+$enRows = [regex]::Matches($readmeEn, "(?m)^\|").Count
+$ruRows = [regex]::Matches($readmeRu, "(?m)^\|").Count
+Report ($enHeadings -eq $ruHeadings -and $enRows -eq $ruRows) "docs: README.ru.md mirrors README.md structure" "EN $enHeadings headings/$enRows table rows, RU $ruHeadings/$ruRows"
+
+# 8d: the changelog must document the current version.
+$changelog = Get-Content -LiteralPath (Join-Path $script:KitRoot "CHANGELOG.md") -Raw
+Report ($changelog -match [regex]::Escape("## " + (Get-KitVersion))) "docs: CHANGELOG.md has an entry for kit $(Get-KitVersion)"
 
 # 9: duplication guard.
 Report (-not (Test-Path -LiteralPath (Join-Path $script:KitRoot "templates\unity-project\.agents\skills"))) "duplication: unity template does not embed skill copies"
