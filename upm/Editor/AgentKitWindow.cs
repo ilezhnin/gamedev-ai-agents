@@ -14,6 +14,12 @@ namespace GamedevAgentKit.Editor
         private KitManifest _manifest;
         private bool _dryRun;
 
+        // Resolved once per refresh instead of per OnGUI repaint: package info
+        // and payload lookup hit the Package Manager and the file system.
+        private string _packageVersion;
+        private string _projectRoot;
+        private bool _payloadPresent;
+
         [MenuItem("Window/Agent Kit/Setup")]
         internal static void Open()
         {
@@ -41,17 +47,20 @@ namespace GamedevAgentKit.Editor
         private void RefreshManifest()
         {
             _manifest = KitManifest.Load(AgentKitPaths.ManifestPath);
+            _packageVersion = AgentKitPaths.PackageVersion;
+            _projectRoot = AgentKitPaths.ProjectRoot;
+            _payloadPresent = AgentKitPaths.PayloadRoot != null;
         }
 
         private void OnGUI()
         {
             EditorGUILayout.Space();
             EditorGUILayout.LabelField("Gamedev AI Agents Kit", EditorStyles.boldLabel);
-            EditorGUILayout.LabelField("Package version", AgentKitPaths.PackageVersion ?? "unknown");
+            EditorGUILayout.LabelField("Package version", _packageVersion ?? "unknown");
             EditorGUILayout.LabelField("Installed version", _manifest?.KitVersion ?? "not installed");
-            EditorGUILayout.LabelField("Project root", AgentKitPaths.ProjectRoot);
+            EditorGUILayout.LabelField("Project root", _projectRoot);
 
-            if (AgentKitPaths.PayloadRoot == null)
+            if (!_payloadPresent)
             {
                 EditorGUILayout.HelpBox(
                     "Package payload (Kit~) not found. Reinstall the package, or when using a local clone run scripts/render-upm-payload.ps1 first.",
@@ -66,20 +75,32 @@ namespace GamedevAgentKit.Editor
                     "Install copies the kit files (AGENTS.md, contracts, skills, platform adapters) into the project root and records them in .agents/kit-manifest.json.",
                     MessageType.Info);
             }
-            else if (_manifest.KitVersion != AgentKitPaths.PackageVersion)
+            else if (_manifest.KitVersion != _packageVersion)
             {
                 EditorGUILayout.HelpBox(
-                    "The package ships kit " + AgentKitPaths.PackageVersion + " but the project has kit " + _manifest.KitVersion +
+                    "The package ships kit " + _packageVersion + " but the project has kit " + _manifest.KitVersion +
                     ". Update refreshes unmodified kit files, keeps your local edits, and removes files the kit no longer ships.",
                     MessageType.Info);
             }
 
             _dryRun = EditorGUILayout.ToggleLeft("Dry run (preview only, write nothing)", _dryRun);
 
-            EditorGUILayout.BeginHorizontal();
-            if (GUILayout.Button("Install"))
+            var dontAutoOpen = EditorPrefs.GetBool(AgentKitBootstrap.DontAutoOpenKey, false);
+            var dontAutoOpenNew = EditorGUILayout.ToggleLeft("Do not open this window automatically for this project", dontAutoOpen);
+            if (dontAutoOpenNew != dontAutoOpen)
             {
-                RunOperation(() => AgentKitInstaller.Run(KitInstallMode.Install, _dryRun));
+                EditorPrefs.SetBool(AgentKitBootstrap.DontAutoOpenKey, dontAutoOpenNew);
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            // Plain install never overwrites, so with a manifest present it can
+            // only skip; route users to Update / Force Reinstall instead.
+            using (new EditorGUI.DisabledScope(_manifest != null))
+            {
+                if (GUILayout.Button(new GUIContent("Install", _manifest != null ? "Already installed - use Update or Force Reinstall." : "Copy the kit files into the project.")))
+                {
+                    RunOperation(() => AgentKitInstaller.Run(KitInstallMode.Install, _dryRun));
+                }
             }
 
             using (new EditorGUI.DisabledScope(_manifest == null))
@@ -97,7 +118,7 @@ namespace GamedevAgentKit.Editor
 
             using (new EditorGUI.DisabledScope(_manifest == null))
             {
-                if (GUILayout.Button("Uninstall") && ConfirmDestructive("Uninstall kit", "Remove all unmodified kit files from the project? Locally modified files are kept."))
+                if (GUILayout.Button("Uninstall") && ConfirmDestructive("Uninstall kit", "Remove all unmodified kit files from the project? Locally modified files are kept (run Force Reinstall first if you want them removed too)."))
                 {
                     RunOperation(() => AgentKitInstaller.Uninstall(_dryRun));
                 }

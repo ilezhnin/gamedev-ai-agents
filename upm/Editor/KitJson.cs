@@ -22,6 +22,11 @@ namespace GamedevAgentKit.Editor
             var index = 0;
             var value = ParseValue(text, ref index);
             SkipWhitespace(text, ref index);
+            if (index != text.Length)
+            {
+                throw new FormatException("Unexpected trailing content at position " + index + " of JSON input.");
+            }
+
             return value;
         }
 

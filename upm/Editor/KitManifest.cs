@@ -34,6 +34,16 @@ namespace GamedevAgentKit.Editor
             {
                 return null;
             }
+            catch (IOException)
+            {
+                // A locked or unreadable manifest must not throw out of the
+                // bootstrap delayCall on every domain reload.
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
 
             if (root == null)
             {
@@ -83,7 +93,18 @@ namespace GamedevAgentKit.Editor
                 Directory.CreateDirectory(directory);
             }
 
-            File.WriteAllText(path, sb.ToString(), new UTF8Encoding(false));
+            // Write-then-move keeps the install record intact if the editor dies
+            // mid-write; a truncated manifest would read as "kit not installed".
+            var temp = path + ".tmp";
+            File.WriteAllText(temp, sb.ToString(), new UTF8Encoding(false));
+            if (File.Exists(path))
+            {
+                File.Replace(temp, path, null);
+            }
+            else
+            {
+                File.Move(temp, path);
+            }
         }
     }
 }
