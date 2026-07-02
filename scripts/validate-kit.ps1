@@ -105,9 +105,9 @@ Report ($notInSets.Count -eq 0) "skill sets: every skill on disk is declared in 
 # 6: canon files parse and renderers produce valid output for every role/stack.
 try {
     $roles = (Get-KitCanon -Name "roles").roles
-    Report ($roles.Count -ge 8) "canon: roles.json parses with expected role count" "found $($roles.Count)"
+    Report ($roles.Count -ge 11) "canon: roles.json parses with expected role count" "found $($roles.Count)"
     foreach ($role in $roles) {
-        $fieldsOk = $role.name -and $role.description -and ($role.stack -in @("unity", "backend")) -and ($role.reasoning -in @("minimal", "low", "medium", "high", "xhigh")) -and $role.instructions.Count -gt 0
+        $fieldsOk = $role.name -and $role.description -and ($role.stack -in @("unity", "backend", "shared")) -and ($role.reasoning -in @("minimal", "low", "medium", "high", "xhigh")) -and $role.instructions.Count -gt 0
         Report $fieldsOk "canon: role $($role.name) has valid fields"
         $toml = ConvertTo-CodexAgentToml -Role $role
         $md = ConvertTo-ClaudeAgentMd -Role $role

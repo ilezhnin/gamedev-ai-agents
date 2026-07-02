@@ -219,7 +219,9 @@ function ConvertTo-CodexAgentToml {
 
 function ConvertTo-ClaudeAgentMd {
     param([Parameter(Mandatory = $true)] $Role)
-    $lines = @("---", "name: $($Role.name)", "description: $($Role.description)")
+    # Quote the description: unquoted colons are invalid YAML scalars.
+    $escapedDescription = $Role.description -replace '"', '\"'
+    $lines = @("---", "name: $($Role.name)", "description: `"$escapedDescription`"")
     if ($Role.readonly) { $lines += "tools: Read, Grep, Glob" }
     $lines += "---", ""
     foreach ($instruction in $Role.instructions) { $lines += $instruction }
@@ -312,7 +314,7 @@ function Install-KitPlatformAdapters {
         [Parameter(Mandatory = $true)] [ValidateSet("unity", "backend")] [string] $Stack,
         [Parameter(Mandatory = $true)] $Cmdlet
     )
-    $roles = (Get-KitCanon -Name "roles").roles | Where-Object { $_.stack -eq $Stack }
+    $roles = (Get-KitCanon -Name "roles").roles | Where-Object { $_.stack -eq $Stack -or $_.stack -eq "shared" }
     $permissions = Get-KitCanon -Name "permissions"
     $hooks = Get-KitCanon -Name "hooks"
 

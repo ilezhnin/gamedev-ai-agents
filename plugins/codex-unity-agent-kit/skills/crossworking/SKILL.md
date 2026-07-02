@@ -47,6 +47,8 @@ Choose the smallest team that can safely complete the task:
 
 2. **Context pass**
    - Gather only the context workers need: relevant files, ownership boundaries, commands, risks, and acceptance criteria.
+   - For delegated or multi-agent work, emit `context.md` and `meta-prompt.md` into `.agents/plans/` per `references/context-handoff.md`, so the next agent starts without re-researching.
+   - Delegate questions that depend on external docs, APIs, or current library behavior to the `researcher` role.
    - Update the plan if inspection changes the expected files, risks, or verification commands.
 
 3. **Implementation pass**
@@ -81,12 +83,14 @@ Choose the smallest team that can safely complete the task:
 Use this default team unless the repository or tools provide better named agents:
 
 - **Planner**: applies `$planning`, updates `active_plan.md`, and tracks uncertainty.
-- **Context scout**: maps relevant files, patterns, dependencies, and validation commands.
+- **Context scout**: maps relevant files, patterns, dependencies, and validation commands; emits the context-handoff artifacts.
+- **Researcher** (`researcher` role): source-backed web research when the task depends on external docs, APIs, or current library behavior.
 - **Worker**: writes code and tests for the approved plan.
 - **Validator**: runs compile, test, lint, generated-code, or Unity checks.
 - **Reviewers**: inspect the diff from independent angles without editing.
+- **Oracle** (`oracle` role, optional on long tasks): fresh-context drift check - verifies the current trajectory still matches the inherited decisions and constraints before the fix loop ends.
 - **Fixer**: applies accepted review fixes.
-- **MR agent**: runs `$create-mr` or the project PR/MR workflow.
+- **MR agent** (`pr-submitter` role): runs `$create-mr` or the project PR/MR workflow.
 
 ## Stop Conditions
 
@@ -110,3 +114,7 @@ Report the outcome compactly:
 - Validation: commands passed, failed, or skipped with reasons.
 - Review: blockers fixed, optional items deferred, remaining risks.
 - MR: URL, branch, commit hash, or the exact blocker preventing MR creation.
+
+## Reference
+
+Read `references/context-handoff.md` for the `context.md` and `meta-prompt.md` handoff format the context pass must produce for delegated work.
