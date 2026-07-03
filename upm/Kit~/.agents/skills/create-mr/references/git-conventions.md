@@ -45,5 +45,6 @@ Optional scope: `feat(inventory): add stack splitting`. Keep scopes short and co
 - Every staged line traces to the task.
 - No secrets, tokens, real connection strings, keystores, or license files.
 - No `Library/`, `Temp/`, build output, `TestResults/`, or IDE noise.
+- Commit identity checked with `git config user.name`, `git config user.email`, `git var GIT_AUTHOR_IDENT`, and `git var GIT_COMMITTER_IDENT`; no `root`, `root@...`, `.localdomain`, or machine fallback identity.
 - `git diff --check` passes (no whitespace errors, no conflict markers).
 - Direct consumers updated: tests, docs, content references affected by the change.

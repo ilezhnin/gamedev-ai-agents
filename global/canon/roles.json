@@ -177,7 +177,7 @@
       "instructions": [
         "Follow the create-mr skill and the repository's git conventions exactly: verify branch, status, and diff scope before staging anything.",
         "Confirm validation ran (or its gaps are explicitly stated) and the plan checklist in .agents/plans/task_list.md is satisfied before committing.",
-        "Use Conventional Commits in English, atomic commits, and descriptive branch names (feat/fix/chore). Never add AI attribution anywhere.",
+        "Before committing or amending, verify git config user.name/user.email plus GIT_AUTHOR_IDENT and GIT_COMMITTER_IDENT; stop on missing, root, root@..., .localdomain, or machine fallback identity. Use Conventional Commits in English, atomic commits, and descriptive branch names (feat/fix/chore). Never add AI attribution anywhere.",
         "Never force-push, never commit secrets or unrelated changes, never invent a PR URL. Report exact blockers (credentials, remote, protected branch) instead of working around them.",
         "Report back: PR URL, branch, commit hash, verification summary, and anything skipped with reasons."
       ],

@@ -29,6 +29,106 @@ function Test-IsAscii {
     return $true
 }
 
+function Get-GitCommandPath {
+    $gitCommand = Get-Command git -ErrorAction SilentlyContinue
+    if ($gitCommand) { return $gitCommand.Source }
+
+    $candidatePaths = @(
+        "C:\Program Files\Git\cmd\git.exe",
+        "C:\Program Files\Git\bin\git.exe",
+        "C:\Program Files (x86)\Git\cmd\git.exe"
+    )
+    foreach ($candidate in $candidatePaths) {
+        if (Test-Path -LiteralPath $candidate) { return $candidate }
+    }
+
+    return ""
+}
+
+function Get-GitText {
+    param([string[]] $Arguments)
+    if ([string]::IsNullOrWhiteSpace($script:GitCommandPath)) { return "" }
+    $output = & $script:GitCommandPath @Arguments 2>$null
+    if ($LASTEXITCODE -ne 0) { return "" }
+    return (($output | Out-String).Trim())
+}
+
+function Get-LocalGitConfigValue {
+    param([string] $Key)
+    $configPath = Join-Path $script:KitRoot ".git\config"
+    if (-not (Test-Path -LiteralPath $configPath)) { return "" }
+
+    $section = ""
+    foreach ($line in Get-Content -LiteralPath $configPath) {
+        if ($line -match '^\s*\[([^\]]+)\]\s*$') {
+            $section = $matches[1]
+            continue
+        }
+
+        if ($section -eq "user" -and $line -match '^\s*([A-Za-z0-9._-]+)\s*=\s*(.*)\s*$') {
+            if ($matches[1] -eq $Key) { return $matches[2].Trim() }
+        }
+    }
+
+    return ""
+}
+
+function Test-IsFallbackGitIdentity {
+    param([string] $Identity)
+    if ([string]::IsNullOrWhiteSpace($Identity)) { return $true }
+    return ($Identity -match "(?i)<root@" -or
+        $Identity -match "(?i)\.localdomain>" -or
+        $Identity -match "(?i)<[^>]+@DESKTOP-[^>]+>")
+}
+
+$script:GitCommandPath = Get-GitCommandPath
+$hasGitDirectory = Test-Path -LiteralPath (Join-Path $script:KitRoot ".git")
+$gitCliAvailable = (-not [string]::IsNullOrWhiteSpace($script:GitCommandPath)) -and ((Get-GitText -Arguments @("--version")) -match "^git version")
+
+if ($hasGitDirectory) {
+    $isCi = [bool]($env:CI -or $env:GITHUB_ACTIONS)
+    if ($isCi) {
+        Report $true "git: local commit identity config check skipped in CI"
+    }
+    else {
+        if ($gitCliAvailable) {
+            $userName = Get-GitText -Arguments @("-C", $script:KitRoot, "config", "--get", "user.name")
+            $userEmail = Get-GitText -Arguments @("-C", $script:KitRoot, "config", "--get", "user.email")
+        }
+        else {
+            $userName = Get-LocalGitConfigValue -Key "name"
+            $userEmail = Get-LocalGitConfigValue -Key "email"
+        }
+
+        $configured = (-not [string]::IsNullOrWhiteSpace($userName)) -and (-not [string]::IsNullOrWhiteSpace($userEmail))
+        Report $configured "git: user.name and user.email are configured" "run git config user.name and git config user.email before committing"
+
+        if ($gitCliAvailable) {
+            $authorIdent = Get-GitText -Arguments @("-C", $script:KitRoot, "var", "GIT_AUTHOR_IDENT")
+            $committerIdent = Get-GitText -Arguments @("-C", $script:KitRoot, "var", "GIT_COMMITTER_IDENT")
+        }
+        else {
+            $authorIdent = "$userName <$userEmail>"
+            $committerIdent = $authorIdent
+        }
+
+        $fallback = (Test-IsFallbackGitIdentity -Identity $authorIdent) -or (Test-IsFallbackGitIdentity -Identity $committerIdent)
+        Report (-not $fallback) "git: effective author and committer identity are not fallback values" "author $authorIdent; committer $committerIdent"
+    }
+
+    if ($gitCliAvailable) {
+        $recentCommits = @(Get-GitText -Arguments @("-C", $script:KitRoot, "log", "-25", "--format=%h %an <%ae> | %cn <%ce>") -split "`n")
+        $badRecentCommits = @($recentCommits | Where-Object { Test-IsFallbackGitIdentity -Identity $_ })
+        Report ($badRecentCommits.Count -eq 0) "git: recent commits do not use fallback identities" (($badRecentCommits | Select-Object -First 3) -join "; ")
+    }
+    else {
+        Report $true "git: recent commit identity scan skipped because git CLI is unavailable"
+    }
+}
+else {
+    Report $true "git: identity checks skipped outside a git worktree"
+}
+
 $skillDirs = Get-ChildItem -LiteralPath $script:PluginSkillsRoot -Directory
 
 # 1-3: per-skill structure.

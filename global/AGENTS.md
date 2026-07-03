@@ -11,7 +11,7 @@
 
 ## Attribution
 
-Never credit yourself (the AI agent) as author, co-author, or contributor anywhere: file headers, commit messages and trailers (no `Co-Authored-By`, no "Generated with" lines), documentation, changelogs, code comments, or PR descriptions. Author identity always comes from the project: existing file headers, `git config user.name`, repository history. Match the project's existing date and header formats instead of inventing new ones.
+Never credit yourself (the AI agent) as author, co-author, or contributor anywhere: file headers, commit messages and trailers (no `Co-Authored-By`, no "Generated with" lines), documentation, changelogs, code comments, or PR descriptions. Author identity always comes from the project: existing file headers, `git config user.name`, repository history. Before creating or amending a commit, verify `git config user.name`, `git config user.email`, `git var GIT_AUTHOR_IDENT`, and `git var GIT_COMMITTER_IDENT`; stop if either identity is missing, `root`, `root@...`, `.localdomain`, or another auto-generated machine fallback. Match the project's existing date and header formats instead of inventing new ones.
 
 ## Language
 

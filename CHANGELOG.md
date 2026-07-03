@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.7 - 2026-07-03
+
+### Fixed
+- Commit identity safeguards now block auto-generated fallback authors such as `root@...` or `.localdomain`: global instructions, the PR/MR shipping skill, git conventions, and `validate-kit.ps1` all require a real configured project identity before commits or amends.
+
 ## 0.4.6 - 2026-07-03
 
 ### Added

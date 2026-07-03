@@ -12,6 +12,7 @@ Turn verified workspace changes into a clean branch, commit, push, and Pull Requ
 ## 1. Verify the Current State
 
 - **Branch:** `git branch --show-current`. If on `main`/`master` or another protected branch, create a task branch first and move uncommitted changes there.
+- **Commit identity:** check `git config user.name`, `git config user.email`, `git var GIT_AUTHOR_IDENT`, and `git var GIT_COMMITTER_IDENT` before committing or amending. Stop if the identity is missing, `root`, `root@...`, `.localdomain`, or another auto-generated machine fallback.
 - **Status and diff:** `git status`, then inspect `git diff` and `git diff --staged` before staging anything.
 - **Plan contract:** if `.agents/plans/task_list.md` exists for this task, confirm its checklist items are done or explicitly waived; if `.agents/plans/active_plan.md` names verification commands, prefer those.
 - **Validation:** run the project's checks. For Unity work use `$unity-validate` (compile/EditMode/PlayMode); for ASP.NET work use `$backend-validate` (`dotnet build`, targeted `dotnet test`, `dotnet format --verify-no-changes` when the repo uses it). Otherwise use commands documented by the repo or CI.
