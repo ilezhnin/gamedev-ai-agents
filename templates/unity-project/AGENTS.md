@@ -139,6 +139,7 @@ The kit's global profile (`~/.codex/AGENTS.md`, installed from the kit's `global
 - Measure before optimizing; keep `Update`/`FixedUpdate`/UI-refresh paths allocation-free.
 - Never log or commit secrets; treat player input, saves, mods, and network messages as untrusted.
 - Report honestly: what changed, what was verified, what remains unverified. Never claim unrun validation.
+- Communicate like an engineering log: concrete actions, files, commands, results, and blockers - no filler or playful narration; lead summaries with the outcome.
 - English only in every artifact: code, comments, docs, commit messages, branch names, learnings. Converse with the user in the user's language, but write into the repository only in English.
 - Stop and ask when requirements conflict, a change is destructive or irreversible, or you cannot verify a risky result.
 

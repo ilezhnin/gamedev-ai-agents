@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.11 - 2026-07-03
+
+### Added
+- Usage and cost reporting for Claude Code sessions: a canonical `Stop` hook runs `usage-report.ps1` (shipped to `.agents/scripts/` for both stacks), which incrementally parses the local session transcripts - main agent plus every subagent - and prints per-model, per-role token usage with an API-equivalent cost estimate, wall time, and agent parallelism after each turn. Usage is deduplicated per request, cache writes are priced per TTL (5m vs 1h), and everything is computed from local files: zero extra tokens, zero API calls.
+- Price data ships as a bundled snapshot (`usage-prices.json`, including time-limited promo overrides) and refreshes in a detached background pass from the LiteLLM community feed into `.agents/usage/prices.cache.json`. When a refresh fails or data goes stale, the report says so explicitly instead of presenting outdated estimates as current.
+
+### Changed
+- Canonical hooks support an optional `platforms` field: the usage reporter renders only into the Claude Code settings adapter and stays out of Codex hooks and Antigravity automation rules. Claude hook entries without a matcher (lifecycle events like `Stop`) now omit the `matcher` key.
+- Global and template instructions pin a professional communication style: engineering-log tone, concrete actions and results, no filler or playful narration, outcome-first summaries.
+
 ## 0.4.10 - 2026-07-03
 
 ### Changed

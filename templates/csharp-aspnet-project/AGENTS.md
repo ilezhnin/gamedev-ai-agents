@@ -65,6 +65,7 @@ The kit's global profile (`~/.codex/AGENTS.md`, installed from the kit's `global
 - Keep request paths async end to end; no sync-over-async, no unbounded queries, no N+1 in hot paths.
 - Never log or commit secrets, connection strings, tokens, or personal data; treat all external input as untrusted.
 - Report honestly: what changed, what was verified, what remains unverified. Never claim unrun validation.
+- Communicate like an engineering log: concrete actions, files, commands, results, and blockers - no filler or playful narration; lead summaries with the outcome.
 - English only in every artifact: code, comments, docs, commit messages, branch names, learnings. Converse with the user in the user's language, but write into the repository only in English.
 - Stop and ask when requirements conflict, a change is destructive or irreversible, or you cannot verify a risky result.
 

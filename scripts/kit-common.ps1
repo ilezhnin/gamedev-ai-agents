@@ -306,11 +306,19 @@ function ConvertTo-KitJson {
     return '"' + [string]$Value + '"'
 }
 
+function Test-KitHookPlatform {
+    # Hooks without a 'platforms' field render on every platform adapter.
+    param([Parameter(Mandatory = $true)] $Hook, [Parameter(Mandatory = $true)] [string] $Platform)
+    if (-not $Hook.platforms) { return $true }
+    return [bool]($Hook.platforms -contains $Platform)
+}
+
 function ConvertTo-CodexHooksJson {
     param([Parameter(Mandatory = $true)] $Hooks, [Parameter(Mandatory = $true)] [string] $Stack)
     $events = [ordered]@{}
     foreach ($hook in $Hooks.hooks) {
         if (-not ($hook.stacks -contains $Stack)) { continue }
+        if (-not (Test-KitHookPlatform -Hook $hook -Platform "codex")) { continue }
         if (-not $events.Contains($hook.event)) { $events[$hook.event] = @() }
         $events[$hook.event] += , ([ordered]@{
                 matcher = $hook.codexMatcher
@@ -342,11 +350,13 @@ function ConvertTo-ClaudeSettingsJson {
     $events = [ordered]@{}
     foreach ($hook in $Hooks.hooks) {
         if (-not ($hook.stacks -contains $Stack)) { continue }
+        if (-not (Test-KitHookPlatform -Hook $hook -Platform "claude")) { continue }
         if (-not $events.Contains($hook.event)) { $events[$hook.event] = @() }
-        $events[$hook.event] += , ([ordered]@{
-                matcher = $hook.claudeMatcher
-                hooks   = @([ordered]@{ type = "command"; command = $hook.command })
-            })
+        $entry = [ordered]@{}
+        # Lifecycle events like Stop take no matcher; omit the key entirely.
+        if ($hook.claudeMatcher) { $entry["matcher"] = $hook.claudeMatcher }
+        $entry["hooks"] = @([ordered]@{ type = "command"; command = $hook.command })
+        $events[$hook.event] += , $entry
     }
     if ($events.Count -gt 0) { $settings["hooks"] = $events }
     return (ConvertTo-KitJson -Value $settings) + "`n"
@@ -398,7 +408,7 @@ function ConvertTo-AntigravityAutomationRule {
     # Hooks are behavioral here: Antigravity's file hook protocol is CLI-verified but
     # IDE-uncertain, so the kit delivers the same automation as an always-on rule.
     param([Parameter(Mandatory = $true)] $Hooks, [Parameter(Mandatory = $true)] [string] $Stack)
-    $matched = @($Hooks.hooks | Where-Object { $_.stacks -contains $Stack })
+    $matched = @($Hooks.hooks | Where-Object { ($_.stacks -contains $Stack) -and (Test-KitHookPlatform -Hook $_ -Platform "antigravity") })
     if ($matched.Count -eq 0) { return $null }
     $lines = @("---", "trigger: always_on", "---", "")
     $lines += "# Post-Edit Automation (rendered from kit canon)"
@@ -482,6 +492,19 @@ function Install-KitUnityContent {
     Install-KitSkills -Ctx $Ctx -SkillNames ($script:UnitySkills + $script:SharedSkills) -Cmdlet $Cmdlet -MirrorClaude
     Install-KitPlatformAdapters -Ctx $Ctx -Stack "unity" -Cmdlet $Cmdlet
     Install-KitFile -Ctx $Ctx -Source (Join-Path $script:KitRoot "scripts\check-unity-meta.ps1") -RelDest ".agents\scripts\check-unity-meta.ps1" -Cmdlet $Cmdlet
+    Install-KitUsageReporter -Ctx $Ctx -Cmdlet $Cmdlet
+}
+
+function Install-KitUsageReporter {
+    # Ships the Claude Code usage/cost reporter (Stop hook target) and its
+    # bundled price snapshot. Stack-agnostic: used by both content sets.
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
+    param(
+        [Parameter(Mandatory = $true)] [hashtable] $Ctx,
+        [Parameter(Mandatory = $true)] $Cmdlet
+    )
+    Install-KitFile -Ctx $Ctx -Source (Join-Path $script:KitRoot "scripts\usage-report.ps1") -RelDest ".agents\scripts\usage-report.ps1" -Cmdlet $Cmdlet
+    Install-KitFile -Ctx $Ctx -Source (Join-Path $script:KitRoot "scripts\usage-prices.json") -RelDest ".agents\scripts\usage-prices.json" -Cmdlet $Cmdlet
 }
 
 function Install-KitBackendContent {
@@ -494,6 +517,7 @@ function Install-KitBackendContent {
     Install-KitTree -Ctx $Ctx -SourceDir (Join-Path $script:KitRoot "templates\csharp-aspnet-project") -RelDestPrefix "" -Cmdlet $Cmdlet
     Install-KitSkills -Ctx $Ctx -SkillNames ($script:BackendSkills + $script:SharedSkills) -Cmdlet $Cmdlet -MirrorClaude
     Install-KitPlatformAdapters -Ctx $Ctx -Stack "backend" -Cmdlet $Cmdlet
+    Install-KitUsageReporter -Ctx $Ctx -Cmdlet $Cmdlet
 }
 
 function Uninstall-KitManifestTree {

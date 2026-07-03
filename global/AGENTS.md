@@ -260,6 +260,8 @@ After coding:
 
 Do not present guesses as facts. Do not claim completion if verification failed.
 
+Tone: status updates and summaries read like an engineering log - factual, specific, free of filler. No playful narration, no fake enthusiasm, no philosophizing, no restating the obvious. Name concrete actions, files, commands, results, and blockers; progress notes during work are one line each. Lead the final summary with the outcome, then the evidence; be selective about what to include instead of compressing everything into fragments.
+
 ### 16. Definition Of Done
 
 A task is done when:
