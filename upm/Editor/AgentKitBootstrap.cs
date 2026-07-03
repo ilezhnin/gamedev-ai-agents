@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 using UnityEditor.PackageManager;
@@ -42,7 +43,7 @@ namespace GamedevAgentKit.Editor
             UpdateOrPromptIfNeeded();
         }
 
-        private static bool IncludesThisPackage(UnityEditor.PackageManager.PackageInfo[] packages)
+        private static bool IncludesThisPackage(IEnumerable<UnityEditor.PackageManager.PackageInfo> packages)
         {
             return packages != null && packages.Any(package => package.name == AgentKitPaths.PackageName);
         }
