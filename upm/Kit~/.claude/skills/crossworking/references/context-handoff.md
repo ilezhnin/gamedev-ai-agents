@@ -1,11 +1,12 @@
 # Context Handoff Format
 
-The context pass must produce two artifacts in `.agents/plans/` so the next agent (planner, worker, reviewer - on any platform) starts working without re-researching the same ground.
+The context-builder role must produce two artifacts in `.agents/plans/` so the next agent (planner, worker, reviewer, asset role - on any platform) starts working without re-researching the same ground.
 
 ## `context.md`
 
 - Relevant files with line ranges and the key code fragments, each with one line of why it matters.
 - Important patterns the project already uses (validators, services, prefab wiring, test styles).
+- Asset constraints when relevant: existing art roots, placeholder strategy, license/provenance notes, import settings, and `.agents/plans/asset-brief.md`.
 - Dependencies, constraints, and implementation risks confirmed from sources - not guesses.
 - Keep it condensed and informative: no raw dumps, but do not drop load-bearing files for brevity.
 
@@ -44,4 +45,5 @@ Conclusions already reached and assumptions accepted.
 - Read everything needed for real understanding before writing: imports, call sites, tests, fixtures, config, docs. Not just the first match.
 - If the task references a URL, issue, PR, plan, or design doc - study it before the handoff.
 - Delegate external research (APIs, library behavior, current best practices) to the `researcher` role when local sources are insufficient.
+- Delegate asset sourcing, generation, or Unity import details to `$asset-pipeline`; link its asset brief instead of duplicating it.
 - State information gaps explicitly instead of creating false confidence.

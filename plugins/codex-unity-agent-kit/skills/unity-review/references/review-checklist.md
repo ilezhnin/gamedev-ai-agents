@@ -15,6 +15,8 @@
 - Did prefab, scene, ScriptableObject, or asset YAML change unexpectedly?
 - Were `.meta` files preserved for moved or created assets?
 - Are GUID references stable?
+- Do new or changed assets have clear provenance, license/attribution notes, intended use, and approved import settings?
+- Are placeholder/prototype assets separated from final art and easy to replace?
 
 ## Gameplay and UI
 

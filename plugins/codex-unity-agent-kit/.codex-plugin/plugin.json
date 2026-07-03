@@ -1,7 +1,7 @@
 {
   "name": "codex-unity-agent-kit",
   "version": "0.3.0",
-  "description": "Unity, C#, and ASP.NET backend workflows for Codex: orientation, planning, game design contracts, the staged game delivery pipeline, cross-agent delivery, implementation, testing, debugging, merge-conflict recovery, builds, upgrades, profiling, review, validation, learning capture, PR handoff, plan grilling, and Unity MCP editor work.",
+  "description": "Unity, C#, and ASP.NET backend workflows for Codex: orientation, planning, game design contracts, asset sourcing/generation/import, the staged game delivery pipeline, cross-agent delivery, implementation, testing, debugging, merge-conflict recovery, builds, upgrades, profiling, review, validation, learning capture, PR handoff, plan grilling, and Unity MCP editor work.",
   "author": {
     "name": "ilezhnin"
   },
@@ -18,7 +18,7 @@
   "interface": {
     "displayName": "Codex Unity Agent Kit",
     "shortDescription": "Unity, C#, and ASP.NET agent workflows.",
-    "longDescription": "Codex Unity Agent Kit packages focused workflows for Unity and ASP.NET game development: project orientation (unity-orient, backend-orient), game design contracts (gdd) executed through the staged delivery pipeline (game-pipeline), safe implementation (unity-implement, backend-implement), test authoring (unity-tests, backend-tests), root-cause debugging (unity-debug, backend-debug), scene/prefab merge conflicts (unity-merge), player builds and CI (unity-build), editor and package upgrades (unity-upgrade), measured performance work (unity-profile), architecture audits with refactor backlogs (arch-audit), review and validation for both stacks, planning and cross-agent delivery (planning, crossworking), plan grilling (grill-me), reusable learning capture (learn), Pull Request handoff (create-mr), and Unity Editor MCP automation (unity-mcp).",
+    "longDescription": "Codex Unity Agent Kit packages focused workflows for Unity and ASP.NET game development: project orientation (unity-orient, backend-orient), game design contracts (gdd) executed through the staged delivery pipeline (game-pipeline), asset sourcing/generation/import with provenance (asset-pipeline), safe implementation (unity-implement, backend-implement), test authoring (unity-tests, backend-tests), root-cause debugging (unity-debug, backend-debug), scene/prefab merge conflicts (unity-merge), player builds and CI (unity-build), editor and package upgrades (unity-upgrade), measured performance work (unity-profile), architecture audits with refactor backlogs (arch-audit), review and validation for both stacks, planning and cross-agent delivery (planning, crossworking), plan grilling (grill-me), reusable learning capture (learn), Pull Request handoff (create-mr), and Unity Editor MCP automation (unity-mcp).",
     "developerName": "ilezhnin",
     "category": "Developer Tools",
     "capabilities": [

@@ -26,9 +26,9 @@ Write `docs/design/game-design.md` with this structure. It is a living contract:
 | <JumpHeight> | <2.5> | <1.5 - 4.0> | <MovementConfig ScriptableObject> |
 
 ## Assets
-| Asset | Placeholder | Final |
-| --- | --- | --- |
-| <Player model> | <capsule primitive> | <TBD> |
+| Asset | Placeholder | Final | Pipeline |
+| --- | --- | --- | --- |
+| <Player model> | <capsule primitive> | <TBD> | <$asset-pipeline: reuse/source/generate/integrate> |
 
 ## MVP
 - [ ] <Mechanic or system that must ship for the core loop to be fun-testable.>
@@ -48,5 +48,6 @@ Rules:
 
 - Every mechanics row references a module-map owner; proposing a new module is an explicit decision for the architect role.
 - Every balance parameter names the data asset that will hold it; implementation creates that asset, not constants.
+- Every asset row names a placeholder path and whether sourcing, generation, or Unity integration needs `$asset-pipeline`.
 - Acceptance criteria must be verifiable in PlayMode or by an automated test - never "feels good".
 - The MVP checklist is the auto-mode termination condition for `$game-pipeline`; keep it short and honest.

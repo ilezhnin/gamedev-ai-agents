@@ -1,6 +1,6 @@
 ---
 name: gdd
-description: Turn a game or feature idea into a game design contract - core loop, mechanics, balance data, scope-boxed MVP, and playable milestones - before planning and implementation. Use when the user asks to make a game, design a game or a feature, write or update a GDD, define mechanics or balance, or start the game pipeline from a one-line idea.
+description: Turn a game or feature idea into a game design contract - core loop, mechanics, balance data, asset needs, scope-boxed MVP, and playable milestones - before planning and implementation. Use when the user asks to make a game, design a game or a feature, write or update a GDD, define mechanics, balance, placeholder assets, or start the game pipeline from a one-line idea.
 ---
 
 # GDD
@@ -16,11 +16,11 @@ Produce `docs/design/game-design.md` - the design contract the delivery pipeline
 3. Define the core loop first - the 30-second cycle the player repeats. Every mechanic must serve it; anything that does not goes to the Later list.
 4. Break the design into mechanics and systems, each mapped to an owning module from the module map or to an explicitly proposed new module.
 5. Express balance as data: named parameters with defaults and tuning ranges, planned as ScriptableObjects or config assets - never hardcoded numbers.
-6. List required assets with a placeholder strategy (primitives, ProBuilder, CC0 packs) so implementation never blocks on missing art.
+6. List required assets with a placeholder strategy (primitives, ProBuilder, CC0 packs, generated concepts, sourced references) so implementation never blocks on missing art; route non-trivial sourcing/generation/import through `$asset-pipeline`.
 7. Scope-box the MVP: the smallest version where the core loop is fun-testable. Everything else moves to the Later list with a one-line reason.
 8. Slice the MVP into milestones - vertical slices, each ending playable: project compiles, PlayMode enters clean, console clean, the new mechanics reachable in-game. Give each milestone acceptance criteria a QA role can verify.
-9. Stress-test with `$grill-me` when the design has unclear product value, scope risk, or persistence/multiplayer implications.
-10. Write the document using the format in `references/gdd-format.md`, then hand off: `$game-pipeline` to run the stages, or `$planning` for milestone 1 directly.
+9. Stress-test with `$grill-me` when the design has unclear product value, scope risk, asset/licensing risk, or persistence/multiplayer implications.
+10. Write the document using the format in `references/gdd-format.md`, then hand off: `$game-pipeline` to run the stages, `$asset-pipeline` for asset-heavy milestone prep, or `$planning` for milestone 1 directly.
 
 ## Rules
 

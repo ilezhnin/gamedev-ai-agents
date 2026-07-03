@@ -1,0 +1,4 @@
+interface:
+  display_name: "Asset Pipeline"
+  short_description: "Source, generate, and integrate Unity assets"
+  default_prompt: "Use $asset-pipeline to source, generate, and integrate the needed Unity placeholder or concept assets."

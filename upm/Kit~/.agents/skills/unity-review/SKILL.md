@@ -1,6 +1,6 @@
 ---
 name: unity-review
-description: Review Unity and C# changes for correctness. Use when asked to review a Unity diff, PR, branch, or local changes touching .cs files, asmdefs, scenes, prefabs, ScriptableObjects, packages, ProjectSettings, tests, gameplay behavior, editor tooling, serialization, performance, or Unity lifecycle code.
+description: Review Unity and C# changes for correctness. Use when asked to review a Unity diff, PR, branch, or local changes touching .cs files, asmdefs, scenes, prefabs, ScriptableObjects, packages, ProjectSettings, tests, gameplay behavior, editor tooling, serialization, assets, generated art, performance, or Unity lifecycle code.
 ---
 
 # Unity Review Changes
@@ -33,6 +33,7 @@ Review like a Unity code owner. Lead with concrete bugs and regression risks, th
 
 - Serialized field renames without `FormerlySerializedAs`.
 - Changed prefab, scene, or asset GUID references.
+- New or changed assets without clear provenance, license notes, approved destination, import settings, or placeholder/final intent.
 - Runtime assemblies depending on editor-only code.
 - New asmdef dependencies that break platforms or create cycles.
 - Event subscriptions that leak after `OnDisable`, scene unload, or domain reload.

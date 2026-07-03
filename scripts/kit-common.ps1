@@ -5,7 +5,7 @@ $script:KitRoot = Split-Path -Parent $PSScriptRoot
 $script:PluginSkillsRoot = Join-Path $script:KitRoot "plugins\codex-unity-agent-kit\skills"
 
 $script:SharedSkills = @("planning", "crossworking", "arch-audit", "create-mr", "grill-me", "learn")
-$script:UnitySkills = @("unity-orient", "unity-implement", "unity-review", "unity-validate", "unity-debug", "unity-mcp", "unity-merge", "unity-build", "unity-upgrade", "unity-profile", "unity-tests", "gdd", "game-pipeline")
+$script:UnitySkills = @("unity-orient", "unity-implement", "unity-review", "unity-validate", "unity-debug", "unity-mcp", "unity-merge", "unity-build", "unity-upgrade", "unity-profile", "unity-tests", "gdd", "game-pipeline", "asset-pipeline")
 $script:BackendSkills = @("backend-orient", "backend-implement", "backend-review", "backend-validate", "backend-debug", "backend-tests")
 
 function Stop-KitWithError {
@@ -359,7 +359,7 @@ function ConvertTo-AntigravityRolesRule {
     $lines = @("---", "trigger: model_decision", "description: Agent role definitions for delegated and multi-agent work (crossworking team shape)", "---", "")
     $lines += "# Agent Roles (rendered from kit canon)"
     $lines += ""
-    $lines += "When orchestrating subagents or adopting a persona for a delegated task, use these role contracts. Prefer the most specialized role for each job; broader-profile roles (planner, producer, architect, oracle, researcher) coordinate and never write production code."
+    $lines += "When orchestrating subagents or adopting a persona for a delegated task, use these role contracts. Prefer the most specialized role for each job; broader-profile roles (planner, context-builder, producer, architect, oracle, researcher) coordinate and never write production code."
     foreach ($role in $Roles) {
         $lines += ""
         $lines += "## $($role.name)"

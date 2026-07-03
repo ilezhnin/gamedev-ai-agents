@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.8 - 2026-07-03
+
+### Added
+- Added first-class asset pipeline support for Unity projects: the `asset-pipeline` skill covers local reuse, public asset sourcing, image-generation handoffs, Unity import/setup, provenance, licensing, and validation. The game pipeline now has an Assets stage before Build, and GDD/planning/crossworking/grill-me/review workflows route asset-heavy work through the new pipeline.
+- Added canonical roles for asset work and handoff context: `asset-scout`, `asset-creator`, `unity-asset-integrator`, and `context-builder`, rendered to Codex, Claude Code, and Antigravity from the shared canon.
+
 ## 0.4.7 - 2026-07-03
 
 ### Fixed

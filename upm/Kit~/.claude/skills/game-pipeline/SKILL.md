@@ -1,6 +1,6 @@
 ---
 name: game-pipeline
-description: Run the gamedev delivery pipeline over GDD milestones - define, plan, build, test, review, ship - stage by stage, per milestone, or fully automatic from one prompt. Use when the user asks to build a game or feature end to end, run the next pipeline stage or milestone, continue or resume the pipeline, check pipeline status, or take a GDD all the way to a PR or release build.
+description: Run the gamedev delivery pipeline over GDD milestones - define, plan, assets, build, test, review, ship - stage by stage, per milestone, or fully automatic from one prompt. Use when the user asks to build a game or feature end to end, run the next pipeline stage or milestone, continue or resume the pipeline, check pipeline status, prepare milestone assets, or take a GDD all the way to a PR or release build.
 ---
 
 # Game Pipeline
@@ -15,10 +15,11 @@ Execute the game design contract milestone by milestone through fixed stages, ke
 | --- | --- | --- | --- | --- |
 | 1 | Define | `$gdd` | game-designer | GDD exists; milestones have acceptance criteria |
 | 2 | Plan | `$planning`, `$grill-me` on risk | planner | No unresolved blocking questions |
-| 3 | Build | `$crossworking` -> `$unity-implement`, `$unity-mcp` | unity-worker | Increment compiles and is committed |
-| 4 | Test | `$unity-validate`, `$unity-tests` | qa, unity-test-runner | Acceptance criteria pass; console clean |
-| 5 | Review | `$unity-review` | unity-reviewer | No blocking findings after the fix loop |
-| 6 | Ship | `$create-mr`; release milestones add `$unity-build` | pr-submitter, devops | PR opened / build artifact produced |
+| 3 | Assets | `$asset-pipeline` when milestone needs art/content | asset-scout, asset-creator, unity-asset-integrator | Required placeholders or briefs exist; provenance/import risks recorded |
+| 4 | Build | `$crossworking` -> `$unity-implement`, `$unity-mcp` | unity-worker | Increment compiles and is committed |
+| 5 | Test | `$unity-validate`, `$unity-tests` | qa, unity-test-runner | Acceptance criteria pass; console clean |
+| 6 | Review | `$unity-review` | unity-reviewer | No blocking findings after the fix loop |
+| 7 | Ship | `$create-mr`; release milestones add `$unity-build` | pr-submitter, devops | PR opened / build artifact produced |
 
 The producer role keeps pipeline state current. The architect role arbitrates when a milestone forces a structural decision. Role contracts come from the kit canon; the role hierarchy rule applies.
 
@@ -29,14 +30,14 @@ The producer role keeps pipeline state current. The architect role arbitrates wh
 ## Modes
 
 - **Stage mode** (default): run the current stage, update state, report, stop. The user advances the pipeline explicitly.
-- **Milestone mode** ("run milestone N", "next milestone"): run stages 2-6 for one milestone without stopping between green gates.
+- **Milestone mode** ("run milestone N", "next milestone"): run stages 2-7 for one milestone without stopping between green gates.
 - **Auto mode** ("auto", "the whole game", "turnkey"): loop milestones until the MVP checklist in the GDD is complete. Stop only on stop conditions.
 
 In every mode: work on a task-local branch and commit after each verified increment (crossworking rules); every milestone ends committed, so a broken state reverts to last-known-good instead of unwinding by hand.
 
 ## Stop Conditions
 
-Stop, record the blocker in `pipeline.md`, and surface it to the user when: the GDD or plan has unresolved blocking questions; the same gate fails twice on the same cause; validation fails for reasons outside the current milestone; a structural decision contradicts `ARCHITECTURE.md`; required assets, packages, or credentials are missing; or any crossworking stop condition fires.
+Stop, record the blocker in `pipeline.md`, and surface it to the user when: the GDD or plan has unresolved blocking questions; the same gate fails twice on the same cause; validation fails for reasons outside the current milestone; a structural decision contradicts `ARCHITECTURE.md`; required assets, asset licenses/provenance, packages, or credentials are missing; or any crossworking stop condition fires.
 
 ## Rules
 

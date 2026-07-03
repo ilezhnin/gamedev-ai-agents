@@ -1,6 +1,6 @@
 ---
 name: crossworking
-description: Coordinate a planned task across agents from planning through implementation, review, validation, and create-mr handoff. Use when the user asks for crossworking, teamwork, a team of agents, multi-agent execution, parallel workers plus reviewers/testers, running an existing `.agents/plans/active_plan.md`, a larger Unity/C# or ASP.NET feature, or taking a planned task all the way to a Pull Request / Merge Request.
+description: Coordinate a planned task across agents from planning through context, assets, implementation, review, validation, and create-mr handoff. Use when the user asks for crossworking, teamwork, a team of agents, multi-agent execution, asset sourcing/generation handoffs, parallel workers plus reviewers/testers, running an existing `.agents/plans/active_plan.md`, a larger Unity/C# or ASP.NET feature, or taking a planned task all the way to a Pull Request / Merge Request.
 ---
 
 # Crossworking
@@ -34,8 +34,8 @@ If either file is missing, stale, or too vague to execute, use `$planning` first
 Choose the smallest team that can safely complete the task:
 
 - **Small task**: parent agent plus one implementation pass plus validation.
-- **Medium task**: context scout, one worker, one validator, two reviewers.
-- **Large task**: planner/context scout, one writer at a time, validator, three reviewers, fixer, MR agent.
+- **Medium task**: context-builder, one worker, one validator, two reviewers.
+- **Large task**: planner, context-builder, optional asset pass, one writer at a time, validator, three reviewers, fixer, MR agent.
 
 ## Workflow
 
@@ -47,8 +47,9 @@ Choose the smallest team that can safely complete the task:
 
 2. **Context pass**
    - Gather only the context workers need: relevant files, ownership boundaries, commands, risks, and acceptance criteria.
-   - For delegated or multi-agent work, emit `context.md` and `meta-prompt.md` into `.agents/plans/` per `references/context-handoff.md`, so the next agent starts without re-researching.
+   - Use the `context-builder` role for delegated or multi-agent work; emit `context.md` and `meta-prompt.md` into `.agents/plans/` per `references/context-handoff.md`, so the next agent starts without re-researching.
    - Delegate questions that depend on external docs, APIs, or current library behavior to the `researcher` role.
+   - For Unity tasks that need sourced, generated, or imported assets, run `$asset-pipeline` before implementation and carry `.agents/plans/asset-brief.md` into the worker prompt.
    - Update the plan if inspection changes the expected files, risks, or verification commands.
 
 3. **Implementation pass**
@@ -82,11 +83,14 @@ Choose the smallest team that can safely complete the task:
 
 Use this default team unless the repository or tools provide better named agents:
 
-Role hierarchy rule: prefer the most specialized role for each job - stack workers implement, stack validators test, stack reviewers review. Broader-profile roles (planner, producer, architect, oracle, researcher) sit above them for planning, coordination, structure, consistency, and research; they never write production code.
+Role hierarchy rule: prefer the most specialized role for each job - stack workers implement, stack validators test, stack reviewers review, and asset roles source/create/integrate assets. Broader-profile roles (planner, context-builder, producer, architect, oracle, researcher) sit above them for planning, handoff context, coordination, structure, consistency, and research; they never write production code.
 
 - **Planner** (`planner` role): applies `$planning`, updates `active_plan.md`, and tracks uncertainty.
-- **Context scout** (stack `*-explorer` role): maps relevant files, patterns, dependencies, and validation commands; emits the context-handoff artifacts.
+- **Context builder** (`context-builder` role): maps the smallest useful files, ownership boundaries, dependencies, asset constraints, and validation commands; emits the context-handoff artifacts.
 - **Researcher** (`researcher` role): source-backed web research when the task depends on external docs, APIs, or current library behavior.
+- **Asset scout** (`asset-scout` role, Unity): finds local/public candidates and records license/provenance.
+- **Asset creator** (`asset-creator` role, Unity): generates placeholder or concept assets, or writes a blocked generation handoff when no image tool is available.
+- **Asset integrator** (`unity-asset-integrator` role, Unity): imports approved assets, configures Unity settings/materials/prefabs/scenes, and validates editor state.
 - **Worker** (stack `unity-worker` / `backend-worker` role): writes code and tests for the approved plan.
 - **Validator** (stack `*-test-runner` role): runs compile, test, lint, generated-code, or Unity checks.
 - **Reviewers** (stack `*-reviewer` role): inspect the diff from independent angles without editing.
@@ -114,7 +118,7 @@ Stop and ask or report a blocker when:
 Report the outcome compactly:
 
 - Plan used: path and whether it changed.
-- Agents/phases run: planner, worker, validators, reviewers, fixer, create-mr.
+- Agents/phases run: planner, context-builder, asset roles, worker, validators, reviewers, fixer, create-mr.
 - Changes made: files and intent. Things deliberately not touched.
 - Validation: commands passed, failed, or skipped with reasons.
 - Review: blockers fixed, optional items deferred, remaining risks.

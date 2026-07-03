@@ -26,8 +26,8 @@ This kit turns your AI coding agent - OpenAI Codex, Anthropic Claude Code, or Go
 
 - **2-minute install** - add one git URL in Unity Package Manager, click Install, done.
 - **Idea to playable** - `gdd` turns a one-line idea into a design contract; `game-pipeline` executes it through gated stages. Every milestone ends playable: compiles, PlayMode enters clean, the new mechanic is reachable in-game.
-- **25 skills** for real gamedev work: scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
-- **A studio of roles** - game designer, producer, architect, QA, devops, plus workers, reviewers, and researchers - rendered natively for every platform.
+- **26 skills** for real gamedev work: asset sourcing/generation, scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
+- **A studio of roles** - game designer, asset specialists, producer, architect, QA, devops, plus workers, reviewers, and researchers - rendered natively for every platform.
 - **Platform-independent by design** - one canon, thin rendered adapters. All state lives in repo files, so switching Codex <-> Claude Code <-> Antigravity mid-task loses nothing.
 - **Safe lifecycle** - hash-manifest installs: updates refresh only unmodified files, your local edits always survive, uninstall removes exactly what the kit shipped.
 - **Portable mode** - optional zero-trace installs: one root file (`AGENTS.md`), everything else under `.agents/`, `.claude/`, `.codex/`, `.cursor/`; a portable install git-excludes every kit file locally and the package reference itself can be removed, so nothing about the kit ever reaches your repo.
@@ -67,7 +67,7 @@ flowchart LR
     IDEA([Idea]) --> D
     subgraph loop [per milestone]
         direction LR
-        P[Plan] --> B[Build] --> T[Test] --> R[Review] --> S[Ship]
+        P[Plan] --> A[Assets] --> B[Build] --> T[Test] --> R[Review] --> S[Ship]
     end
     D[Define<br/>gdd] --> P
     S -->|next milestone| P
@@ -78,12 +78,13 @@ flowchart LR
 | --- | --- | --- | --- |
 | Define | `gdd` | game-designer | Design contract exists; milestones have acceptance criteria |
 | Plan | `planning`, `grill-me` | planner | No unresolved blocking questions |
+| Assets | `asset-pipeline` | asset-scout, asset-creator, unity-asset-integrator | Required placeholders or briefs exist; provenance/import risks recorded |
 | Build | `crossworking` -> `unity-implement`, `unity-mcp` | workers | Increment compiles and is committed |
 | Test | `unity-validate`, `unity-tests` | qa, test-runner | Acceptance criteria pass; console clean |
 | Review | `unity-review` | reviewers | No blocking findings |
 | Ship | `create-mr`, `unity-build` | pr-submitter, devops | PR opened / build artifact produced |
 
-Three modes: **stage** (default - run one stage, stop), **milestone** (stages 2-6 without pauses between green gates), **auto** (loop milestones until the GDD's MVP checklist is done). Pipeline state lives in `.agents/plans/pipeline.md`, the design contract in `docs/design/game-design.md` - any agent on any platform resumes from files, never from chat memory.
+Three modes: **stage** (default - run one stage, stop), **milestone** (stages 2-7 without pauses between green gates), **auto** (loop milestones until the GDD's MVP checklist is done). Pipeline state lives in `.agents/plans/pipeline.md`, the design contract in `docs/design/game-design.md` - any agent on any platform resumes from files, never from chat memory.
 
 Milestones are vertical slices: "player moves and jumps in a graybox level", never "input system done". Balance lives in data assets with tuning ranges, art starts as placeholders so implementation never blocks, and QA captures PlayMode evidence (console, screenshots) through the Unity editor via MCP.
 
@@ -98,7 +99,8 @@ Game pipeline:
 | Skill | Purpose |
 | --- | --- |
 | `gdd` | Game design contract: core loop, mechanics, balance data, scope-boxed MVP, playable milestones |
-| `game-pipeline` | Staged delivery over GDD milestones: define -> plan -> build -> test -> review -> ship; stage, milestone, and auto modes |
+| `asset-pipeline` | Source, generate, and integrate placeholder/concept/graybox assets with provenance |
+| `game-pipeline` | Staged delivery over GDD milestones: define -> plan -> assets -> build -> test -> review -> ship; stage, milestone, and auto modes |
 
 Unity (`unity-...`):
 
@@ -133,8 +135,8 @@ C# backend (`backend-...`), for game servers and services: `backend-orient`, `ba
 
 Canonical role contracts, rendered natively per platform (Codex agent TOMLs, Claude Code subagents, Antigravity orchestration rules):
 
-- **Studio**: `game-designer` (owns the GDD), `producer` (stage gates, scope cuts, pipeline state), `architect` (guards ARCHITECTURE.md, arbitrates boundaries), `qa` (acceptance + exploratory playtesting), `devops` (CI, batchmode builds, release discipline).
-- **Delivery**: `planner`, `unity-worker` / `backend-worker`, `unity-explorer` / `backend-explorer`, `unity-reviewer` / `backend-reviewer`, `unity-test-runner` / `backend-test-runner`, `oracle` (drift check on long tasks), `researcher`, `pr-submitter`.
+- **Studio**: `game-designer` (owns the GDD), `asset-scout` / `asset-creator` / `unity-asset-integrator` (source, generate, and import milestone assets), `producer` (stage gates, scope cuts, pipeline state), `architect` (guards ARCHITECTURE.md, arbitrates boundaries), `qa` (acceptance + exploratory playtesting), `devops` (CI, batchmode builds, release discipline).
+- **Delivery**: `planner`, `context-builder`, `unity-worker` / `backend-worker`, `unity-explorer` / `backend-explorer`, `unity-reviewer` / `backend-reviewer`, `unity-test-runner` / `backend-test-runner`, `oracle` (drift check on long tasks), `researcher`, `pr-submitter`.
 
 Hierarchy rule: specialized stack roles implement, test, and review; broader-profile roles coordinate above them and never write production code.
 
@@ -155,7 +157,7 @@ One canon, rendered adapters - `.codex/` and `.claude/` are generated at install
 | Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` | `.agents/rules/` (behavioral) |
 | Work state | `.agents/plans/`, `docs/` | shared | shared | shared |
 
-Role reasoning is budgeted by responsibility: planning, architecture, game design, consistency, and production coordination render to Codex `xhigh` and Claude Code `max`; reviewers and release engineering use `high`; execution, research, validation, QA, and shipping roles stay at `medium`. Antigravity receives the same role behavior as orchestration rules, but the kit does not pin per-role model choices there.
+Role reasoning is budgeted by responsibility: planning, architecture, game design, consistency, and production coordination render to Codex `xhigh` and Claude Code `max`; reviewers, generated-asset creation, and release engineering use `high`; execution, context building, asset sourcing/integration, research, validation, QA, and shipping roles stay at `medium`. Antigravity receives the same role behavior as orchestration rules, but the kit does not pin per-role model choices there.
 
 Both Codex and Claude Code get a working post-edit hook that runs the kit's `.meta`/GUID hygiene check after edits. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
 
@@ -176,7 +178,7 @@ All scripted installers support `-Update`, `-Force`, `-Portable`, and `-WhatIf` 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path-to-unity-project>"
 ```
 
-Installs the template contracts, the 19 Unity+shared skills into `.agents/skills/` and `.claude/skills/`, renders all platform adapters from the canon, and writes `.agents/kit-manifest.json`. The target must contain `Assets/` and `ProjectSettings/` (`-AllowNonUnityTarget` to override).
+Installs the template contracts, the 20 Unity+shared skills into `.agents/skills/` and `.claude/skills/`, renders all platform adapters from the canon, and writes `.agents/kit-manifest.json`. The target must contain `Assets/` and `ProjectSettings/` (`-AllowNonUnityTarget` to override).
 
 **C# ASP.NET backend project** (game servers, services):
 
@@ -192,7 +194,7 @@ Same shape: backend contracts, the 12 backend+shared skills, rendered adapters. 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1
 ```
 
-Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 25 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
+Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 26 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
 
 **Codex plugin marketplace**:
 
@@ -241,7 +243,7 @@ templates/
                            DEPENDENCIES.md; .claude/CLAUDE.md, .cursor/, .codex/config.toml
   csharp-aspnet-project/   same shape for ASP.NET
 plugins/
-  codex-unity-agent-kit/   the plugin: 25 skills (single source of truth)
+  codex-unity-agent-kit/   the plugin: 26 skills (single source of truth)
 upm/                       Unity Package Manager wrapper: editor setup window +
                            pre-rendered payload in Kit~ (generated, never hand-edited)
 .agents/plugins/           local marketplace pointing at the plugin

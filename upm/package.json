@@ -1,8 +1,8 @@
 {
   "name": "com.ilezhnin.gamedev-agent-kit",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "displayName": "Gamedev AI Agents Kit",
-  "description": "AI agent kit for Unity game development: project contracts (AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md, DEPENDENCIES.md), the kit's Unity and shared skills, agent roles, permissions, and hooks for OpenAI Codex, Claude Code, and Google Antigravity. The setup window installs the kit files into the project root and keeps them updatable via a hash manifest.",
+  "description": "AI agent kit for Unity game development: project contracts (AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md, DEPENDENCIES.md), the kit's Unity and shared skills including asset sourcing/generation/import, agent roles, permissions, and hooks for OpenAI Codex, Claude Code, and Google Antigravity. The setup window installs the kit files into the project root and keeps them updatable via a hash manifest.",
   "unity": "2020.3",
   "documentationUrl": "https://github.com/ilezhnin/gamedev-ai-agents",
   "changelogUrl": "https://github.com/ilezhnin/gamedev-ai-agents/blob/main/CHANGELOG.md",

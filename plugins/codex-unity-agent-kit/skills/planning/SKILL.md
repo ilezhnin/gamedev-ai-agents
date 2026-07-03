@@ -1,6 +1,6 @@
 ---
 name: planning
-description: Build a concrete implementation plan and checklist before coding or cross-agent execution. Use when the user asks to plan a task, prepare a task for crossworking, create `.agents/plans/active_plan.md` or `.agents/plans/task_list.md`, clarify unclear requirements before implementation, or coordinate a change that will later be handed to workers, reviewers, validation, and create-mr.
+description: Build a concrete implementation plan and checklist before coding or cross-agent execution. Use when the user asks to plan a task, prepare a task for crossworking, create `.agents/plans/active_plan.md` or `.agents/plans/task_list.md`, clarify unclear requirements before implementation, plan asset sourcing/generation/import work, or coordinate a change that will later be handed to workers, reviewers, validation, and create-mr.
 ---
 
 # Planning
@@ -19,11 +19,12 @@ Planning must expose uncertainty early. Do not implement while using this skill 
 1. Read the user request, current thread context, repository instructions, README files, and the smallest useful set of relevant source files.
 2. For Unity projects, orient with `$unity-orient` before planning; respect `.meta` files, assembly boundaries, serialization, lifecycle, and validation constraints.
 3. For C# backend or ASP.NET projects, orient with `$backend-orient`: identify solution/project files, API/service boundaries, auth/data/configuration risks, migrations, and focused `dotnet` validation commands before planning implementation.
-4. Identify decisions that materially affect scope, architecture, data migration, tests, public API, dependencies, generated assets, or PR risk.
-5. Ask concise questions only when the answer changes the plan in a meaningful way. If the work can proceed with a safe assumption, state the assumption in the plan instead of blocking.
-6. Create `.agents/plans/` when missing. If `.agents/plans/.gitignore` is missing, create it with exactly two lines - `*` and `!.gitignore` - so transient plan files stay out of commits unless the project already tracks them intentionally.
-7. Write or replace `.agents/plans/active_plan.md` and `.agents/plans/task_list.md`.
-8. If there are unresolved blocking questions, stop after writing the artifacts and tell the user exactly what must be answered before crossworking or implementation starts.
+4. Identify decisions that materially affect scope, architecture, data migration, tests, public API, dependencies, generated assets, asset licenses/provenance, import settings, or PR risk.
+5. For Unity asset-heavy tasks, route the sourcing/generation/import slice through `$asset-pipeline` and name the expected asset-scout, asset-creator, or unity-asset-integrator handoff in the plan.
+6. Ask concise questions only when the answer changes the plan in a meaningful way. If the work can proceed with a safe assumption, state the assumption in the plan instead of blocking.
+7. Create `.agents/plans/` when missing. If `.agents/plans/.gitignore` is missing, create it with exactly two lines - `*` and `!.gitignore` - so transient plan files stay out of commits unless the project already tracks them intentionally.
+8. Write or replace `.agents/plans/active_plan.md` and `.agents/plans/task_list.md`.
+9. If there are unresolved blocking questions, stop after writing the artifacts and tell the user exactly what must be answered before crossworking or implementation starts.
 
 ## Active Plan Format
 
@@ -83,6 +84,7 @@ Use this structure for `.agents/plans/task_list.md`:
 * [ ] The branch prefix matches `feat/`, `fix/`, or `chore/` when an MR will be created.
 * [ ] Planned file changes are tagged with `[NEW]`, `[MODIFY]`, or `[DELETE]`.
 * [ ] Required generated-code, migration, asset, or schema steps are called out.
+* [ ] Asset sourcing, generation prompts, license/provenance, import settings, and replacement risks are called out when assets are part of the work.
 * [ ] Build, lint, compile, and test commands are included for all touched services or Unity assemblies.
 * [ ] Manual verification steps are concrete enough for another agent to perform.
 * [ ] Known risks and constraints are documented in `active_plan.md`.
@@ -100,4 +102,4 @@ Add task-specific checklist items when needed. Leave ambiguous or unverified ite
 
 ## Exit Criteria
 
-Finish with a short summary that names the two artifact paths, states whether user review is required, and identifies the recommended next skill: usually `$crossworking` for execution or `$grill-me` for stress-testing the plan.
+Finish with a short summary that names the two artifact paths, states whether user review is required, and identifies the recommended next skill: usually `$crossworking` for execution, `$asset-pipeline` for asset sourcing/generation/import, or `$grill-me` for stress-testing the plan.

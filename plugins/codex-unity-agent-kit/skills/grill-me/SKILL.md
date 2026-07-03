@@ -1,6 +1,6 @@
 ---
 name: grill-me
-description: Relentlessly stress-test a user's plan, design, architecture, feature idea, game mechanic, Unity/C# implementation strategy, migration, or technical decision through focused questions until assumptions, tradeoffs, scope, lifecycle, risks, and next steps are clear. Use when the user says "grill me", "stress-test this", "roast my plan", "interrogate this design", asks for rigorous critique in any language, or wants to be questioned before planning or implementation.
+description: Relentlessly stress-test a user's plan, design, architecture, feature idea, game mechanic, Unity/C# implementation strategy, asset pipeline choice, migration, or technical decision through focused questions until assumptions, tradeoffs, scope, lifecycle, risks, and next steps are clear. Use when the user says "grill me", "stress-test this", "roast my plan", "interrogate this design", asks for rigorous critique in any language, or wants to be questioned before planning or implementation.
 ---
 
 # Grill Me
@@ -68,6 +68,7 @@ For Unity/C# game work, keep grilling until the relevant branches below are clos
 - API shape: names, inputs, outputs, typed errors/results, config, serialization, public surface, migration, and compatibility wrappers.
 - Unity lifecycle: creation, `Awake`/`OnEnable`/initialization, update/tick path, teardown, reload, domain reload, scene load, prefab wiring, editor-only boundaries.
 - Data and content: source of truth, authoring path, validation, defaults, missing reference behavior, asset migration, content versioning, and localization if relevant.
+- Assets and art pipeline: local reuse vs public sourcing vs generation, license/provenance, placeholder vs final intent, style fit, import settings, memory/size budget, replacement path, and whether `$asset-pipeline` must run before implementation.
 - Determinism and multiplayer: tick-driven behavior, seeded randomness, stable ordering, replay/rollback/network payloads, and avoiding render-frame or Unity side-effect authority.
 - Persistence: save schema, migration, backward compatibility, default values, offline behavior, and broken-save recovery.
 - Performance: hot paths, allocations, object counts, UI virtualization, asset loading, batching, pooling ownership, memory budget, and platform-specific constraints.
