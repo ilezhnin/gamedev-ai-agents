@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.3 - 2026-07-03
+
+### Fixed
+- Project and optional global Codex configs no longer set `model_reasoning_effort = "medium"`, so new chats keep the user's selected reasoning level instead of being reset by the kit layer. Per-agent reasoning in the rendered Codex agent TOMLs is unchanged.
+
 ## 0.4.2 - 2026-07-01
 
 ### Fixed
