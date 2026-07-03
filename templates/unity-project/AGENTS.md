@@ -4,6 +4,43 @@
 
 This repository is a Unity project. Assume the root contains `Assets/`, `Packages/`, and `ProjectSettings/`.
 
+Declare the project-owned source and asset roots so agents know where project-authored work belongs and which imported folders are off limits. Replace this illustrative tree with the project's real layout:
+
+```text
+Assets/
+|-- <ProjectRoot>/              # Project-authored game code, data, scenes, presets
+|   |-- Scripts/                # Project-authored C# modules
+|   |   |-- <ModuleName>/       # One runtime/editor capability
+|   |   |   |-- Api/            # Stable public contracts, when the module exposes them
+|   |   |   |-- Core/           # Lifecycle, orchestration, internal services
+|   |   |   |-- Model/          # Plain data, IDs, requests, results, snapshots
+|   |   |   |-- View/           # Unity-facing presentation and adapters
+|   |   |   |-- Diagnostics/    # Read-only debug views, probes, and snapshots
+|   |   |   |-- Documentation/  # Living module docs
+|   |   |   |-- Tests/          # EditMode/PlayMode tests near the owner
+|   |   |   `-- <SubFeature>/   # Optional smaller capability with its own shape
+|   |   `-- Editor/             # Project-wide editor tooling
+|   |-- Generated/              # Generated project output; read-only unless changing the generator
+|   |-- Data/                   # Project-authored ScriptableObjects, catalogs, presets
+|   |-- ComponentPresets/       # Optional component presets and authoring defaults
+|   |-- Scenes/                 # Project-owned entry, menu, gameplay, and test scenes
+|   `-- Art/                    # Project-authored art assets
+|-- StreamingAssets/            # Runtime external content, JSON, mods, user-editable data
+|-- Resources/                  # Bootstrap-critical synchronous assets only
+|-- Settings/                   # Unity/render-pipeline assets; ask before broad changes
+|-- Plugins/                    # Imported vendor/plugin code; do not edit unless asked
+|-- 3rd Party/                  # Imported asset-store/vendor packages
+`-- <ImportedSdkOrSampleRoot>/   # SDKs, samples, generated vendor assets owned elsewhere
+```
+
+Rules:
+
+- Treat folders outside the declared project-owned roots as imported packages, samples, generated output, or engine-owned files unless this section says otherwise.
+- Treat `<ProjectRoot>/Scripts/<ModuleName>` as the default home for project C# work; new top-level modules require an explicit decision.
+- Do not hand-edit generated output; update the generator, source schema, or documented generation command.
+- Keep runtime, editor-only, content, scene, and art ownership explicit when adding or moving folders.
+- Maintenance rule: when a root folder appears, disappears, or changes ownership, update this layout in the same change.
+
 ## Tech Stack
 
 Declare the project's real stack so agents stop guessing. Replace the placeholders and delete rows that do not apply:

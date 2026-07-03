@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.6 - 2026-07-03
+
+### Added
+- Unity project instructions now include an ASCII project-owned layout template for `Assets/<ProjectRoot>/Scripts/<ModuleName>` modules, module docs/tests, Unity content roots, and imported SDK/plugin roots so installed projects can document where agents should work and which roots are off limits.
+
 ## 0.4.5 - 2026-07-03
 
 ### Added
