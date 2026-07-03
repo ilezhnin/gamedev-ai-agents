@@ -505,6 +505,8 @@ function Install-KitUsageReporter {
     )
     Install-KitFile -Ctx $Ctx -Source (Join-Path $script:KitRoot "scripts\usage-report.ps1") -RelDest ".agents\scripts\usage-report.ps1" -Cmdlet $Cmdlet
     Install-KitFile -Ctx $Ctx -Source (Join-Path $script:KitRoot "scripts\usage-prices.json") -RelDest ".agents\scripts\usage-prices.json" -Cmdlet $Cmdlet
+    Install-KitFile -Ctx $Ctx -Source (Join-Path $script:KitRoot "scripts\usage-common.ps1") -RelDest ".agents\scripts\usage-common.ps1" -Cmdlet $Cmdlet
+    Install-KitFile -Ctx $Ctx -Source (Join-Path $script:KitRoot "scripts\usage-stats.ps1") -RelDest ".agents\scripts\usage-stats.ps1" -Cmdlet $Cmdlet
 }
 
 function Install-KitBackendContent {

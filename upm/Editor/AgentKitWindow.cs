@@ -15,6 +15,7 @@ namespace GamedevAgentKit.Editor
         private Vector2 _scroll;
         private KitOperationReport _lastReport;
         private KitManifest _manifest;
+        private AgentKitUsagePanel _usagePanel = new AgentKitUsagePanel();
         private bool _dryRun;
         private bool _portable;
 
@@ -53,10 +54,16 @@ namespace GamedevAgentKit.Editor
 
         private void RefreshManifest()
         {
+            if (_usagePanel == null)
+            {
+                _usagePanel = new AgentKitUsagePanel();
+            }
+
             _manifest = KitManifest.Load(AgentKitPaths.ManifestPath);
             _packageVersion = AgentKitPaths.PackageVersion;
             _projectRoot = AgentKitPaths.ProjectRoot;
             _payloadPresent = AgentKitPaths.PayloadRoot != null;
+            _usagePanel.Reload();
         }
 
         private void OnGUI()
@@ -140,6 +147,7 @@ namespace GamedevAgentKit.Editor
             EditorGUILayout.EndHorizontal();
 
             DrawRemovePackageReference();
+            _usagePanel.Draw(_projectRoot);
 
             if (_lastReport != null)
             {

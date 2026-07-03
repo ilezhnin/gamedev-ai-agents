@@ -1,5 +1,5 @@
 {
-  "comment": "Bundled API price snapshot in USD per million tokens. Fallback for usage-report.ps1 when the refreshed LiteLLM cache (.agents/usage/prices.cache.json) is unavailable. Overrides beat every source while their until date has not passed - used for time-limited promo pricing. Verified against the official Anthropic pricing docs on the snapshot date.",
+  "comment": "Bundled API price snapshot in USD per million tokens. Fallback for usage-report.ps1 and usage-stats.ps1 when the refreshed LiteLLM cache (.agents/usage/prices.cache.json) is unavailable. Overrides beat every source while their until date has not passed - used for time-limited promo pricing. Verified against the official Anthropic/OpenAI pricing docs and the LiteLLM feed on the snapshot date.",
   "snapshot_date": "2026-07-03",
   "models": {
     "claude-fable-5": { "in": 10.0, "out": 50.0, "cache_read": 1.0, "cache_write_5m": 12.5, "cache_write_1h": 20.0 },
@@ -11,7 +11,10 @@
     "claude-sonnet-5": { "in": 3.0, "out": 15.0, "cache_read": 0.3, "cache_write_5m": 3.75, "cache_write_1h": 6.0 },
     "claude-sonnet-4-6": { "in": 3.0, "out": 15.0, "cache_read": 0.3, "cache_write_5m": 3.75, "cache_write_1h": 6.0 },
     "claude-sonnet-4-5": { "in": 3.0, "out": 15.0, "cache_read": 0.3, "cache_write_5m": 3.75, "cache_write_1h": 6.0 },
-    "claude-haiku-4-5": { "in": 1.0, "out": 5.0, "cache_read": 0.1, "cache_write_5m": 1.25, "cache_write_1h": 2.0 }
+    "claude-haiku-4-5": { "in": 1.0, "out": 5.0, "cache_read": 0.1, "cache_write_5m": 1.25, "cache_write_1h": 2.0 },
+    "gpt-5-codex": { "in": 1.25, "out": 10.0, "cache_read": 0.125 },
+    "gpt-5.1-codex": { "in": 1.25, "out": 10.0, "cache_read": 0.125 },
+    "gpt-5.5": { "in": 5.0, "out": 30.0, "cache_read": 0.5 }
   },
   "overrides": [
     {
