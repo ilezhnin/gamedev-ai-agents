@@ -7,7 +7,7 @@ description: Map an ASP.NET / C# solution before coding. Use when starting work 
 
 ## Overview
 
-Build the smallest useful map of an ASP.NET / C# solution before editing. Prefer targeted discovery over broad file reading, and return actionable paths, ownership boundaries, risks, and the cheapest validation path.
+Build the smallest useful map of an ASP.NET / C# solution before editing. Default role: `backend-explorer`. Prefer targeted discovery over broad file reading, and return actionable paths, ownership boundaries, risks, and the cheapest validation path.
 
 ## Workflow
 

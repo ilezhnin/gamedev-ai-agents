@@ -7,7 +7,7 @@ description: Choose and run focused validation for C# backend and ASP.NET projec
 
 ## Overview
 
-Select the cheapest validation that proves the changed backend behavior without running unrelated long workflows.
+Select the cheapest validation that proves the changed backend behavior without running unrelated long workflows. Default role: `backend-test-runner`.
 
 ## Workflow
 

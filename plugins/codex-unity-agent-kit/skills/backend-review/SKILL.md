@@ -7,7 +7,7 @@ description: Review C# backend and ASP.NET changes for correctness, security, da
 
 ## Overview
 
-Review backend changes like a service owner. Lead with concrete bugs, security risks, data-loss risks, contract regressions, and missing validation.
+Review backend changes like a service owner. Default role: `backend-reviewer`. Lead with concrete bugs, security risks, data-loss risks, contract regressions, and missing validation.
 
 ## Review Workflow
 

@@ -7,7 +7,7 @@ description: Choose and run focused validation for Unity projects. Use when veri
 
 ## Overview
 
-Select the cheapest validation that proves the changed behavior without running unrelated long workflows.
+Select the cheapest validation that proves the changed behavior without running unrelated long workflows. Default role: `unity-test-runner`.
 
 ## Workflow
 

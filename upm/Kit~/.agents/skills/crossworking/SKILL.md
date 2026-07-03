@@ -42,8 +42,8 @@ Choose the smallest team that can safely complete the task:
 1. **Plan gate**
    - Read `active_plan.md` and `task_list.md`.
    - If `User Review Required` contains unresolved blocking items, ask the user and stop.
-   - For Unity work, orient with `$unity-orient` and use `$unity-implement`, `$unity-validate`, `$unity-review`, `$unity-debug`, `$unity-mcp` as the task demands.
-   - For C# backend work, orient with `$backend-orient` and use `$backend-implement`, `$backend-validate`, `$backend-review`, `$backend-debug` as the task demands.
+   - For Unity work, orient with `$unity-orient` (`unity-explorer`) and use `$unity-implement`, `$unity-validate`, `$unity-review`, `$unity-debug`, `$unity-mcp` as the task demands.
+   - For C# backend work, orient with `$backend-orient` (`backend-explorer`) and use `$backend-implement`, `$backend-validate`, `$backend-review`, `$backend-debug` as the task demands.
 
 2. **Context pass**
    - Gather only the context workers need: relevant files, ownership boundaries, commands, risks, and acceptance criteria.
@@ -91,14 +91,14 @@ Role hierarchy rule: prefer the most specialized role for each job - stack worke
 - **Asset scout** (`asset-scout` role, Unity): finds local/public candidates and records license/provenance.
 - **Asset creator** (`asset-creator` role, Unity): generates placeholder or concept assets, or writes a blocked generation handoff when no image tool is available.
 - **Asset integrator** (`unity-asset-integrator` role, Unity): imports approved assets, configures Unity settings/materials/prefabs/scenes, and validates editor state.
-- **Worker** (stack `unity-worker` / `backend-worker` role): writes code and tests for the approved plan.
-- **Validator** (stack `*-test-runner` role): runs compile, test, lint, generated-code, or Unity checks.
-- **Reviewers** (stack `*-reviewer` role): inspect the diff from independent angles without editing.
+- **Explorers** (`unity-explorer` / `backend-explorer` roles): run stack orientation before planning or implementation enters unfamiliar code.
+- **Worker/Fixer** (stack `unity-worker` / `backend-worker` role): writes code and tests for the approved plan, then applies accepted review fixes when needed.
+- **Validators** (`unity-test-runner` / `backend-test-runner` roles): run compile, test, lint, generated-code, migration, API, or Unity checks.
+- **Reviewers** (`unity-reviewer` / `backend-reviewer` roles): inspect the diff from independent angles without editing.
 - **Oracle** (`oracle` role, optional on long tasks): fresh-context drift check - verifies the current trajectory still matches the inherited decisions and constraints before the fix loop ends.
 - **QA** (`qa` role, optional when the plan carries acceptance criteria): acceptance and exploratory pass during the validation phase; reports findings, never fixes.
 - **Producer** (`producer` role, optional on multi-milestone runs, e.g. under `$game-pipeline`): keeps pipeline and task state current, enforces stage gates.
 - **Architect** (`architect` role, optional): arbitrates when the task forces a module-boundary or ownership decision.
-- **Fixer** (stack worker role): applies accepted review fixes.
 - **MR agent** (`pr-submitter` role): runs `$create-mr` or the project PR/MR workflow.
 
 ## Stop Conditions

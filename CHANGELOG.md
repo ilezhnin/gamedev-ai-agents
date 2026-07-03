@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.9 - 2026-07-03
+
+### Changed
+- Skill role routing now names every canonical role explicitly at least once. Orientation, review, validation, planning, and crossworking skills now bind explorer, reviewer, and test-runner roles without relying on wildcard-only references.
+
 ## 0.4.8 - 2026-07-03
 
 ### Added

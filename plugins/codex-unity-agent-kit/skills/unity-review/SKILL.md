@@ -7,7 +7,7 @@ description: Review Unity and C# changes for correctness. Use when asked to revi
 
 ## Overview
 
-Review like a Unity code owner. Lead with concrete bugs and regression risks, then mention test gaps and residual risk.
+Review like a Unity code owner. Default role: `unity-reviewer`. Lead with concrete bugs and regression risks, then mention test gaps and residual risk.
 
 ## Review Workflow
 

@@ -17,8 +17,8 @@ Planning must expose uncertainty early. Do not implement while using this skill 
 ## Workflow
 
 1. Read the user request, current thread context, repository instructions, README files, and the smallest useful set of relevant source files.
-2. For Unity projects, orient with `$unity-orient` before planning; respect `.meta` files, assembly boundaries, serialization, lifecycle, and validation constraints.
-3. For C# backend or ASP.NET projects, orient with `$backend-orient`: identify solution/project files, API/service boundaries, auth/data/configuration risks, migrations, and focused `dotnet` validation commands before planning implementation.
+2. For Unity projects, orient with `$unity-orient` (`unity-explorer` role) before planning; respect `.meta` files, assembly boundaries, serialization, lifecycle, and validation constraints.
+3. For C# backend or ASP.NET projects, orient with `$backend-orient` (`backend-explorer` role): identify solution/project files, API/service boundaries, auth/data/configuration risks, migrations, and focused `dotnet` validation commands before planning implementation.
 4. Identify decisions that materially affect scope, architecture, data migration, tests, public API, dependencies, generated assets, asset licenses/provenance, import settings, or PR risk.
 5. For Unity asset-heavy tasks, route the sourcing/generation/import slice through `$asset-pipeline` and name the expected asset-scout, asset-creator, or unity-asset-integrator handoff in the plan.
 6. Ask concise questions only when the answer changes the plan in a meaningful way. If the work can proceed with a safe assumption, state the assumption in the plan instead of blocking.

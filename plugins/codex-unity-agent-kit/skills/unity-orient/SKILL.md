@@ -7,7 +7,7 @@ description: Map a Unity project before coding. Use when starting work in an unf
 
 ## Overview
 
-Build the smallest useful map of a Unity project before editing. Prefer targeted discovery over broad file reading, and return actionable paths, risks, and validation options.
+Build the smallest useful map of a Unity project before editing. Default role: `unity-explorer`. Prefer targeted discovery over broad file reading, and return actionable paths, risks, and validation options.
 
 ## Workflow
 
