@@ -29,6 +29,40 @@ function Test-IsAscii {
     return $true
 }
 
+function Test-UpmNeedsMeta {
+    param([string] $Path, [string] $UpmRoot)
+    $name = Split-Path -Leaf $Path
+    if ($name.StartsWith(".")) { return $false }
+    if ($name.EndsWith("~")) { return $false }
+    if ($name.EndsWith(".meta")) { return $false }
+    $relative = $Path.Substring($UpmRoot.Length).TrimStart("\", "/")
+    foreach ($segment in ($relative -split "[\\/]")) {
+        if ($segment.StartsWith(".") -or $segment.EndsWith("~")) { return $false }
+    }
+    return $true
+}
+
+function Test-UpmMetaPairs {
+    $upmRoot = (Get-Item -LiteralPath (Join-Path $script:KitRoot "upm")).FullName
+    $issues = @()
+    foreach ($item in Get-ChildItem -LiteralPath $upmRoot -Force -Recurse) {
+        $path = $item.FullName
+        if ($path.EndsWith(".meta")) {
+            $asset = $path.Substring(0, $path.Length - 5)
+            if (-not (Test-Path -LiteralPath $asset)) {
+                $issues += "orphan: " + $path.Substring($script:KitRoot.Length + 1)
+            }
+        }
+        elseif (Test-UpmNeedsMeta -Path $path -UpmRoot $upmRoot) {
+            $meta = $path + ".meta"
+            if (-not (Test-Path -LiteralPath $meta)) {
+                $issues += "missing: " + $path.Substring($script:KitRoot.Length + 1)
+            }
+        }
+    }
+    return $issues
+}
+
 function Get-GitCommandPath {
     $gitCommand = Get-Command git -ErrorAction SilentlyContinue
     if ($gitCommand) { return $gitCommand.Source }
@@ -326,6 +360,9 @@ try {
 catch {
     Report $false "upm: package.json parses" $_.Exception.Message
 }
+
+$upmMetaIssues = @(Test-UpmMetaPairs)
+Report ($upmMetaIssues.Count -eq 0) "upm: imported package assets have Unity .meta pairs" (($upmMetaIssues | Select-Object -First 5) -join ", ")
 
 # 11: UPM payload - upm/Kit~ must match a fresh render (no drift, no hand edits).
 $payloadRoot = Join-Path $script:KitRoot "upm\Kit~"

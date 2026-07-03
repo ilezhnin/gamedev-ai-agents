@@ -42,7 +42,7 @@ namespace GamedevAgentKit.Editor
             UpdateOrPromptIfNeeded();
         }
 
-        private static bool IncludesThisPackage(PackageInfo[] packages)
+        private static bool IncludesThisPackage(UnityEditor.PackageManager.PackageInfo[] packages)
         {
             return packages != null && packages.Any(package => package.name == AgentKitPaths.PackageName);
         }

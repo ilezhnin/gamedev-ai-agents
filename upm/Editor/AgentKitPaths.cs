@@ -1,5 +1,4 @@
 using System.IO;
-using UnityEditor.PackageManager;
 using UnityEngine;
 
 namespace GamedevAgentKit.Editor
@@ -19,7 +18,8 @@ namespace GamedevAgentKit.Editor
 
         internal static string ManifestPath => Path.Combine(ProjectRoot, ".agents", "kit-manifest.json");
 
-        internal static PackageInfo Package => PackageInfo.FindForAssembly(typeof(AgentKitPaths).Assembly);
+        internal static UnityEditor.PackageManager.PackageInfo Package =>
+            UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(AgentKitPaths).Assembly);
 
         internal static string PackageVersion => Package?.version;
 
