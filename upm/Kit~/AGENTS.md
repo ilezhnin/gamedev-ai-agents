@@ -34,6 +34,44 @@ Rules:
 - Each module keeps one public API and entry point so it can be replaced, extended, or tested alone.
 - Maintenance rule: when a module appears, disappears, or changes owner, update this map.
 
+## Runtime Startup Pipeline
+
+Document the real startup path before changing scenes, composition roots, bootstraps, installers, generated-system registration, or first-frame runtime initialization. Replace the placeholders with the project-specific flow:
+
+- Entry scenes and boot scenes: <...>
+- Composition roots / bootstraps / installers: <...>
+- Runtime lifecycle hosts: <...>
+- Generated-system or feature registration points: <...>
+- Required refresh commands before runtime changes: <...>
+
+Rules:
+
+- New runtime features must be registered in the owning startup or lifecycle point when the stack requires explicit registration.
+- Do not add a second startup path, global singleton, scene scan, or fallback loader to bypass an existing bootstrap.
+- If a feature cannot be wired because the owning registration point is unclear, stop and ask.
+
+## Feature Or Module Template
+
+Declare the expected folder shape for new features or modules. Replace this example with the project's real pattern and remove parts that do not apply:
+
+```text
+<FeatureOrModuleName>/
+  Api/
+  Core/
+  Model/
+  View/
+  Diagnostics/
+  Documentation/
+  Tests/
+```
+
+Rules:
+
+- Copy the nearest established feature shape before adding a new one.
+- The template must name any required registration point, authoring guide, generated-code boundary, and test location.
+- Generated files are read-only unless the task is to change the generator; update the generation command instead.
+- Maintenance rule: when the project changes its feature shape, update this template in the same change.
+
 ## Discovery
 
 - Read `ProjectSettings/ProjectVersion.txt` before assuming Unity version behavior.

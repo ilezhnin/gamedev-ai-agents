@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.5 - 2026-07-03
+
+### Added
+- Unity project templates now ask projects to document the runtime startup pipeline and the expected feature/module folder shape, including explicit registration points, generated-code boundaries, refresh commands, and test locations.
+- The Unity architecture contract now states the content-loading default: use Addressables or the declared async content pipeline for loadable content, and reserve `Resources/` for bootstrap-critical synchronous assets with a documented reason.
+
 ## 0.4.4 - 2026-07-03
 
 ### Fixed

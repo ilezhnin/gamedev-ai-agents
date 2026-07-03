@@ -95,6 +95,7 @@ For every module answer explicitly: who owns lifecycle readiness, settings, cont
 
 - Large content systems use domain catalog ports (`IWeaponCatalog`-style), not monolithic aggregates.
 - Content loading reports structured errors for invalid content; authoring schemas define defaults, clamping, versioning, and cycle detection where fallback chains exist.
+- Default loadable content to Addressables or the project's declared async content pipeline. Use `Resources/` only for bootstrap-critical assets that must load synchronously before the content pipeline exists, and document the reason in the owning module or authoring guide.
 - Editor validation catches invalid IDs, missing references, cycles, and unsupported values before runtime.
 - Runtime caches that depend on content include generation/version invalidation; reloaded content leaves no stale resolved data.
 - Existing authored content stays compatible unless a migration plan is documented.
