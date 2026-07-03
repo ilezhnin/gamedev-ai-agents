@@ -7,8 +7,8 @@ using UnityEngine;
 namespace GamedevAgentKit.Editor
 {
     /// <summary>
-    /// Opens the setup window once per editor session when the kit is not
-    /// installed in the project yet or is older than the package payload.
+    /// Keeps installed kit files current after Package Manager updates and
+    /// opens the setup window once per editor session when the kit is missing.
     /// Re-adding the package resets the once-per-session latch, so a remove
     /// and re-add within one editor session prompts again.
     /// </summary>
@@ -23,33 +23,33 @@ namespace GamedevAgentKit.Editor
 
         static AgentKitBootstrap()
         {
-            EditorApplication.delayCall += PromptIfNeeded;
+            EditorApplication.delayCall += UpdateOrPromptIfNeeded;
             Events.registeredPackages += OnRegisteredPackages;
         }
 
         private static void OnRegisteredPackages(PackageRegistrationEventArgs args)
         {
-            // A fresh add of this package must prompt even when the window was
+            // A fresh add or package update must run even when the window was
             // already shown earlier in this editor session: SessionState
             // survives domain reloads, so without the reset a remove + re-add
             // stays silent until the editor restarts.
-            if (!args.added.Any(package => package.name == AgentKitPaths.PackageName))
+            if (!IncludesThisPackage(args.added) && !IncludesThisPackage(args.changedTo))
             {
                 return;
             }
 
             SessionState.SetBool(SessionKey, false);
-            PromptIfNeeded();
+            UpdateOrPromptIfNeeded();
         }
 
-        private static void PromptIfNeeded()
+        private static bool IncludesThisPackage(PackageInfo[] packages)
         {
-            if (Application.isBatchMode || SessionState.GetBool(SessionKey, false))
-            {
-                return;
-            }
+            return packages != null && packages.Any(package => package.name == AgentKitPaths.PackageName);
+        }
 
-            if (EditorPrefs.GetBool(DontAutoOpenKey, false))
+        private static void UpdateOrPromptIfNeeded()
+        {
+            if (Application.isBatchMode)
             {
                 return;
             }
@@ -60,7 +60,40 @@ namespace GamedevAgentKit.Editor
             }
 
             var manifest = KitManifest.Load(AgentKitPaths.ManifestPath);
-            if (manifest != null && !IsOlder(manifest.KitVersion, AgentKitPaths.PackageVersion))
+            if (manifest == null)
+            {
+                PromptIfAllowed();
+                return;
+            }
+
+            if (!IsOlder(manifest.KitVersion, AgentKitPaths.PackageVersion))
+            {
+                return;
+            }
+
+            var report = AgentKitInstaller.Run(KitInstallMode.Update, false);
+            if (report.Failed)
+            {
+                Debug.LogError("[Agent Kit] Automatic update failed: " + report.Summary());
+                PromptIfAllowed();
+                return;
+            }
+
+            if (KitGitExclude.BlockExists(AgentKitPaths.ProjectRoot))
+            {
+                var updatedManifest = KitManifest.Load(AgentKitPaths.ManifestPath);
+                if (updatedManifest != null)
+                {
+                    KitGitExclude.Write(AgentKitPaths.ProjectRoot, updatedManifest.Files.Keys, report, false);
+                }
+            }
+
+            Debug.Log("[Agent Kit] Automatically updated installed kit files after package update. " + report.Summary());
+        }
+
+        private static void PromptIfAllowed()
+        {
+            if (SessionState.GetBool(SessionKey, false) || EditorPrefs.GetBool(DontAutoOpenKey, false))
             {
                 return;
             }

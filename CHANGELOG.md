@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.4 - 2026-07-03
+
+### Fixed
+- Unity Package Manager updates now automatically apply the kit payload update to already-installed projects. The automatic pass uses the same manifest/hash semantics as the Update button: unmodified kit files are refreshed, local edits are kept, stale shipped files are removed, and portable git-exclude entries are refreshed when portable mode is already active.
+
 ## 0.4.3 - 2026-07-03
 
 ### Fixed
