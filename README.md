@@ -155,6 +155,8 @@ One canon, rendered adapters - `.codex/` and `.claude/` are generated at install
 | Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` | `.agents/rules/` (behavioral) |
 | Work state | `.agents/plans/`, `docs/` | shared | shared | shared |
 
+Role reasoning is budgeted by responsibility: planning, architecture, game design, consistency, and production coordination render to Codex `xhigh` and Claude Code `max`; reviewers and release engineering use `high`; execution, research, validation, QA, and shipping roles stay at `medium`. Antigravity receives the same role behavior as orchestration rules, but the kit does not pin per-role model choices there.
+
 Both Codex and Claude Code get a working post-edit hook that runs the kit's `.meta`/GUID hygiene check after edits. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
 
 ## Updating And Uninstalling

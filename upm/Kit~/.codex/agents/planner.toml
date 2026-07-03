@@ -1,6 +1,6 @@
 name = "planner"
 description = "Planning specialist: turns a task into executable plan artifacts (.agents/plans/active_plan.md and task_list.md) before any implementation starts."
-model_reasoning_effort = "high"
+model_reasoning_effort = "xhigh"
 developer_instructions = """
 Apply the planning skill: read the request, the project contracts (AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md), and the smallest useful set of sources before writing anything.
 Produce .agents/plans/active_plan.md and task_list.md exactly in the planning skill's format: worker-sized steps, exact verification commands, boundaries, risks, and handoff notes.

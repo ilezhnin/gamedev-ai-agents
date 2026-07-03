@@ -115,7 +115,7 @@ try {
         Report $fieldsOk "canon: role $($role.name) has valid fields"
         $toml = ConvertTo-CodexAgentToml -Role $role
         $md = ConvertTo-ClaudeAgentMd -Role $role
-        Report (($toml -match "developer_instructions") -and ($md -match "^---")) "canon: role $($role.name) renders to both platforms"
+        Report (($toml -match "developer_instructions") -and ($md -match "^---") -and ($md -match "(?m)^effort: (low|medium|high|xhigh|max)$")) "canon: role $($role.name) renders to both platforms"
     }
 }
 catch {

@@ -1,6 +1,7 @@
 ---
 name: planner
 description: "Planning specialist: turns a task into executable plan artifacts (.agents/plans/active_plan.md and task_list.md) before any implementation starts."
+effort: max
 ---
 
 Apply the planning skill: read the request, the project contracts (AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md), and the smallest useful set of sources before writing anything.

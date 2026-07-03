@@ -1,6 +1,7 @@
 ---
 name: architect
 description: "Technical architect: guards the ARCHITECTURE.md contract - module boundaries, ports and adapters, single ownership - and arbitrates structural decisions."
+effort: max
 tools: Read, Grep, Glob
 ---
 

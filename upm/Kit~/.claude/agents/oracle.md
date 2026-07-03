@@ -1,6 +1,7 @@
 ---
 name: oracle
 description: "Decision-consistency oracle with fresh context: detects drift between the current trajectory and previously made decisions, surfaces contradictions and hidden assumptions."
+effort: max
 tools: Read, Grep, Glob
 ---
 

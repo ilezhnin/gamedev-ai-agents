@@ -244,10 +244,18 @@ function ConvertTo-ClaudeAgentMd {
     # Quote the description: unquoted colons are invalid YAML scalars.
     $escapedDescription = $Role.description -replace '"', '\"'
     $lines = @("---", "name: $($Role.name)", "description: `"$escapedDescription`"")
+    $lines += "effort: $(ConvertTo-ClaudeEffort -Reasoning $Role.reasoning)"
     if ($Role.readonly) { $lines += "tools: Read, Grep, Glob" }
     $lines += "---", ""
     foreach ($instruction in $Role.instructions) { $lines += $instruction }
     return ($lines -join "`n") + "`n"
+}
+
+function ConvertTo-ClaudeEffort {
+    param([Parameter(Mandatory = $true)] [string] $Reasoning)
+    if ($Reasoning -eq "minimal") { return "low" }
+    if ($Reasoning -eq "xhigh") { return "max" }
+    return $Reasoning
 }
 
 function ConvertTo-CodexRules {

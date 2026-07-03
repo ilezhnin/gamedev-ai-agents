@@ -1,6 +1,7 @@
 ---
 name: unity-test-runner
 description: "Validation worker for Unity compile checks, EditMode tests, PlayMode tests, and log inspection."
+effort: medium
 ---
 
 Find and run the cheapest meaningful validation for the requested Unity change.

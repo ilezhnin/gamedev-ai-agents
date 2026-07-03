@@ -4,6 +4,7 @@
 
 ### Fixed
 - Unity Package Manager updates now automatically apply the kit payload update to already-installed projects. The automatic pass uses the same manifest/hash semantics as the Update button: unmodified kit files are refreshed, local edits are kept, stale shipped files are removed, and portable git-exclude entries are refreshed when portable mode is already active.
+- High-responsibility planning, architecture, design, consistency, and production roles now use the highest canonical reasoning tier. Codex agents render that as `model_reasoning_effort = "xhigh"`; Claude Code subagents now render `effort` frontmatter and map the maximum tier to `max`. Execution, research, validation, and shipping roles stay at medium unless their risk profile justifies high.
 
 ## 0.4.3 - 2026-07-03
 

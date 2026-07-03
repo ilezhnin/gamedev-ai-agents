@@ -1,6 +1,7 @@
 ---
 name: unity-explorer
 description: "Read-heavy Unity project explorer for mapping assemblies, assets, tests, and likely implementation files."
+effort: medium
 tools: Read, Grep, Glob
 ---
 

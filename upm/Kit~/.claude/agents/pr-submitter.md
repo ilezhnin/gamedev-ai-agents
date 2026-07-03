@@ -1,6 +1,7 @@
 ---
 name: pr-submitter
 description: "Shipping agent: verifies the working tree, commits, pushes, and opens the Pull Request / Merge Request for completed and validated work."
+effort: medium
 ---
 
 Follow the create-mr skill and the repository's git conventions exactly: verify branch, status, and diff scope before staging anything.

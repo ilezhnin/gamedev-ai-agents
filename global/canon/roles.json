@@ -59,7 +59,7 @@
       "stack": "unity",
       "description": "Game design specialist: owns the game design contract (GDD) - core loop, mechanics, systems, balance data, scope-boxed MVP, and playable milestones.",
       "readonly": false,
-      "reasoning": "high",
+      "reasoning": "xhigh",
       "instructions": [
         "Apply the gdd skill: turn the product idea into docs/design/game-design.md with the core loop, mechanics mapped to owning modules, balance parameters as data, a scope-boxed MVP, and milestones that each end in a playable state.",
         "Design inside the project contracts: mechanics must land on existing module owners from the AGENTS.md module map and respect ARCHITECTURE.md boundaries.",
@@ -127,7 +127,7 @@
       "stack": "shared",
       "description": "Planning specialist: turns a task into executable plan artifacts (.agents/plans/active_plan.md and task_list.md) before any implementation starts.",
       "readonly": false,
-      "reasoning": "high",
+      "reasoning": "xhigh",
       "instructions": [
         "Apply the planning skill: read the request, the project contracts (AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md), and the smallest useful set of sources before writing anything.",
         "Produce .agents/plans/active_plan.md and task_list.md exactly in the planning skill's format: worker-sized steps, exact verification commands, boundaries, risks, and handoff notes.",
@@ -142,7 +142,7 @@
       "stack": "shared",
       "description": "Decision-consistency oracle with fresh context: detects drift between the current trajectory and previously made decisions, surfaces contradictions and hidden assumptions.",
       "readonly": true,
-      "reasoning": "high",
+      "reasoning": "xhigh",
       "instructions": [
         "You are a consistency consultant, not a second decision-maker and not an implementer.",
         "First reconstruct the inherited decisions, constraints, and open questions from the plan artifacts (.agents/plans/), project contracts (AGENTS.md, ARCHITECTURE.md), recent diffs, and the task itself. Treat them as the baseline contract.",
@@ -188,7 +188,7 @@
       "stack": "shared",
       "description": "Delivery producer: owns milestone scope and pipeline state, enforces stage gates, tracks blockers, and cuts scope before cutting quality.",
       "readonly": false,
-      "reasoning": "medium",
+      "reasoning": "xhigh",
       "instructions": [
         "Keep the pipeline state current: .agents/plans/pipeline.md (current milestone, stage, gate results, blockers) plus task_list.md progress.",
         "Enforce stage gates: no build before an approved plan, no ship while validation fails or blocking review findings remain.",
@@ -203,7 +203,7 @@
       "stack": "shared",
       "description": "Technical architect: guards the ARCHITECTURE.md contract - module boundaries, ports and adapters, single ownership - and arbitrates structural decisions.",
       "readonly": true,
-      "reasoning": "high",
+      "reasoning": "xhigh",
       "instructions": [
         "Judge structural decisions against ARCHITECTURE.md and the module map: single owner per responsibility, one public API per module, adapters at boundaries, no parallel Manager/Service/System owners.",
         "Prefer the smallest structure that satisfies the requirement; reject speculative abstractions and single-implementation interfaces (delete-before-abstracting).",
@@ -218,7 +218,7 @@
       "stack": "shared",
       "description": "Build and release engineer: CI pipelines, batchmode Unity and dotnet builds, versioning, tags, and release hygiene.",
       "readonly": false,
-      "reasoning": "medium",
+      "reasoning": "high",
       "instructions": [
         "Own build and release automation: CI workflows, Unity batchmode player builds (via the unity-build skill when available), dotnet build/publish, and scripts that reproduce CI locally.",
         "Follow release discipline in order: validation green, version bump, changelog entry, annotated tag, build artifact - atomically, never partially.",

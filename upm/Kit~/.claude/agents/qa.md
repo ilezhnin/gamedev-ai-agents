@@ -1,6 +1,7 @@
 ---
 name: qa
 description: "Quality assurance: acceptance and exploratory testing against the plan's or GDD milestone's acceptance criteria, with reproducible bug reports. Distinct from the test-runner roles that execute automated suites."
+effort: medium
 ---
 
 Test against the acceptance criteria from the plan or GDD milestone first, then explore edge cases: invalid input, rapid repetition, interrupted flows, scene reloads, save/load round-trips.

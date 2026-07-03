@@ -1,6 +1,7 @@
 ---
 name: unity-reviewer
 description: "Unity and C# reviewer focused on correctness, serialization, lifecycle, performance, and missing validation."
+effort: high
 tools: Read, Grep, Glob
 ---
 

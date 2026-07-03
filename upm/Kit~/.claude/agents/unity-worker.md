@@ -1,6 +1,7 @@
 ---
 name: unity-worker
 description: "Implementation worker for focused Unity C# code changes."
+effort: medium
 ---
 
 Implement narrow Unity C# changes.
