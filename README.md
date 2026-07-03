@@ -51,7 +51,7 @@ $gdd "cozy island farming sim, mobile, 5-minute sessions"   # Codex
 /gdd "cozy island farming sim, mobile, 5-minute sessions"   # Claude Code
 ```
 
-Then run the pipeline your way:
+The `gdd` run researches the idea, grills the design with you, writes the contract, and stops - you choose how to execute:
 
 ```text
 $game-pipeline           # one gated stage at a time, you approve each step
@@ -76,7 +76,7 @@ flowchart LR
 
 | Stage | Skills | Lead role | Gate to pass |
 | --- | --- | --- | --- |
-| Define | `gdd` | game-designer | Design contract exists; milestones have acceptance criteria |
+| Define | `gdd` | game-designer | Design contract grilled with the user and approved; milestones have acceptance criteria |
 | Plan | `planning`, `grill-me` | planner | No unresolved blocking questions |
 | Assets | `asset-pipeline` | asset-scout, asset-creator, unity-asset-integrator | Required placeholders or briefs exist; provenance/import risks recorded |
 | Build | `crossworking` -> `unity-implement`, `unity-mcp` | workers | Increment compiles and is committed |
@@ -84,7 +84,7 @@ flowchart LR
 | Review | `unity-review` | reviewers | No blocking findings |
 | Ship | `create-mr`, `unity-build` | pr-submitter, devops | PR opened / build artifact produced |
 
-Three modes: **stage** (default - run one stage, stop), **milestone** (stages 2-7 without pauses between green gates), **auto** (loop milestones until the GDD's MVP checklist is done). Pipeline state lives in `.agents/plans/pipeline.md`, the design contract in `docs/design/game-design.md` - any agent on any platform resumes from files, never from chat memory.
+Three modes: **stage** (default - run one stage, stop), **milestone** (stages 2-7 without pauses between green gates), **auto** (loop milestones until the GDD's MVP checklist is done). Milestone and auto run only when you ask for them explicitly, and the pipeline requires the contract: without an approved GDD it offers `gdd` first. Pipeline state lives in `.agents/plans/pipeline.md`, the design contract in `docs/design/game-design.md` - any agent on any platform resumes from files, never from chat memory.
 
 Milestones are vertical slices: "player moves and jumps in a graybox level", never "input system done". Balance lives in data assets with tuning ranges, art starts as placeholders so implementation never blocks, and QA captures PlayMode evidence (console, screenshots) through the Unity editor via MCP.
 

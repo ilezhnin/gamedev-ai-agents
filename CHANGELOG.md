@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.10 - 2026-07-03
+
+### Changed
+- The `gdd` skill now gates the design contract on a mandatory `grill-me` pass with the user: assumptions recorded while drafting become grill questions, a failed grill loops the design back to research with the corrected inputs, and the run always ends by asking whether to execute via `game-pipeline` (staged or auto), plan milestone 1 only, or stop - it never starts execution itself.
+- The `game-pipeline` skill now has an entry gate: without a design contract it offers to create one with `gdd` and stops; an unapproved contract blocks execution; milestone and auto modes require the user to name them in the current request (wording in the original idea prompt is not consent); approvals and the chosen mode land in the pipeline decision log.
+- The `game-designer` role carries the same guarantees: the grill is mandatory before the GDD is final, and the role never starts the delivery pipeline on its own.
+
 ## 0.4.9 - 2026-07-03
 
 ### Changed

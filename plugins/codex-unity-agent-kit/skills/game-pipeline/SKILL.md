@@ -7,13 +7,22 @@ description: Run the gamedev delivery pipeline over GDD milestones - define, pla
 
 ## Goal
 
-Execute the game design contract milestone by milestone through fixed stages, keeping all state in repository files so any platform (Codex, Claude Code, Antigravity) can resume at any point. One prompt can run one stage, one milestone, or the whole MVP.
+Execute the game design contract milestone by milestone through fixed stages, keeping all state in repository files so any platform (Codex, Claude Code, Antigravity) can resume at any point. One prompt can run one stage, one milestone, or the whole MVP. The pipeline executes an approved contract; it never creates or approves one on its own.
+
+## Entry Gate
+
+Check before running any stage:
+
+- No `docs/design/game-design.md` -> do not improvise a design: offer to create the contract with `$gdd` and stop. `$gdd` ends with the user's mode answer; the pipeline starts from that answer.
+- GDD exists but the user never confirmed it (no approval in the `pipeline.md` decision log and none in the current conversation) -> ask the user to review it - through the `$gdd` grill when it was never grilled - and stop until approved.
+- Mode consent: stage mode is the default. Milestone and auto modes run only when the user names them in the current request; wording inside the original game idea is not consent. When the intended mode is unclear, ask.
+- Record the approval and the chosen mode in the `pipeline.md` decision log when the pipeline starts.
 
 ## Stages
 
 | # | Stage | Skills | Lead role | Gate to pass |
 | --- | --- | --- | --- | --- |
-| 1 | Define | `$gdd` | game-designer | GDD exists; milestones have acceptance criteria |
+| 1 | Define | `$gdd` | game-designer | GDD grilled with and approved by the user; milestones have acceptance criteria |
 | 2 | Plan | `$planning`, `$grill-me` on risk | planner | No unresolved blocking questions |
 | 3 | Assets | `$asset-pipeline` when milestone needs art/content | asset-scout, asset-creator, unity-asset-integrator | Required placeholders or briefs exist; provenance/import risks recorded |
 | 4 | Build | `$crossworking` -> `$unity-implement`, `$unity-mcp` | unity-worker | Increment compiles and is committed |
@@ -31,13 +40,13 @@ The producer role keeps pipeline state current. The architect role arbitrates wh
 
 - **Stage mode** (default): run the current stage, update state, report, stop. The user advances the pipeline explicitly.
 - **Milestone mode** ("run milestone N", "next milestone"): run stages 2-7 for one milestone without stopping between green gates.
-- **Auto mode** ("auto", "the whole game", "turnkey"): loop milestones until the MVP checklist in the GDD is complete. Stop only on stop conditions.
+- **Auto mode** ("auto", "turnkey", "run the whole MVP" - named by the user in the current request): loop milestones until the MVP checklist in the GDD is complete. Stop only on stop conditions.
 
 In every mode: work on a task-local branch and commit after each verified increment (crossworking rules); every milestone ends committed, so a broken state reverts to last-known-good instead of unwinding by hand.
 
 ## Stop Conditions
 
-Stop, record the blocker in `pipeline.md`, and surface it to the user when: the GDD or plan has unresolved blocking questions; the same gate fails twice on the same cause; validation fails for reasons outside the current milestone; a structural decision contradicts `ARCHITECTURE.md`; required assets, asset licenses/provenance, packages, or credentials are missing; or any crossworking stop condition fires.
+Stop, record the blocker in `pipeline.md`, and surface it to the user when: the Entry Gate fails (missing or unapproved GDD); the GDD or plan has unresolved blocking questions; the same gate fails twice on the same cause; validation fails for reasons outside the current milestone; a structural decision contradicts `ARCHITECTURE.md`; required assets, asset licenses/provenance, packages, or credentials are missing; or any crossworking stop condition fires.
 
 ## Rules
 

@@ -20,6 +20,7 @@
 - <none, or: blocker - owner - decision needed>
 
 ## Decision Log
+- <date>: GDD approved by user after grill; mode = <stage | milestone | auto>
 - <date>: <decision, deciding role, one-line reason>
 
 ## Stage Records
