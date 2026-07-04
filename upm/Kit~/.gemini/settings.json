@@ -1,24 +1,31 @@
 {
+  "telemetry": {
+    "enabled": true,
+    "target": "local",
+    "outfile": ".agents/usage/gemini-telemetry.log",
+    "logPrompts": false
+  },
   "hooks": {
-    "PostToolUse": [
+    "AfterTool": [
       {
-        "matcher": "apply_patch",
         "hooks": [
           {
             "type": "command",
+            "name": "unity-meta-check",
             "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/check-unity-meta.ps1",
-            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/check-unity-meta.ps1"
+            "description": "Rendered from global/canon/hooks.json."
           }
         ]
       }
     ],
-    "Stop": [
+    "AfterAgent": [
       {
         "hooks": [
           {
             "type": "command",
+            "name": "usage-report",
             "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/usage-report.ps1",
-            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/usage-report.ps1"
+            "description": "Rendered from global/canon/hooks.json."
           }
         ]
       }

@@ -4,7 +4,7 @@
 
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
-  <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Antigravity-blueviolet">
+  <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Antigravity-blueviolet">
   <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.2-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
@@ -22,15 +22,15 @@
   <a href="CHANGELOG.md">Changelog</a>
 </p>
 
-This kit turns your AI coding agent - OpenAI Codex, Anthropic Claude Code, or Google Antigravity - into a small game studio inside your Unity project. A game designer role writes the design contract, a planner slices it into playable milestones, workers implement, QA plays the build, reviewers audit the diff, and a release agent ships the PR. Run it stage by stage under your control, or fully automatic from a single prompt.
+This kit turns your AI coding agent - OpenAI Codex, Anthropic Claude Code, Google Gemini CLI, or Google Antigravity - into a small game studio inside your Unity project. A game designer role writes the design contract, a planner slices it into playable milestones, workers implement, QA plays the build, reviewers audit the diff, and a release agent ships the PR. Run it stage by stage under your control, or fully automatic from a single prompt.
 
 - **2-minute install** - add one git URL in Unity Package Manager, click Install, done.
 - **Idea to playable** - `gdd` turns a one-line idea into a design contract; `game-pipeline` executes it through gated stages. Every milestone ends playable: compiles, PlayMode enters clean, the new mechanic is reachable in-game.
 - **26 skills** for real gamedev work: asset sourcing/generation, scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
 - **A studio of roles** - game designer, asset specialists, producer, architect, QA, devops, plus workers, reviewers, and researchers - rendered natively for every platform.
-- **Platform-independent by design** - one canon, thin rendered adapters. All state lives in repo files, so switching Codex <-> Claude Code <-> Antigravity mid-task loses nothing.
+- **Platform-independent by design** - one canon, thin rendered adapters. All state lives in repo files, so switching Codex <-> Claude Code <-> Gemini CLI <-> Antigravity mid-task loses nothing.
 - **Safe lifecycle** - hash-manifest installs: updates refresh only unmodified files, your local edits always survive, uninstall removes exactly what the kit shipped.
-- **Portable mode** - optional zero-trace installs: one root file (`AGENTS.md`), everything else under `.agents/`, `.claude/`, `.codex/`, `.cursor/`; a portable install git-excludes every kit file locally and the package reference itself can be removed, so nothing about the kit ever reaches your repo.
+- **Portable mode** - optional zero-trace installs: one root file (`AGENTS.md`), everything else under `.agents/`, `.claude/`, `.codex/`, `.gemini/`, `.cursor/`; a portable install git-excludes every kit file locally and the package reference itself can be removed, so nothing about the kit ever reaches your repo.
 
 ## Quick Start
 
@@ -133,7 +133,7 @@ C# backend (`backend-...`), for game servers and services: `backend-orient`, `ba
 
 ### Roles
 
-Canonical role contracts, rendered natively per platform (Codex agent TOMLs, Claude Code subagents, Antigravity orchestration rules):
+Canonical role contracts, rendered natively where the platform supports them (Codex agent TOMLs, Claude Code subagents, Antigravity orchestration rules):
 
 - **Studio**: `game-designer` (owns the GDD), `asset-scout` / `asset-creator` / `unity-asset-integrator` (source, generate, and import milestone assets), `producer` (stage gates, scope cuts, pipeline state), `architect` (guards ARCHITECTURE.md, arbitrates boundaries), `qa` (acceptance + exploratory playtesting), `devops` (CI, batchmode builds, release discipline).
 - **Delivery**: `planner`, `context-builder`, `unity-worker` / `backend-worker`, `unity-explorer` / `backend-explorer`, `unity-reviewer` / `backend-reviewer`, `unity-test-runner` / `backend-test-runner`, `oracle` (drift check on long tasks), `researcher`, `pr-submitter`.
@@ -146,20 +146,20 @@ The install places living contracts that keep agents on rails: `AGENTS.md` at th
 
 ## Platforms
 
-One canon, rendered adapters - `.codex/` and `.claude/` are generated at install time and never edited by hand:
+One canon, rendered adapters - `.codex/`, `.claude/`, and `.gemini/settings.json` are generated at install time and never edited by hand:
 
-| Concern | Canon | Codex | Claude Code | Antigravity |
-| --- | --- | --- | --- | --- |
-| Instructions | `AGENTS.md` + contracts | native | via `.claude/CLAUDE.md` pointer | native |
-| Skills | `plugins/.../skills/` | `.agents/skills/` | `.claude/skills/` mirror | `.agents/skills/` native |
-| Subagent roles | `canon/roles.json` | `.codex/agents/*.toml` | `.claude/agents/*.md` | `.agents/rules/` (dynamic orchestration) |
-| Permissions | `canon/permissions.json` | `.codex/rules/` | `.claude/settings.json` | `.agents/rules/` (behavioral) |
-| Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` | `.agents/rules/` (behavioral) |
-| Work state | `.agents/plans/`, `docs/` | shared | shared | shared |
+| Concern | Canon | Codex | Claude Code | Gemini CLI | Antigravity |
+| --- | --- | --- | --- | --- | --- |
+| Instructions | `AGENTS.md` + contracts | native | via `.claude/CLAUDE.md` pointer | shared files | native |
+| Skills | `plugins/.../skills/` | `.agents/skills/` | `.claude/skills/` mirror | shared files | `.agents/skills/` native |
+| Subagent roles | `canon/roles.json` | `.codex/agents/*.toml` | `.claude/agents/*.md` | not pinned | `.agents/rules/` (dynamic orchestration) |
+| Permissions | `canon/permissions.json` | `.codex/rules/` | `.claude/settings.json` | not pinned | `.agents/rules/` (behavioral) |
+| Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` | `.gemini/settings.json` | `.agents/rules/` (behavioral) |
+| Work state | `.agents/plans/`, `docs/` | shared | shared | shared | shared |
 
-Role reasoning is budgeted by responsibility: planning, architecture, game design, consistency, and production coordination render to Codex `xhigh` and Claude Code `max`; reviewers, generated-asset creation, and release engineering use `high`; execution, context building, asset sourcing/integration, research, validation, QA, and shipping roles stay at `medium`. Antigravity receives the same role behavior as orchestration rules, but the kit does not pin per-role model choices there.
+Role reasoning is budgeted by responsibility: planning, architecture, game design, consistency, and production coordination render to Codex `xhigh` and Claude Code `max`; reviewers, generated-asset creation, and release engineering use `high`; execution, context building, asset sourcing/integration, research, validation, QA, and shipping roles stay at `medium`. Gemini CLI and Antigravity receive shared project behavior, but the kit does not pin per-role model choices there.
 
-Both Codex and Claude Code get a working post-edit hook that runs the kit's `.meta`/GUID hygiene check after edits. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
+Codex, Claude Code, and Gemini CLI get working hooks for the kit's `.meta`/GUID hygiene check after edits and usage reporting after a turn. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
 
 ## Updating And Uninstalling
 

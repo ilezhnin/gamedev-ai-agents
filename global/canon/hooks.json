@@ -1,5 +1,5 @@
 {
-  "comment": "Canonical automation hooks. Rendered into .codex/hooks.json (Codex) and the hooks block of .claude/settings.json (Claude Code) by the installers - never edit rendered files by hand. Scripts live in the platform-neutral .agents/scripts/ folder of the target project. Optional 'platforms' restricts a hook to specific adapters (codex, claude, antigravity); absent means all.",
+  "comment": "Canonical automation hooks. Rendered into .codex/hooks.json (Codex), .claude/settings.json (Claude Code), .gemini/settings.json (Gemini CLI), and the .agents/rules Antigravity rules by the installers - never edit rendered files by hand. Scripts live in the platform-neutral .agents/scripts/ folder of the target project. Optional 'platforms' restricts a hook to specific adapters (codex, claude, gemini, antigravity); absent means all.",
   "hooks": [
     {
       "name": "unity-meta-check",
@@ -8,14 +8,18 @@
       "codexMatcher": "apply_patch",
       "claudeMatcher": "Edit|Write|MultiEdit",
       "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/check-unity-meta.ps1",
+      "commandCodex": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/check-unity-meta.ps1",
+      "commandGemini": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/check-unity-meta.ps1",
       "commandPwsh": "pwsh -NoProfile -File .agents/scripts/check-unity-meta.ps1"
     },
     {
       "name": "usage-report",
       "stacks": ["unity", "backend"],
-      "platforms": ["claude"],
+      "platforms": ["claude", "codex", "gemini"],
       "event": "Stop",
       "command": "powershell -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/usage-report.ps1",
+      "commandCodex": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/usage-report.ps1",
+      "commandGemini": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File .agents/scripts/usage-report.ps1",
       "commandPwsh": "pwsh -NoProfile -File .agents/scripts/usage-report.ps1"
     }
   ]

@@ -265,12 +265,15 @@ try {
         $settings = ConvertTo-ClaudeSettingsJson -Permissions $permissions -Hooks $hooksCanon -Stack $stack
         $parsed = $settings | ConvertFrom-Json
         Report ($null -ne $parsed.permissions) "canon: Claude settings render valid JSON for $stack"
+        $geminiSettings = ConvertTo-GeminiSettingsJson -Hooks $hooksCanon -Stack $stack
+        $geminiParsed = $geminiSettings | ConvertFrom-Json
+        Report ($null -ne $geminiParsed.telemetry) "canon: Gemini settings render valid JSON for $stack"
     }
     $codexHooks = ConvertTo-CodexHooksJson -Hooks $hooksCanon -Stack "unity"
     Report ($null -ne ($codexHooks | ConvertFrom-Json).hooks) "canon: Codex hooks render valid JSON for unity"
     # Every hook command must point at a script the payload actually ships.
     foreach ($hook in $hooksCanon.hooks) {
-        foreach ($command in @($hook.command, $hook.commandPwsh)) {
+        foreach ($command in @($hook.command, $hook.commandPwsh, $hook.commandCodex, $hook.commandGemini)) {
             if ($command -match "-File\s+(\S+)") {
                 $hookTarget = $matches[1]
                 $shipped = Test-Path -LiteralPath (Join-Path $script:KitRoot ("upm\Kit~\" + ($hookTarget -replace "/", "\")))
@@ -292,8 +295,8 @@ catch {
 # parts (agents, settings.json, the skills mirror) stay forbidden.
 foreach ($forbidden in @(
         "global\agents", "global\rules",
-        "templates\unity-project\.codex\agents", "templates\unity-project\.codex\rules", "templates\unity-project\.codex\hooks.json", "templates\unity-project\.claude\agents", "templates\unity-project\.claude\settings.json", "templates\unity-project\.claude\skills", "templates\unity-project\.agents\rules",
-        "templates\csharp-aspnet-project\.codex\agents", "templates\csharp-aspnet-project\.codex\rules", "templates\csharp-aspnet-project\.claude\agents", "templates\csharp-aspnet-project\.claude\settings.json", "templates\csharp-aspnet-project\.claude\skills", "templates\csharp-aspnet-project\.agents\rules"
+        "templates\unity-project\.codex\agents", "templates\unity-project\.codex\rules", "templates\unity-project\.codex\hooks.json", "templates\unity-project\.claude\agents", "templates\unity-project\.claude\settings.json", "templates\unity-project\.claude\skills", "templates\unity-project\.gemini\settings.json", "templates\unity-project\.agents\rules",
+        "templates\csharp-aspnet-project\.codex\agents", "templates\csharp-aspnet-project\.codex\rules", "templates\csharp-aspnet-project\.claude\agents", "templates\csharp-aspnet-project\.claude\settings.json", "templates\csharp-aspnet-project\.claude\skills", "templates\csharp-aspnet-project\.gemini\settings.json", "templates\csharp-aspnet-project\.agents\rules"
     )) {
     Report (-not (Test-Path -LiteralPath (Join-Path $script:KitRoot $forbidden))) "rendered-only: $forbidden is not stored in the kit"
 }

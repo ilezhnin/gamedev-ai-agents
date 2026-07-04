@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.12 - 2026-07-03
+
+### Added
+- Unified usage reporting across Claude Code, Codex, and Gemini CLI. The same `.agents/scripts/usage-report.ps1` now auto-detects hook input and emits a post-turn `systemMessage` for Claude transcript usage, Codex rollout `token_count` events, and Gemini CLI local telemetry. The persistent Unity panel history now includes `gemini` as a first-class platform alongside `claude` and `codex`.
+- Gemini CLI adapter rendering: installers now generate `.gemini/settings.json` from the hook canon, enabling local telemetry output under `.agents/usage/` and wiring an `AfterAgent` usage hook without storing rendered Gemini settings in templates.
+
+### Changed
+- Codex hooks now use a Codex-specific `powershell.exe` command path so WSL-based Codex sessions can run the Windows-focused kit scripts without requiring `pwsh` inside WSL. The reporter converts `/mnt/<drive>/...` and common WSL transcript paths to Windows-readable paths before parsing.
+- Usage price refresh now keeps Gemini model prices from the LiteLLM feed, with bundled fallback prices for common Gemini 2.5 models.
+
 ## 0.4.11 - 2026-07-03
 
 ### Added

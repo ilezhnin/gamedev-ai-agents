@@ -320,13 +320,49 @@ function ConvertTo-CodexHooksJson {
         if (-not ($hook.stacks -contains $Stack)) { continue }
         if (-not (Test-KitHookPlatform -Hook $hook -Platform "codex")) { continue }
         if (-not $events.Contains($hook.event)) { $events[$hook.event] = @() }
-        $events[$hook.event] += , ([ordered]@{
-                matcher = $hook.codexMatcher
-                hooks   = @([ordered]@{ type = "command"; command = $hook.commandPwsh; commandWindows = $hook.command })
-            })
+        $entry = [ordered]@{}
+        if ($hook.codexMatcher) { $entry["matcher"] = $hook.codexMatcher }
+        $codexCommand = $hook.commandPwsh
+        if ($hook.commandCodex) { $codexCommand = $hook.commandCodex }
+        $entry["hooks"] = @([ordered]@{ type = "command"; command = $codexCommand; commandWindows = $hook.command })
+        $events[$hook.event] += , $entry
     }
     if ($events.Count -eq 0) { return $null }
     return (ConvertTo-KitJson -Value ([ordered]@{ hooks = $events })) + "`n"
+}
+
+function ConvertTo-GeminiSettingsJson {
+    param([Parameter(Mandatory = $true)] $Hooks, [Parameter(Mandatory = $true)] [string] $Stack)
+    $settings = [ordered]@{
+        telemetry = [ordered]@{
+            enabled    = $true
+            target     = "local"
+            outfile    = ".agents/usage/gemini-telemetry.log"
+            logPrompts = $false
+        }
+    }
+    $events = [ordered]@{}
+    foreach ($hook in $Hooks.hooks) {
+        if (-not ($hook.stacks -contains $Stack)) { continue }
+        if (-not (Test-KitHookPlatform -Hook $hook -Platform "gemini")) { continue }
+        $eventName = $hook.event
+        if ($eventName -eq "Stop") { $eventName = "AfterAgent" }
+        elseif ($eventName -eq "PostToolUse") { $eventName = "AfterTool" }
+        if (-not $events.Contains($eventName)) { $events[$eventName] = @() }
+        $entry = [ordered]@{}
+        if ($hook.geminiMatcher) { $entry["matcher"] = $hook.geminiMatcher }
+        $geminiCommand = $hook.command
+        if ($hook.commandGemini) { $geminiCommand = $hook.commandGemini }
+        $entry["hooks"] = @([ordered]@{
+                type        = "command"
+                name        = $hook.name
+                command     = $geminiCommand
+                description = "Rendered from global/canon/hooks.json."
+            })
+        $events[$eventName] += , $entry
+    }
+    if ($events.Count -gt 0) { $settings["hooks"] = $events }
+    return (ConvertTo-KitJson -Value $settings) + "`n"
 }
 
 function ConvertTo-ClaudeSettingsJson {
@@ -445,7 +481,7 @@ function Install-KitRendered {
 }
 
 function Install-KitPlatformAdapters {
-    # Renders the Codex and Claude Code adapter layers for one stack from the canon.
+    # Renders platform adapter layers for one stack from the canon.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
     param(
         [Parameter(Mandatory = $true)] [hashtable] $Ctx,
@@ -463,6 +499,7 @@ function Install-KitPlatformAdapters {
 
     Install-KitRendered -Ctx $Ctx -Content (ConvertTo-CodexRules -Permissions $permissions) -RelDest ".codex\rules\default.rules" -Cmdlet $Cmdlet
     Install-KitRendered -Ctx $Ctx -Content (ConvertTo-ClaudeSettingsJson -Permissions $permissions -Hooks $hooks -Stack $Stack) -RelDest ".claude\settings.json" -Cmdlet $Cmdlet
+    Install-KitRendered -Ctx $Ctx -Content (ConvertTo-GeminiSettingsJson -Hooks $hooks -Stack $Stack) -RelDest ".gemini\settings.json" -Cmdlet $Cmdlet
 
     $codexHooks = ConvertTo-CodexHooksJson -Hooks $hooks -Stack $Stack
     if ($codexHooks) {
@@ -496,7 +533,7 @@ function Install-KitUnityContent {
 }
 
 function Install-KitUsageReporter {
-    # Ships the Claude Code usage/cost reporter (Stop hook target) and its
+    # Ships the local usage/cost reporter hook target and its
     # bundled price snapshot. Stack-agnostic: used by both content sets.
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute("PSShouldProcess", "")]
     param(

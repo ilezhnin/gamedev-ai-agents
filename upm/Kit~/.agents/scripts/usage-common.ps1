@@ -181,6 +181,9 @@ function Get-ModelPrice {
     # Dated snapshot ids (claude-haiku-4-5-20251001) fall back to the alias.
     $stripped = $Model -replace "[-@]\d{8}$", ""
     if ($stripped -ne $Model -and $Models.ContainsKey($stripped)) { return $Models[$stripped] }
+    foreach ($key in @($Models.Keys | Sort-Object -Property Length -Descending)) {
+        if ($Model.StartsWith([string]$key, [System.StringComparison]::OrdinalIgnoreCase)) { return $Models[$key] }
+    }
     return $null
 }
 
@@ -230,7 +233,7 @@ function Update-PriceCache {
         }
         $models = [ordered]@{}
         foreach ($key in @($data.Keys)) {
-            if ($key -notmatch "^(claude-|gpt-|o[0-9]|chatgpt-)") { continue }
+            if ($key -notmatch "^(claude-|gpt-|o[0-9]|chatgpt-|gemini-)") { continue }
             $entry = $data[$key]
             if (-not $entry -or -not $entry.ContainsKey("input_cost_per_token") -or -not $entry.ContainsKey("output_cost_per_token")) { continue }
             $inCost = $entry["input_cost_per_token"]
@@ -381,6 +384,24 @@ function ConvertFrom-CodexTokenCount {
     }
 }
 
+function Get-CodexSessionRoots {
+    $roots = New-Object "System.Collections.Generic.List[string]"
+    $candidates = @()
+    if (-not [string]::IsNullOrWhiteSpace($env:CODEX_HOME)) { $candidates += $env:CODEX_HOME }
+    if (-not [string]::IsNullOrWhiteSpace($HOME)) { $candidates += (Join-Path $HOME ".codex") }
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) { $candidates += (Join-Path $env:USERPROFILE ".codex") }
+    $profile = [Environment]::GetFolderPath("UserProfile")
+    if (-not [string]::IsNullOrWhiteSpace($profile)) { $candidates += (Join-Path $profile ".codex") }
+    foreach ($candidate in $candidates) {
+        if ([string]::IsNullOrWhiteSpace($candidate)) { continue }
+        $sessions = Join-Path $candidate "sessions"
+        if ((Test-Path -LiteralPath $sessions) -and -not $roots.Contains($sessions)) {
+            [void]$roots.Add($sessions)
+        }
+    }
+    return @($roots)
+}
+
 function Get-CodexRolloutRecords {
     param(
         [string] $ProjectRoot,
@@ -396,12 +417,21 @@ function Get-CodexRolloutRecords {
     }
     if ([string]::IsNullOrWhiteSpace($ProjectRoot) -or [string]::IsNullOrWhiteSpace($UsageDir)) { return $result }
 
-    $userRoot = $env:USERPROFILE
-    if ([string]::IsNullOrWhiteSpace($userRoot)) { $userRoot = [Environment]::GetFolderPath("UserProfile") }
-    if ([string]::IsNullOrWhiteSpace($userRoot)) { return $result }
+    $sessionRoots = @(Get-CodexSessionRoots)
+    if ($sessionRoots.Count -eq 0) { return $result }
 
-    $sessionsRoot = Join-Path $userRoot ".codex\sessions"
-    if (-not (Test-Path -LiteralPath $sessionsRoot)) { return $result }
+    $historySessions = New-Object "System.Collections.Generic.HashSet[string]"
+    $historyPath = Join-Path $UsageDir "history.jsonl"
+    if (Test-Path -LiteralPath $historyPath) {
+        foreach ($line in [System.IO.File]::ReadAllLines($historyPath)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            $record = $null
+            try { $record = $line | ConvertFrom-Json } catch { $record = $null }
+            if ($record -and $record.platform -eq "codex" -and $record.sessionId) {
+                [void]$historySessions.Add([string]$record.sessionId)
+            }
+        }
+    }
 
     $statePath = Join-Path $UsageDir "codex-scan-state.json"
     $stateFiles = @{}
@@ -420,7 +450,10 @@ function Get-CodexRolloutRecords {
     $formatUnknown = $false
     $matchingFiles = 0
 
-    $files = @(Get-ChildItem -LiteralPath $sessionsRoot -Recurse -File -Filter "rollout-*.jsonl" -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTimeUtc -ge $cutoff })
+    $files = @()
+    foreach ($sessionsRoot in $sessionRoots) {
+        $files += @(Get-ChildItem -LiteralPath $sessionsRoot -Recurse -File -Filter "rollout-*.jsonl" -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTimeUtc -ge $cutoff })
+    }
     foreach ($file in $files) {
         $path = $file.FullName
         $lines = $null
@@ -435,6 +468,8 @@ function Get-CodexRolloutRecords {
             continue
         }
         if ((ConvertTo-CodexComparablePath -Path ([string]$first.payload.cwd)) -ne $rootKey) { continue }
+        $sessionId = [System.IO.Path]::GetFileNameWithoutExtension($path)
+        if ($first.payload.PSObject.Properties["id"] -and $first.payload.id) { $sessionId = [string]$first.payload.id }
 
         $matchingFiles++
         $fileState = $null
@@ -546,9 +581,7 @@ function Get-CodexRolloutRecords {
                 })
         }
 
-        if ($rows.Count -gt 0) {
-            $sessionId = [System.IO.Path]::GetFileNameWithoutExtension($path)
-            if ($first.payload.PSObject.Properties["id"] -and $first.payload.id) { $sessionId = [string]$first.payload.id }
+        if ($rows.Count -gt 0 -and -not $historySessions.Contains($sessionId)) {
             $recordTs = $file.LastWriteTimeUtc
             if ($lastTs) { $recordTs = $lastTs }
             Add-HistoryRecord -UsageDir $UsageDir -Record ([ordered]@{
@@ -564,6 +597,7 @@ function Get-CodexRolloutRecords {
                     assistantMessages = [int]$assistantMessages
                     rows              = $rows
                 })
+            [void]$historySessions.Add($sessionId)
             $result.records = [int]$result.records + 1
         }
 

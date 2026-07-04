@@ -185,7 +185,7 @@ function New-WindowSummary {
 
     $totals = New-MetricAccumulator
     $perPlatform = @{}
-    foreach ($platformName in @("claude", "codex")) { $perPlatform[$platformName] = New-MetricAccumulator }
+    foreach ($platformName in @("claude", "codex", "gemini")) { $perPlatform[$platformName] = New-MetricAccumulator }
     $models = @{}
     $roles = @{}
 
@@ -431,10 +431,14 @@ function Invoke-UsageStats {
 
     $claudeLast = $null
     $codexLast = $null
+    $geminiLast = $null
     if ($history.lastByPlatform.ContainsKey("claude")) { $claudeLast = $history.lastByPlatform["claude"].ToUniversalTime().ToString("o", $script:Inv) }
     if ($history.lastByPlatform.ContainsKey("codex")) { $codexLast = $history.lastByPlatform["codex"].ToUniversalTime().ToString("o", $script:Inv) }
+    if ($history.lastByPlatform.ContainsKey("gemini")) { $geminiLast = $history.lastByPlatform["gemini"].ToUniversalTime().ToString("o", $script:Inv) }
     $claudeStatus = "no-data"
     if ($claudeLast) { $claudeStatus = "ok" }
+    $geminiStatus = "no-data"
+    if ($geminiLast) { $geminiStatus = "ok" }
     if ($codexLast -and $codexStatus -ne "disabled" -and $codexStatus -ne "format-unknown") { $codexStatus = "ok" }
 
     $summary = [ordered]@{
@@ -445,6 +449,7 @@ function Invoke-UsageStats {
         platforms      = @(
             [ordered]@{ platform = "claude"; status = $claudeStatus; lastActivityUtc = $claudeLast },
             [ordered]@{ platform = "codex"; status = $codexStatus; lastActivityUtc = $codexLast },
+            [ordered]@{ platform = "gemini"; status = $geminiStatus; lastActivityUtc = $geminiLast },
             [ordered]@{ platform = "antigravity"; status = "unsupported"; lastActivityUtc = $null }
         )
         windows        = [ordered]@{
