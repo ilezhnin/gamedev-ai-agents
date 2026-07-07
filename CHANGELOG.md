@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.16 - 2026-07-07
+
+### Changed
+- Expanded `codebase-audit` with explicit lanes for overengineering, silent fallbacks that mask root causes, and Unity runtime authoring that should live in scenes, prefabs, or assets.
+- Expanded `arch-audit` to flag speculative abstractions, dishonest fallback behavior, and runtime object/component/UI setup that belongs in stable Unity authoring assets.
+
 ## 0.4.15 - 2026-07-07
 
 ### Fixed

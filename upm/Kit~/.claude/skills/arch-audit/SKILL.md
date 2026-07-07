@@ -1,6 +1,6 @@
 ---
 name: arch-audit
-description: Audit a module or system architecture and produce a dependency-ordered, developer-ready refactor backlog. Use when the user asks for an architecture audit or review, a module cleanup or decomposition plan, dependency untangling, boundary analysis, says the code became spaghetti or a god class, or wants a refactor planned before anyone edits code.
+description: Audit a module or system architecture and produce a dependency-ordered, developer-ready refactor backlog. Use when the user asks for an architecture audit or review, a module cleanup or decomposition plan, dependency untangling, boundary analysis, overengineering analysis, silent fallback cleanup, Unity runtime authoring cleanup, says the code became spaghetti or a god class, or wants a refactor planned before anyone edits code.
 ---
 
 # Architecture Audit
@@ -9,7 +9,7 @@ description: Audit a module or system architecture and produce a dependency-orde
 
 Inspect a whole module or system - not just the open file - and produce a developer-ready Markdown plan a lead can execute and delegate. This skill plans; it does not implement. Output goes to `docs/tickets/<module>-architecture-audit.md` (create `docs/tickets/` when missing).
 
-If the user wants a read-only bug/security/determinism audit report instead of an architecture refactor backlog, use `$codebase-audit` instead.
+If the user wants a read-only issue report for overengineering, bugs, security, silent fallbacks, runtime authoring, rollback, or determinism instead of an architecture refactor backlog, use `$codebase-audit` instead.
 
 ## Principles Lens
 
@@ -19,7 +19,8 @@ When the project ships an `ARCHITECTURE.md`, that contract is the primary standa
 - **KISS / DRY**: the simplest shape that solves the problem; duplication is a finding only when the copies must evolve together.
 - **Systems hierarchy**: decompose into systems and subsystems, each isolated with one public API and one entry point, so a subsystem can be replaced, extended, or tested alone.
 - **Patterns where they pay**: use Gang of Four patterns when they remove real coupling or duplication (factory for families, strategy for swappable policy, observer for decoupled events, adapter at boundaries). Naming a pattern is never a justification by itself.
-- **Anti-overengineering**: no abstractions or entities for their own sake. Delete before abstracting. A new interface, facade, registry, or helper must pay for itself by removing duplication or creating a boundary with multiple real call sites. Public surface is a liability: a public member with one internal caller is a private detail. Compatibility wrappers must have an owner and a removal condition.
+- **Anti-overengineering**: no abstractions or entities for their own sake. Delete before abstracting. A new interface, facade, registry, factory, event bus, or helper must pay for itself by removing duplication or creating a boundary with multiple real call sites. Public surface is a liability: a public member with one internal caller is a private detail. Compatibility wrappers must have an owner and a removal condition.
+- **Failure honesty**: broken required references, invalid config, bad content, failed migrations, and external operation failures must fail loudly at the right boundary. Silent fallbacks, best-effort no-ops, broad catches, scene-wide searches, runtime repair, and default substitution are findings unless they are deliberate, documented, tested degraded-mode behavior.
 - **One file - one entity**: a hard rule with no exceptions - every type lives in its own file named after it; nested types (including private ones) are findings that go into the backlog as extraction tasks.
 - **Economical growth**: before proposing new code, check what already exists and whether less code solves it. A cleanup pass should be neutral or negative in production code; net-new code needs an explicit reason.
 
@@ -28,7 +29,7 @@ When the project ships an `ARCHITECTURE.md`, that contract is the primary standa
 1. **Inventory**: list every file in the target module; classify by responsibility: public API, runtime orchestration, domain model, content/data loading, presentation/view, diagnostics, adapters, tests, documentation.
 2. **Dependency map**: which subsystems know about each other; which dependencies violate boundaries (UI mutating runtime internals, algorithms consuming foreign types directly, diagnostics reaching into runtime fields). In Unity, read asmdef references; missing asmdefs in a growing module is itself a finding.
 3. **Trace flows**: initialization, loading, command execution, per-frame/per-request work, presentation, diagnostics, shutdown, reload, failure, retry.
-4. **State ownership**: one owner and one mutation path per mutable state. Find duplicated state, hidden mutation paths, cache ownership gaps, lifecycle races, silent failures.
+4. **State ownership**: one owner and one mutation path per mutable state. Find duplicated state, hidden mutation paths, cache ownership gaps, lifecycle races, silent failures, and fallback paths that hide authoring or wiring defects.
 5. **Target architecture**: define it as narrow public ports, internal services, domain models, adapters, diagnostics read models, and tests. Every subsystem gets one public API/entry point; cross-module data enters through adapters and becomes module-owned.
 6. **Backlog**: dependency-ordered tasks in the format from `references/audit-process.md` (stable ID, severity, depends-on, scope, non-goals, work, acceptance criteria, required tests, verification, rollback note). Behavior and ownership fixes before broad cleanup.
 7. **Verification plan**: builds, focused tests, source-level boundary scans, `git diff --check`, and Unity/editor or service constraints.
@@ -38,6 +39,7 @@ When the project ships an `ARCHITECTURE.md`, that contract is the primary standa
 
 - Unity: asmdefs are the boundary enforcement mechanism - runtime/editor/tests split per module, no cycles, minimal references. Propose introducing them where a module has outgrown `Assembly-CSharp`; do not propose removing them as cleanup.
 - Unity: gameplay-critical findings include nondeterminism (render-frame coupling, wall-clock time, unordered iteration, static random) and serialized-contract risks.
+- Unity: stable object hierarchies, serialized fields, UI layouts, materials, and component composition belong in scenes, prefabs, or assets. Runtime construction/configuration is a finding unless the object is genuinely spawned, pooled, data-driven, or variable at runtime.
 - Backend: composition root and DI registrations are the wiring boundary; SDK types leaking through gameplay/service-facing APIs are boundary findings; migrations and persisted contracts get the same versioning discipline as save data.
 
 ## Stop Conditions

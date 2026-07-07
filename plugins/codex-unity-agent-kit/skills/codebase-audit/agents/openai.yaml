@@ -1,4 +1,4 @@
 interface:
   display_name: "Codebase Audit"
   short_description: "Read-only risk audit with written findings."
-  default_prompt: "Use $codebase-audit to audit this project for code quality, bugs, security, rollback readiness, and determinism without changing files."
+  default_prompt: "Use $codebase-audit to audit this project for code quality, overengineering, silent fallbacks, Unity runtime authoring, bugs, security, rollback readiness, and determinism without changing files."

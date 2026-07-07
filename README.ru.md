@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.15-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.16-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -124,8 +124,8 @@ Unity (`unity-...`):
 | --- | --- |
 | `planning` | Пишет `.agents/plans/active_plan.md` + `task_list.md` до исполнения |
 | `crossworking` | Цикл доставки между агентами: план -> реализация -> валидация -> ревью -> PR |
-| `arch-audit` | Аудит архитектуры модуля -> упорядоченный по зависимостям бэклог рефакторинга (через призму SOLID/KISS/DRY) |
-| `codebase-audit` | Аудит всего проекта без правок с отдельным отчётом по находкам |
+| `arch-audit` | Аудит архитектуры модуля -> упорядоченный по зависимостям бэклог рефакторинга (SOLID/KISS/DRY, fallbacks, runtime authoring) |
+| `codebase-audit` | Аудит всего проекта без правок: overengineering, fallbacks, runtime authoring, security, rollback, determinism |
 | `grill-me` | Безжалостный стресс-тест плана и дизайна до реализации |
 | `create-mr` | Проверить, закоммитить, запушить, открыть PR/MR; conventional commits |
 | `learn` | Сохранение переиспользуемых уроков в AGENTS.md / learnings / скиллы |

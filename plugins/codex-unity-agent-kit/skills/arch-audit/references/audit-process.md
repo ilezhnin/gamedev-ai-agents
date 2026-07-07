@@ -33,6 +33,8 @@ Rules:
 - A cleanup pass is neutral or negative in production code by default. Record the production-code balance; a pass that grows code must be reworked, split, or justified explicitly.
 - Ownership first, extraction second: move or split code only after the real owner is obvious from call sites, invariants, lifecycle, and data flow.
 - Delete before abstracting. Prefer negative-only changes: remove false public surface, dead shortcuts, duplicate state, stale compatibility wrappers, one-use helpers.
+- Remove silent fallbacks that hide broken wiring, invalid content, or failed operations; replace them with explicit validation, typed failure, or documented degraded-mode behavior.
+- In Unity modules, move stable object/component/UI setup back to scenes, prefabs, or assets when runtime construction is only compensating for missing authoring.
 - Do not change runtime behavior as a side effect of cleanup; behavior changes are separate explicit tasks.
 - Audit call sites with source search before removing or widening any public member.
 - Convenience members (`Empty` values, `With*` clones, `Can*` probes, extra overloads) need multiple real call sites or a protected invariant.

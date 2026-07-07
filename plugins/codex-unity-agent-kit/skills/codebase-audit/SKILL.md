@@ -1,6 +1,6 @@
 ---
 name: codebase-audit
-description: Run a read-only whole-project issue audit and write a separate report without changing the project. Use when the user asks to analyze a Unity, C# game, or ASP.NET codebase for code quality, bugs, vulnerabilities, security checks, rollback/save/GGPO readiness, strict determinism, or asks to split audit work across subagents by block, module, or file.
+description: Run a read-only whole-project issue audit and write a separate report without changing the project. Use when the user asks to analyze a Unity, C# game, or ASP.NET codebase for code quality, overengineering, bugs, vulnerabilities, security checks, silent fallbacks, runtime Unity object/field authoring, rollback/save/GGPO readiness, strict determinism, or asks to split audit work across subagents by block, module, or file.
 ---
 
 # Codebase Audit
@@ -21,7 +21,7 @@ Find real project risks without modifying source, scenes, assets, settings, lock
 
 1. **Scope**: identify stack and boundaries. Unity projects have `Assets/`, `Packages/`, and `ProjectSettings/`; backend projects have `.sln`, `.slnx`, `.csproj`, `src/`, `tests/`, and deployment/config files.
 2. **Inventory**: map project-owned modules, tests, package manifests, persistence/save/database code, auth boundaries, networking, deterministic simulation paths, and CI/validation commands.
-3. **Decompose**: for broad audits, use subagents when available. Split by high-risk module or by audit lane: code quality, bugs, vulnerabilities, security check, rollback/save/GGPO readiness, and strict determinism.
+3. **Decompose**: for broad audits, use subagents when available. Split by high-risk module or by audit lane: code quality, overengineering, bugs, vulnerabilities, security check, silent fallbacks, Unity runtime authoring, rollback/save/GGPO readiness, and strict determinism.
 4. **Delegate read-only**: each subagent must inspect fresh files, avoid edits, cite evidence, report "none found" when clean, and name skipped areas. Do not pass parent conclusions into reviewer prompts.
 5. **Synthesize**: deduplicate overlapping findings, reject weak claims, order by severity, and preserve minority reports as "needs verification" when evidence is incomplete.
 6. **Report**: write the Markdown report to the chosen path and state that no project files were changed besides the report.
@@ -34,11 +34,29 @@ Find real project risks without modifying source, scenes, assets, settings, lock
 - Maintainability defects: duplicated mutable state, complex control flow, unowned compatibility wrappers, dead code with live references, oversized files, nested types, and test-hostile design at real nondeterministic boundaries.
 - Project consistency: deviations from local naming, lifecycle, error handling, dependency, and documentation contracts when they create real maintenance risk.
 
+### Overengineering
+
+- Flag abstractions that do not pay rent: one-implementation interfaces, speculative facades/registries/factories, public APIs with one internal caller, decorative patterns, and compatibility wrappers without an owner and removal condition.
+- Prefer deletion or narrowing before new structure. A cleanup/refactor that grows production code needs a concrete boundary, duplicated invariant, test seam, or multiple real call sites.
+- In Unity, check for new managers, services, event buses, reflection/config layers, or ScriptableObject registries that bypass simpler serialized references, prefab composition, or existing project-owned extension points.
+
 ### Bugs
 
 - Unity: lifecycle races, missing unsubscribe/cancel paths, `Update` vs `FixedUpdate` drift, coroutine/async lifetime bugs, serialization renames without compatibility, prefab/scene reference risks, save migration mistakes, and UI/input edge cases.
 - Backend: broken route/DTO/status contracts, null/empty/error path defects, transaction gaps, race conditions, non-idempotent retries, migration/data-loss risks, background-worker shutdown bugs, and test coverage that misses changed behavior.
 - Shared C#: exception swallowing, invalid default values, stale caches, unordered mutation paths, culture/timezone bugs, and concurrency hazards.
+
+### Silent Fallbacks
+
+- Flag broad catches, null-swallowing, default asset/config substitution, empty IDs as failure markers, best-effort no-ops, scene-wide searches, and runtime repair paths that hide broken authoring, wiring, migrations, or external operations.
+- Accept fallback behavior only when it is deliberate product behavior with a named owner, telemetry/logging, tests, and documented user-facing/degraded-mode semantics.
+- Prefer fail-fast validation at editor/build/startup boundaries for required references, catalogs, save schemas, config, auth policy, and network contracts.
+
+### Unity Runtime Authoring
+
+- Flag runtime construction or configuration of GameObjects, components, UI layouts, serialized fields, materials, ScriptableObject-like data, tags/layers, or prefab hierarchies when the same stable structure could be authored once in a scene, prefab, or asset.
+- Runtime `Instantiate` is acceptable for existing prefabs, pooled views, spawned gameplay objects, dynamic content, or data-driven rows. Assembling raw `GameObject`/`RectTransform`/component trees in code needs a specific runtime variability reason.
+- Check for `AddComponent`, `new GameObject`, repeated `GetComponent`, `Find*`, Resources loads, or default-value wiring used to compensate for missing prefab/scene references; these are findings when they mask authoring defects.
 
 ### Vulnerabilities
 
