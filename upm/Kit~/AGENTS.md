@@ -174,6 +174,7 @@ Route by situation before acting. No task is "too small for a skill" - routing k
 | New game or feature idea, needs a design contract first | `$gdd` |
 | Placeholder/concept art, public asset sourcing, generated assets, or Unity import setup | `$asset-pipeline` |
 | Module became spaghetti, needs an architecture audit and refactor backlog | `$arch-audit` |
+| Read-only whole-project issue audit, no project changes, separate report | `$codebase-audit` |
 | Task needs a written plan or agent handoff | `$planning` |
 | Implement or refactor C# | `$unity-implement` |
 | Bootstrap or author tests, especially in legacy code | `$unity-tests` |

@@ -9,6 +9,8 @@ description: Audit a module or system architecture and produce a dependency-orde
 
 Inspect a whole module or system - not just the open file - and produce a developer-ready Markdown plan a lead can execute and delegate. This skill plans; it does not implement. Output goes to `docs/tickets/<module>-architecture-audit.md` (create `docs/tickets/` when missing).
 
+If the user wants a read-only bug/security/determinism audit report instead of an architecture refactor backlog, use `$codebase-audit` instead.
+
 ## Principles Lens
 
 When the project ships an `ARCHITECTURE.md`, that contract is the primary standard to audit against; the lens below is the baseline that applies with or without it. Judge everything through these, by name, in the findings:

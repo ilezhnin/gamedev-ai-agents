@@ -9,6 +9,8 @@ description: Review C# backend and ASP.NET changes for correctness, security, da
 
 Review backend changes like a service owner. Default role: `backend-reviewer`. Lead with concrete bugs, security risks, data-loss risks, contract regressions, and missing validation.
 
+If the request is not a diff, PR, branch, or local-change review and asks for a read-only whole-project issue audit or separate report, use `$codebase-audit` instead.
+
 ## Review Workflow
 
 1. Determine the diff scope with `git diff`, changed files, or the provided PR context before reading broadly.

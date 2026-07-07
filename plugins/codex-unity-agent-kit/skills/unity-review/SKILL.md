@@ -9,6 +9,8 @@ description: Review Unity and C# changes for correctness. Use when asked to revi
 
 Review like a Unity code owner. Default role: `unity-reviewer`. Lead with concrete bugs and regression risks, then mention test gaps and residual risk.
 
+If the request is not a diff, PR, branch, or local-change review and asks for a read-only whole-project issue audit or separate report, use `$codebase-audit` instead.
+
 ## Review Workflow
 
 1. Determine the diff scope before reading broadly.

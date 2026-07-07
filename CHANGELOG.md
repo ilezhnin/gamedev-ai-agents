@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.13 - 2026-07-07
+
+### Added
+- Added the shared `codebase-audit` skill for read-only whole-project issue audits across Unity and C#/ASP.NET projects. The audit covers code quality, bugs, vulnerabilities, security checks, rollback/save/GGPO readiness, and strict determinism, uses subagents for broad lanes when available, and writes a separate report without modifying project files.
+
+### Changed
+- Routed Unity and backend project templates, review skills, architecture audits, and crossworking away from delivery/review workflows and toward `codebase-audit` when the user asks for a read-only project audit report. Unity and backend installs now both include the new shared skill.
+
 ## 0.4.12 - 2026-07-03
 
 ### Added

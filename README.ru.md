@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.2-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.13-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -26,7 +26,7 @@
 
 - **Установка за 2 минуты** - один git URL в Unity Package Manager, кнопка Install, готово.
 - **От идеи до играбельного** - `gdd` превращает идею в одну строку в дизайн-контракт; `game-pipeline` исполняет его через этапы с гейтами. Каждый майлстоун заканчивается играбельным состоянием: компилируется, PlayMode стартует чисто, новая механика доступна в игре.
-- **26 скиллов** для реальной геймдев-работы: поиск и генерация ассетов, мерджи сцен и префабов, EditMode/PlayMode тесты, разбор IL2CPP-сборок, профилирование с бюджетами, автоматизация редактора через MCP, поэтапные апгрейды.
+- **27 скиллов** для реальной геймдев-работы: поиск и генерация ассетов, аудит кодовой базы, мерджи сцен и префабов, EditMode/PlayMode тесты, разбор IL2CPP-сборок, профилирование с бюджетами, автоматизация редактора через MCP, поэтапные апгрейды.
 - **Студия ролей** - геймдизайнер, специалисты по ассетам, продюсер, архитектор, QA, devops, плюс воркеры, ревьюеры и исследователи - рендерятся нативно для каждой платформы.
 - **Платформонезависимость by design** - один канон, тонкие рендеренные адаптеры. Всё состояние живёт в файлах репозитория, поэтому переключение Codex <-> Claude Code <-> Gemini CLI <-> Antigravity посреди задачи ничего не теряет.
 - **Безопасный жизненный цикл** - установка по hash-манифесту: обновление трогает только немодифицированные файлы, ваши правки всегда выживают, деинсталляция удаляет ровно то, что ставил кит.
@@ -125,6 +125,7 @@ Unity (`unity-...`):
 | `planning` | Пишет `.agents/plans/active_plan.md` + `task_list.md` до исполнения |
 | `crossworking` | Цикл доставки между агентами: план -> реализация -> валидация -> ревью -> PR |
 | `arch-audit` | Аудит архитектуры модуля -> упорядоченный по зависимостям бэклог рефакторинга (через призму SOLID/KISS/DRY) |
+| `codebase-audit` | Аудит всего проекта без правок с отдельным отчётом по находкам |
 | `grill-me` | Безжалостный стресс-тест плана и дизайна до реализации |
 | `create-mr` | Проверить, закоммитить, запушить, открыть PR/MR; conventional commits |
 | `learn` | Сохранение переиспользуемых уроков в AGENTS.md / learnings / скиллы |
@@ -178,7 +179,7 @@ Codex, Claude Code и Gemini CLI получают рабочие хуки для
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<путь-к-unity-проекту>"
 ```
 
-Ставит контракты шаблона, 20 Unity+общих скиллов в `.agents/skills/` и `.claude/skills/`, рендерит все платформенные адаптеры из канона и пишет `.agents/kit-manifest.json`. Цель должна содержать `Assets/` и `ProjectSettings/` (обход: `-AllowNonUnityTarget`).
+Ставит контракты шаблона, 21 Unity+общий скилл в `.agents/skills/` и `.claude/skills/`, рендерит все платформенные адаптеры из канона и пишет `.agents/kit-manifest.json`. Цель должна содержать `Assets/` и `ProjectSettings/` (обход: `-AllowNonUnityTarget`).
 
 **C# ASP.NET бэкенд** (игровые серверы, сервисы):
 
@@ -186,7 +187,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-proj
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-aspnet-project-template.ps1 -TargetProject "<путь-к-бэкенду>"
 ```
 
-Та же форма: бэкенд-контракты, 12 backend+общих скиллов, рендеренные адаптеры. Цель должна содержать `.sln`, `.slnx` или `.csproj` (обход: `-AllowNonDotnetTarget`).
+Та же форма: бэкенд-контракты, 13 backend+общих скиллов, рендеренные адаптеры. Цель должна содержать `.sln`, `.slnx` или `.csproj` (обход: `-AllowNonDotnetTarget`).
 
 **Глобальный профиль** (опционально, инженерная дисциплина для всех проектов):
 
@@ -194,7 +195,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-asp
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1
 ```
 
-Ставит профиль `unity-codex` в `~/.codex` (запуск: `codex --profile unity-codex`). `-InstallAgentsMd` активирует полную глобальную дисциплину из 18 разделов (существующий файл бэкапится), `-InstallSkills` копирует все 26 скиллов в пользовательский скоуп, `-InstallClaude` добавляет глобальный слой Claude Code, `-InstallWslSkills` покрывает Codex под WSL.
+Ставит профиль `unity-codex` в `~/.codex` (запуск: `codex --profile unity-codex`). `-InstallAgentsMd` активирует полную глобальную дисциплину из 18 разделов (существующий файл бэкапится), `-InstallSkills` копирует все 27 скиллов в пользовательский скоуп, `-InstallClaude` добавляет глобальный слой Claude Code, `-InstallWslSkills` покрывает Codex под WSL.
 
 **Маркетплейс плагинов Codex**:
 
@@ -243,7 +244,7 @@ templates/
                            DEPENDENCIES.md; .claude/CLAUDE.md, .cursor/, .codex/config.toml
   csharp-aspnet-project/   та же форма для ASP.NET
 plugins/
-  codex-unity-agent-kit/   плагин: 26 скиллов (единый источник правды)
+  codex-unity-agent-kit/   плагин: 27 скиллов (единый источник правды)
 upm/                       обёртка Unity Package Manager: окно установки +
                            пре-рендеренный payload в Kit~ (генерируется, руками не правится)
 .agents/plugins/           локальный маркетплейс, указывающий на плагин

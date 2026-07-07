@@ -7,7 +7,7 @@ description: Coordinate a planned task across agents from planning through conte
 
 ## Goal
 
-Run a controlled delivery loop for a task that has a plan or needs one. The parent agent stays responsible for decisions, while workers implement, reviewers inspect, validators test, and create-mr prepares the Pull Request / Merge Request.
+Run a controlled delivery loop for a task that has a plan or needs one. The parent agent stays responsible for decisions, while workers implement, reviewers inspect, validators test, and create-mr prepares the Pull Request / Merge Request. For read-only project issue audits and reports with no implementation, use `$codebase-audit` instead.
 
 ## Required Artifacts
 

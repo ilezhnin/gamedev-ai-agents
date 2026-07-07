@@ -90,6 +90,7 @@ Route by situation before acting. No task is "too small for a skill" - routing k
 | Unfamiliar solution or service area, need the right files | `$backend-orient` |
 | Unclear requirements, risky design, plan needs stress-testing | `$grill-me` |
 | Module became spaghetti, needs an architecture audit and refactor backlog | `$arch-audit` |
+| Read-only whole-project issue audit, no project changes, separate report | `$codebase-audit` |
 | Task needs a written plan or agent handoff | `$planning` |
 | Implement or refactor backend C# | `$backend-implement` |
 | Bootstrap or author tests (unit, WebApplicationFactory, Testcontainers) | `$backend-tests` |

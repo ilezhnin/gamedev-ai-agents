@@ -4,7 +4,7 @@
 $script:KitRoot = Split-Path -Parent $PSScriptRoot
 $script:PluginSkillsRoot = Join-Path $script:KitRoot "plugins\codex-unity-agent-kit\skills"
 
-$script:SharedSkills = @("planning", "crossworking", "arch-audit", "create-mr", "grill-me", "learn")
+$script:SharedSkills = @("planning", "crossworking", "arch-audit", "codebase-audit", "create-mr", "grill-me", "learn")
 $script:UnitySkills = @("unity-orient", "unity-implement", "unity-review", "unity-validate", "unity-debug", "unity-mcp", "unity-merge", "unity-build", "unity-upgrade", "unity-profile", "unity-tests", "gdd", "game-pipeline", "asset-pipeline")
 $script:BackendSkills = @("backend-orient", "backend-implement", "backend-review", "backend-validate", "backend-debug", "backend-tests")
 

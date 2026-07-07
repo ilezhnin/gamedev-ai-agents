@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.2-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.13-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -26,7 +26,7 @@ This kit turns your AI coding agent - OpenAI Codex, Anthropic Claude Code, Googl
 
 - **2-minute install** - add one git URL in Unity Package Manager, click Install, done.
 - **Idea to playable** - `gdd` turns a one-line idea into a design contract; `game-pipeline` executes it through gated stages. Every milestone ends playable: compiles, PlayMode enters clean, the new mechanic is reachable in-game.
-- **26 skills** for real gamedev work: asset sourcing/generation, scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
+- **27 skills** for real gamedev work: asset sourcing/generation, codebase audits, scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
 - **A studio of roles** - game designer, asset specialists, producer, architect, QA, devops, plus workers, reviewers, and researchers - rendered natively for every platform.
 - **Platform-independent by design** - one canon, thin rendered adapters. All state lives in repo files, so switching Codex <-> Claude Code <-> Gemini CLI <-> Antigravity mid-task loses nothing.
 - **Safe lifecycle** - hash-manifest installs: updates refresh only unmodified files, your local edits always survive, uninstall removes exactly what the kit shipped.
@@ -125,6 +125,7 @@ Shared:
 | `planning` | Writes `.agents/plans/active_plan.md` + `task_list.md` before execution |
 | `crossworking` | Delivery loop across agents: plan -> implement -> validate -> review -> PR |
 | `arch-audit` | Module architecture audit -> dependency-ordered refactor backlog (SOLID/KISS/DRY lens) |
+| `codebase-audit` | Read-only whole-project issue audit with a separate findings report |
 | `grill-me` | Relentless plan and design stress-testing before implementation |
 | `create-mr` | Verify, commit, push, open the PR/MR; conventional commits |
 | `learn` | Capture reusable lessons into AGENTS.md / learnings / skills |
@@ -178,7 +179,7 @@ All scripted installers support `-Update`, `-Force`, `-Portable`, and `-WhatIf` 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path-to-unity-project>"
 ```
 
-Installs the template contracts, the 20 Unity+shared skills into `.agents/skills/` and `.claude/skills/`, renders all platform adapters from the canon, and writes `.agents/kit-manifest.json`. The target must contain `Assets/` and `ProjectSettings/` (`-AllowNonUnityTarget` to override).
+Installs the template contracts, the 21 Unity+shared skills into `.agents/skills/` and `.claude/skills/`, renders all platform adapters from the canon, and writes `.agents/kit-manifest.json`. The target must contain `Assets/` and `ProjectSettings/` (`-AllowNonUnityTarget` to override).
 
 **C# ASP.NET backend project** (game servers, services):
 
@@ -186,7 +187,7 @@ Installs the template contracts, the 20 Unity+shared skills into `.agents/skills
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-aspnet-project-template.ps1 -TargetProject "<path-to-backend-project>"
 ```
 
-Same shape: backend contracts, the 12 backend+shared skills, rendered adapters. The target must contain a `.sln`, `.slnx`, or `.csproj` (`-AllowNonDotnetTarget` to override).
+Same shape: backend contracts, the 13 backend+shared skills, rendered adapters. The target must contain a `.sln`, `.slnx`, or `.csproj` (`-AllowNonDotnetTarget` to override).
 
 **Global profile** (optional, engineering discipline for all projects):
 
@@ -194,7 +195,7 @@ Same shape: backend contracts, the 12 backend+shared skills, rendered adapters. 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1
 ```
 
-Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 26 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
+Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 27 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
 
 **Codex plugin marketplace**:
 
@@ -243,7 +244,7 @@ templates/
                            DEPENDENCIES.md; .claude/CLAUDE.md, .cursor/, .codex/config.toml
   csharp-aspnet-project/   same shape for ASP.NET
 plugins/
-  codex-unity-agent-kit/   the plugin: 26 skills (single source of truth)
+  codex-unity-agent-kit/   the plugin: 27 skills (single source of truth)
 upm/                       Unity Package Manager wrapper: editor setup window +
                            pre-rendered payload in Kit~ (generated, never hand-edited)
 .agents/plugins/           local marketplace pointing at the plugin
