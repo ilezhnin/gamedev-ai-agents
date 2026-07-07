@@ -3,8 +3,8 @@
 # Default mode runs as a lifecycle hook for Claude Code, Codex, and Gemini CLI:
 # it reads the hook JSON from stdin, incrementally parses local transcripts or
 # telemetry, aggregates token usage per model and role, prices it as an
-# API-equivalent estimate, writes .agents/usage/last-report.md and history, and
-# also returns a compact report through systemMessage when the client shows it.
+# API-equivalent estimate, writes global/platform/session usage reports plus
+# history, and also returns a compact report through systemMessage when the client shows it.
 # usage-footer.ps1 is the visible final-response path for clients that hide
 # hook systemMessage output.
 # Everything comes from files already on disk: zero extra LLM tokens, zero API calls.
@@ -580,7 +580,7 @@ function Invoke-UsageReport {
     $lines += ("  prices: " + $prices.sourceLabel + " | API-equivalent estimate, not billing")
 
     Save-ReportState -Path $statePath -State $state -SeenOrder $seenOrder
-    Write-LastReport -UsageDir $usageDir -TurnLines $lines -State $state -Prices $prices -SessionId $sessionId
+    Write-LastReport -UsageDir $usageDir -TurnLines $lines -State $state -Prices $prices -SessionId $sessionId -PlatformName $platformName
 
     $message = ($lines -join "`n")
     Write-Output (@{ systemMessage = $message } | ConvertTo-Json -Compress)
@@ -631,11 +631,20 @@ function Save-ReportState {
         })
 }
 
+function ConvertTo-UsageReportSafeName {
+    param([string] $Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return "unknown" }
+    $safe = [regex]::Replace($Value, "[^A-Za-z0-9._-]", "_")
+    if ($safe.Length -gt 80) { $safe = $safe.Substring(0, 80) }
+    return $safe
+}
+
 function Write-LastReport {
-    param([string] $UsageDir, [string[]] $TurnLines, [hashtable] $State, [hashtable] $Prices, [string] $SessionId)
+    param([string] $UsageDir, [string[]] $TurnLines, [hashtable] $State, [hashtable] $Prices, [string] $SessionId, [string] $PlatformName)
     $lines = @(
         "# Usage report",
         "",
+        ("Platform: " + $PlatformName),
         ("Session: " + $SessionId),
         ("Generated: " + ([DateTime]::UtcNow.ToString("yyyy-MM-dd HH:mm", $script:Inv)) + " UTC"),
         "",
@@ -656,6 +665,14 @@ function Write-LastReport {
     }
     $text = ($lines -join "`n") + "`n"
     [System.IO.File]::WriteAllText((Join-Path $UsageDir "last-report.md"), $text, (New-Object System.Text.UTF8Encoding $false))
+    if (-not [string]::IsNullOrWhiteSpace($PlatformName)) {
+        $platformSafe = ConvertTo-UsageReportSafeName -Value $PlatformName
+        [System.IO.File]::WriteAllText((Join-Path $UsageDir ("last-report-" + $platformSafe + ".md")), $text, (New-Object System.Text.UTF8Encoding $false))
+        if (-not [string]::IsNullOrWhiteSpace($SessionId)) {
+            $sessionSafe = ConvertTo-UsageReportSafeName -Value $SessionId
+            [System.IO.File]::WriteAllText((Join-Path $UsageDir ("last-report-" + $platformSafe + "-" + $sessionSafe + ".md")), $text, (New-Object System.Text.UTF8Encoding $false))
+        }
+    }
 }
 
 # --- Entry point -------------------------------------------------------------

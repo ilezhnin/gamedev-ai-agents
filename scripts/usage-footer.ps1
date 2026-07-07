@@ -10,7 +10,10 @@
 param(
     [ValidateSet("Brief", "Full")]
     [string] $Mode = "Brief",
-    [string] $ProjectRoot = (Get-Location).Path
+    [string] $ProjectRoot = (Get-Location).Path,
+    [ValidateSet("auto", "codex", "claude", "gemini")]
+    [string] $Platform = "auto",
+    [string] $SessionId
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,6 +68,75 @@ function Write-Unavailable {
     Write-Output ("Usage: unavailable - " + $Reason)
 }
 
+function ConvertTo-UsageReportSafeName {
+    param([string] $Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return "unknown" }
+    $safe = [regex]::Replace($Value, "[^A-Za-z0-9._-]", "_")
+    if ($safe.Length -gt 80) { $safe = $safe.Substring(0, 80) }
+    return $safe
+}
+
+function Resolve-FooterPlatform {
+    param([string] $Requested)
+    if ($Requested -ne "auto") { return $Requested }
+    if ($env:CODEX_SHELL -or $env:CODEX_THREAD_ID -or $env:CODEX_INTERNAL_ORIGINATOR_OVERRIDE) { return "codex" }
+    foreach ($name in @("CLAUDECODE", "CLAUDE_CODE", "CLAUDE_SESSION_ID", "ANTHROPIC_SESSION_ID")) {
+        if (-not [string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { return "claude" }
+    }
+    if ($env:GEMINI_CLI -or $env:GEMINI_SESSION_ID) { return "gemini" }
+    return "auto"
+}
+
+function Resolve-FooterSessionId {
+    param([string] $Requested, [string] $ResolvedPlatform)
+    if (-not [string]::IsNullOrWhiteSpace($Requested)) { return $Requested }
+    if ($ResolvedPlatform -eq "codex" -and -not [string]::IsNullOrWhiteSpace($env:CODEX_THREAD_ID)) { return $env:CODEX_THREAD_ID }
+    if ($ResolvedPlatform -eq "claude") {
+        foreach ($name in @("CLAUDE_SESSION_ID", "ANTHROPIC_SESSION_ID")) {
+            $value = [Environment]::GetEnvironmentVariable($name)
+            if (-not [string]::IsNullOrWhiteSpace($value)) { return $value }
+        }
+    }
+    if ($ResolvedPlatform -eq "gemini" -and -not [string]::IsNullOrWhiteSpace($env:GEMINI_SESSION_ID)) { return $env:GEMINI_SESSION_ID }
+    return ""
+}
+
+function Get-ReportPlatform {
+    param([string[]] $Lines)
+    $explicit = Get-ReportScalar -Lines $Lines -Name "Platform"
+    if ($explicit) { return $explicit.ToLowerInvariant() }
+    $lastTurn = @(Get-ReportSection -Lines $Lines -Heading "Last turn")
+    if ($lastTurn.Count -gt 0) {
+        $first = $lastTurn[0].Trim()
+        if ($first -match "^Usage\s+([A-Za-z0-9_-]+):") { return $matches[1].ToLowerInvariant() }
+    }
+    return ""
+}
+
+function Resolve-ReportPath {
+    param([string] $UsageDir, [string] $ResolvedPlatform, [string] $RequestedSessionId)
+    if (-not (Test-Path -LiteralPath $UsageDir)) { return $null }
+    if ($ResolvedPlatform -ne "auto") {
+        $platformSafe = ConvertTo-UsageReportSafeName -Value $ResolvedPlatform
+        if (-not [string]::IsNullOrWhiteSpace($RequestedSessionId)) {
+            $sessionSafe = ConvertTo-UsageReportSafeName -Value $RequestedSessionId
+            $sessionPath = Join-Path $UsageDir ("last-report-" + $platformSafe + "-" + $sessionSafe + ".md")
+            if (Test-Path -LiteralPath $sessionPath) { return $sessionPath }
+            return $null
+        }
+        $platformPath = Join-Path $UsageDir ("last-report-" + $platformSafe + ".md")
+        if (Test-Path -LiteralPath $platformPath) { return $platformPath }
+    }
+
+    $legacyPath = Join-Path $UsageDir "last-report.md"
+    if (-not (Test-Path -LiteralPath $legacyPath)) { return $null }
+    if ($ResolvedPlatform -eq "auto") { return $legacyPath }
+    $legacyLines = [System.IO.File]::ReadAllLines($legacyPath)
+    $legacyPlatform = Get-ReportPlatform -Lines $legacyLines
+    if ($legacyPlatform -eq $ResolvedPlatform) { return $legacyPath }
+    return $null
+}
+
 function Convert-FooterPathForHost {
     param([string] $Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
@@ -82,9 +154,19 @@ try {
     $root = Convert-FooterPathForHost -Path $ProjectRoot
     if (-not $root -or -not (Test-Path -LiteralPath $root)) { $root = (Get-Location).Path }
     $usageDir = Join-Path $root ".agents\usage"
-    $lastReport = Join-Path $usageDir "last-report.md"
-    if (-not (Test-Path -LiteralPath $lastReport)) {
-        Write-Unavailable "no .agents/usage/last-report.md yet; finish one hooked turn after installing or updating the kit"
+    $resolvedPlatform = Resolve-FooterPlatform -Requested $Platform
+    $resolvedSessionId = Resolve-FooterSessionId -Requested $SessionId -ResolvedPlatform $resolvedPlatform
+    $lastReport = Resolve-ReportPath -UsageDir $usageDir -ResolvedPlatform $resolvedPlatform -RequestedSessionId $resolvedSessionId
+    if (-not $lastReport -or -not (Test-Path -LiteralPath $lastReport)) {
+        if ($resolvedPlatform -eq "auto") {
+            Write-Unavailable "platform not detected; pass -Platform codex, -Platform claude, or -Platform gemini"
+        }
+        elseif (-not [string]::IsNullOrWhiteSpace($resolvedSessionId)) {
+            Write-Unavailable ("no " + $resolvedPlatform + " usage report for session " + $resolvedSessionId + " yet; finish one hooked turn in this session")
+        }
+        else {
+            Write-Unavailable ("no " + $resolvedPlatform + " usage report yet; finish one hooked " + $resolvedPlatform + " turn after installing or updating the kit")
+        }
         exit 0
     }
 
@@ -96,6 +178,7 @@ try {
     }
 
     $session = Get-ReportScalar -Lines $lines -Name "Session"
+    $reportPlatform = Get-ReportPlatform -Lines $lines
     $generated = Get-ReportScalar -Lines $lines -Name "Generated"
     $summary = ConvertTo-BriefSummary -Line $lastTurn[0]
 
@@ -107,6 +190,7 @@ try {
     }
 
     Write-Output "Usage:"
+    if ($reportPlatform) { Write-Output ("  platform: " + $reportPlatform) }
     if ($session) { Write-Output ("  session: " + $session) }
     if ($generated) { Write-Output ("  recorded: " + $generated) }
     Write-Output "  note: final-response tokens are counted by the next lifecycle hook report."

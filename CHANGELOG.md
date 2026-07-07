@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.15 - 2026-07-07
+
+### Fixed
+- Usage footer output is now platform and session scoped. The reporter writes platform-specific and session-specific report files, and the visible footer accepts `-Platform codex`, `-Platform claude`, or `-Platform gemini` while auto-selecting the current session when the client exposes a session/thread id. Parallel Codex and Claude sessions in the same project no longer show each other's latest turn.
+
 ## 0.4.14 - 2026-07-07
 
 ### Added
