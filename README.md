@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.13-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.14-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -160,7 +160,7 @@ One canon, rendered adapters - `.codex/`, `.claude/`, and `.gemini/settings.json
 
 Role reasoning is budgeted by responsibility: planning, architecture, game design, consistency, and production coordination render to Codex `xhigh` and Claude Code `max`; reviewers, generated-asset creation, and release engineering use `high`; execution, context building, asset sourcing/integration, research, validation, QA, and shipping roles stay at `medium`. Gemini CLI and Antigravity receive shared project behavior, but the kit does not pin per-role model choices there.
 
-Codex, Claude Code, and Gemini CLI get working hooks for the kit's `.meta`/GUID hygiene check after edits and usage reporting after a turn. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
+Codex, Claude Code, and Gemini CLI get working hooks for the kit's `.meta`/GUID hygiene check after edits and usage reporting after a turn. Usage hooks write `.agents/usage/last-report.md` and history; because some clients hide hook messages, installed `AGENTS.md` also requires agents to append visible usage stats from `.agents/scripts/usage-footer.ps1` to every final response. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
 
 ## Updating And Uninstalling
 

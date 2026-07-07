@@ -3,7 +3,10 @@
 # Default mode runs as a lifecycle hook for Claude Code, Codex, and Gemini CLI:
 # it reads the hook JSON from stdin, incrementally parses local transcripts or
 # telemetry, aggregates token usage per model and role, prices it as an
-# API-equivalent estimate, and returns a compact report through systemMessage.
+# API-equivalent estimate, writes .agents/usage/last-report.md and history, and
+# also returns a compact report through systemMessage when the client shows it.
+# usage-footer.ps1 is the visible final-response path for clients that hide
+# hook systemMessage output.
 # Everything comes from files already on disk: zero extra LLM tokens, zero API calls.
 #
 # -RefreshPrices mode runs detached in the background: it downloads current

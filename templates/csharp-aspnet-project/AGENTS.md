@@ -66,6 +66,7 @@ The kit's global profile (`~/.codex/AGENTS.md`, installed from the kit's `global
 - Never log or commit secrets, connection strings, tokens, or personal data; treat all external input as untrusted.
 - Report honestly: what changed, what was verified, what remains unverified. Never claim unrun validation.
 - Communicate like an engineering log: concrete actions, files, commands, results, and blockers - no filler or playful narration; lead summaries with the outcome.
+- Before every final response, append visible usage stats from `.agents/scripts/usage-footer.ps1`: `-Mode Brief` for a simple answer, `-Mode Full` after any `$skill`, subagent/delegated work, file edits, validation, commit, PR/MR work, or multi-step workflow. Paste the helper output into the response; do not rely on hook `systemMessage` output being shown by the client.
 - English only in every artifact: code, comments, docs, commit messages, branch names, learnings. Converse with the user in the user's language, but write into the repository only in English.
 - Stop and ask when requirements conflict, a change is destructive or irreversible, or you cannot verify a risky result.
 

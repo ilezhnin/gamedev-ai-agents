@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.14 - 2026-07-07
+
+### Added
+- Added `.agents/scripts/usage-footer.ps1`, a visible final-response usage footer helper that reads the latest usage report and renders brief or full Markdown for agents to paste into their own replies.
+
+### Changed
+- Project and global instructions now require agents to append usage stats to every final response: brief for simple answers, full after skills, subagents, edits, validation, commits, PR/MR work, or multi-step workflows. This no longer depends on Codex, Claude Code, VS Code, or other clients rendering hook `systemMessage` output.
+- Usage reporting docs now distinguish the hook collection path (`.agents/usage/last-report.md` and history) from the visible final-response path (`usage-footer.ps1`).
+
 ## 0.4.13 - 2026-07-07
 
 ### Added
