@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
@@ -23,6 +24,11 @@ namespace GamedevAgentKit.Editor
 
         internal static void RunPowerShellAsync(string scriptRelPath, string workingDir, Action<int> onExit)
         {
+            RunPowerShellAsync(scriptRelPath, workingDir, null, onExit);
+        }
+
+        internal static void RunPowerShellAsync(string scriptRelPath, string workingDir, IEnumerable<string> scriptArguments, Action<int> onExit)
+        {
             if (string.IsNullOrEmpty(workingDir) || string.IsNullOrEmpty(scriptRelPath))
             {
                 onExit?.Invoke(PowerShellNotFoundExitCode);
@@ -46,7 +52,7 @@ namespace GamedevAgentKit.Editor
             Process process;
             try
             {
-                process = Start(shell, absoluteScriptPath, workingDir);
+                process = Start(shell, absoluteScriptPath, workingDir, scriptArguments);
             }
             catch (Win32Exception)
             {
@@ -59,7 +65,7 @@ namespace GamedevAgentKit.Editor
 
                 try
                 {
-                    process = Start(shell, absoluteScriptPath, workingDir);
+                    process = Start(shell, absoluteScriptPath, workingDir, scriptArguments);
                 }
                 catch (Win32Exception)
                 {
@@ -84,7 +90,7 @@ namespace GamedevAgentKit.Editor
             EditorApplication.update += _runningPoll;
         }
 
-        private static Process Start(string shell, string scriptPath, string workingDir)
+        private static Process Start(string shell, string scriptPath, string workingDir, IEnumerable<string> scriptArguments)
         {
             var output = new StringBuilder();
             var error = new StringBuilder();
@@ -103,6 +109,13 @@ namespace GamedevAgentKit.Editor
             process.StartInfo.ArgumentList.Add("Bypass");
             process.StartInfo.ArgumentList.Add("-File");
             process.StartInfo.ArgumentList.Add(scriptPath);
+            if (scriptArguments != null)
+            {
+                foreach (var argument in scriptArguments)
+                {
+                    process.StartInfo.ArgumentList.Add(argument);
+                }
+            }
             process.OutputDataReceived += (_, args) =>
             {
                 if (args.Data != null)

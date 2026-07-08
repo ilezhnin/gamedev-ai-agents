@@ -327,6 +327,620 @@ function Add-HistoryRecord {
     }
 }
 
+function Get-UsageStableHash {
+    param([string] $Value, [int] $Length = 16)
+    if ($null -eq $Value) { $Value = "" }
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes([string]$Value)
+        $hash = $sha.ComputeHash($bytes)
+    }
+    finally {
+        $sha.Dispose()
+    }
+
+    $builder = New-Object System.Text.StringBuilder
+    foreach ($byte in $hash) { [void]$builder.Append($byte.ToString("x2", $script:Inv)) }
+    $text = $builder.ToString()
+    if ($Length -gt 0 -and $text.Length -gt $Length) { return $text.Substring(0, $Length) }
+    return $text
+}
+
+function Get-UsageProjectId {
+    param([string] $Root)
+    $normalized = ConvertTo-CodexComparablePath -Path $Root
+    return "prj_" + (Get-UsageStableHash -Value $normalized -Length 16)
+}
+
+function Get-UsageV2Dir {
+    param([string] $UsageDir)
+    if ([string]::IsNullOrWhiteSpace($UsageDir)) { return $null }
+    if (-not (Test-Path -LiteralPath $UsageDir)) {
+        New-Item -ItemType Directory -Force -Path $UsageDir | Out-Null
+    }
+    $v2 = Join-Path $UsageDir "v2"
+    foreach ($child in @("events", "state", "views", "reports")) {
+        $path = Join-Path $v2 $child
+        if (-not (Test-Path -LiteralPath $path)) {
+            New-Item -ItemType Directory -Force -Path $path | Out-Null
+        }
+    }
+    return $v2
+}
+
+function New-UsageV2Event {
+    param(
+        [string] $ProjectRoot,
+        [string] $Type,
+        [string] $Platform,
+        [string] $SessionId,
+        [string] $TraceId,
+        [string] $SpanId,
+        [string] $IdempotencyKey,
+        [hashtable] $Source,
+        $Payload,
+        [string] $Confidence = "high",
+        $ObservedUtc
+    )
+    if (-not $ObservedUtc) { $ObservedUtc = [DateTime]::UtcNow }
+    $ts = ConvertTo-UtcDate -Text $ObservedUtc
+    if (-not $ts) { $ts = [DateTime]::UtcNow }
+    if ([string]::IsNullOrWhiteSpace($SessionId)) { $SessionId = "unknown" }
+    if ([string]::IsNullOrWhiteSpace($TraceId)) { $TraceId = "trc_" + (Get-UsageStableHash -Value ($SessionId + "|" + $Type + "|" + $ts.ToString("o", $script:Inv)) -Length 24) }
+    if ([string]::IsNullOrWhiteSpace($SpanId)) { $SpanId = "spn_" + (Get-UsageStableHash -Value ($TraceId + "|" + $Type) -Length 24) }
+    if ([string]::IsNullOrWhiteSpace($IdempotencyKey)) { $IdempotencyKey = $Platform + "|" + $SessionId + "|" + $TraceId + "|" + $SpanId + "|" + $Type }
+    if (-not $Source) { $Source = @{} }
+    if (-not $Payload) { $Payload = [ordered]@{} }
+
+    return [ordered]@{
+        schemaVersion  = 2
+        eventId        = "evt_" + (Get-UsageStableHash -Value $IdempotencyKey -Length 24)
+        idempotencyKey = $IdempotencyKey
+        observedUtc    = $ts.ToUniversalTime().ToString("o", $script:Inv)
+        source         = [ordered]@{
+            platform   = $Platform
+            adapter    = $(if ($Source.ContainsKey("adapter")) { [string]$Source.adapter } else { "hook" })
+            path       = $(if ($Source.ContainsKey("path")) { [string]$Source.path } else { $null })
+            offset     = $(if ($Source.ContainsKey("offset")) { $Source.offset } else { $null })
+            confidence = $Confidence
+        }
+        project        = [ordered]@{
+            projectId = Get-UsageProjectId -Root $ProjectRoot
+            rootHash  = Get-UsageStableHash -Value (ConvertTo-CodexComparablePath -Path $ProjectRoot) -Length 24
+        }
+        sessionId      = $SessionId
+        traceId        = $TraceId
+        spanId         = $SpanId
+        type           = $Type
+        payload        = $Payload
+    }
+}
+
+function Add-UsageV2Event {
+    param([string] $UsageDir, $Event)
+    if ([string]::IsNullOrWhiteSpace($UsageDir) -or -not $Event) { return }
+    $v2 = Get-UsageV2Dir -UsageDir $UsageDir
+    if ([string]::IsNullOrWhiteSpace($v2)) { return }
+    $ts = ConvertTo-UtcDate -Text $Event.observedUtc
+    if (-not $ts) { $ts = [DateTime]::UtcNow }
+    $path = Join-Path (Join-Path $v2 "events") ($ts.ToUniversalTime().ToString("yyyy-MM-dd", $script:Inv) + ".jsonl")
+    $line = $Event | ConvertTo-Json -Depth 12 -Compress
+    $encoding = New-Object System.Text.UTF8Encoding $false
+    for ($attempt = 1; $attempt -le 3; $attempt++) {
+        try {
+            [System.IO.File]::AppendAllText($path, $line + "`n", $encoding)
+            return
+        }
+        catch [System.IO.IOException] {
+            if ($attempt -ge 3) { return }
+            Start-Sleep -Milliseconds 100
+        }
+    }
+}
+
+function ConvertTo-UsageV2RowObject {
+    param($Row)
+    $bucket = $Row.bucket
+    $cost = $null
+    if ($null -ne $Row.cost) { $cost = [double]$Row.cost }
+    return [ordered]@{
+        model            = [string]$Row.model
+        scope            = [string]$Row.scope
+        calls            = [int]$bucket.calls
+        inputTokens      = [long]$bucket.in
+        outputTokens     = [long]$bucket.out
+        cacheReadTokens  = [long]$bucket.cacheRead
+        cacheWriteTokens = [long]($bucket.cache5m + $bucket.cache1h)
+        cache5mTokens    = [long]$bucket.cache5m
+        cache1hTokens    = [long]$bucket.cache1h
+        estimatedCostUsd = $cost
+    }
+}
+
+function Get-UsageV2EventProperty {
+    param($Object, [string] $Name, $Default = $null)
+    if (-not $Object) { return $Default }
+    if ($Object.PSObject.Properties[$Name]) { return $Object.PSObject.Properties[$Name].Value }
+    return $Default
+}
+
+function Get-UsageV2EventNumber {
+    param($Object, [string] $Name, [double] $Default = 0.0)
+    $value = Get-UsageV2EventProperty -Object $Object -Name $Name -Default $Default
+    if ($null -eq $value) { return $Default }
+    try { return [double]$value } catch { return $Default }
+}
+
+function Get-UsageV2Events {
+    param([string] $UsageDir)
+    $events = @()
+    $v2 = Get-UsageV2Dir -UsageDir $UsageDir
+    if ([string]::IsNullOrWhiteSpace($v2)) { return @() }
+    $eventsDir = Join-Path $v2 "events"
+    if (-not (Test-Path -LiteralPath $eventsDir)) { return @() }
+    $seen = New-Object "System.Collections.Generic.HashSet[string]"
+    foreach ($file in Get-ChildItem -LiteralPath $eventsDir -File -Filter "*.jsonl" -ErrorAction SilentlyContinue) {
+        foreach ($line in [System.IO.File]::ReadAllLines($file.FullName)) {
+            if ([string]::IsNullOrWhiteSpace($line)) { continue }
+            $event = $null
+            try { $event = $line | ConvertFrom-Json } catch { $event = $null }
+            if (-not $event) { continue }
+            if ([int](Get-UsageV2EventProperty -Object $event -Name "schemaVersion" -Default 0) -ne 2) { continue }
+            $key = [string](Get-UsageV2EventProperty -Object $event -Name "idempotencyKey" -Default "")
+            if ([string]::IsNullOrWhiteSpace($key)) { $key = [string](Get-UsageV2EventProperty -Object $event -Name "eventId" -Default ([Guid]::NewGuid().ToString("N"))) }
+            if ($seen.Contains($key)) { continue }
+            [void]$seen.Add($key)
+            $events += , $event
+        }
+    }
+    return @($events)
+}
+
+function Update-UsageV2CurrentSessionViewFromEvents {
+    param([string] $UsageDir, [string] $ProjectRoot)
+    $events = @(Get-UsageV2Events -UsageDir $UsageDir)
+    if ($events.Count -eq 0) { return @{ status = "no-data"; sessions = 0 } }
+
+    $sessionEvents = @($events | Where-Object { [string](Get-UsageV2EventProperty -Object $_ -Name "type" -Default "") -eq "session.observed" } | Sort-Object -Property @{ Expression = { ConvertTo-UtcDate -Text (Get-UsageV2EventProperty -Object $_ -Name "observedUtc" -Default $null) } })
+    if ($sessionEvents.Count -eq 0) { return @{ status = "no-session"; sessions = 0 } }
+    $latestSessionEvent = $sessionEvents[$sessionEvents.Count - 1]
+    $sessionId = [string](Get-UsageV2EventProperty -Object $latestSessionEvent -Name "sessionId" -Default "unknown")
+    $platform = [string](Get-UsageV2EventProperty -Object (Get-UsageV2EventProperty -Object $latestSessionEvent -Name "source" -Default $null) -Name "platform" -Default "")
+    if ([string]::IsNullOrWhiteSpace($platform)) { $platform = "unknown" }
+    $sessionPayload = Get-UsageV2EventProperty -Object $latestSessionEvent -Name "payload" -Default $null
+
+    $traceEvents = @($events | Where-Object {
+            [string](Get-UsageV2EventProperty -Object $_ -Name "sessionId" -Default "") -eq $sessionId -and
+            [string](Get-UsageV2EventProperty -Object $_ -Name "type" -Default "") -eq "trace.ended"
+        } | Sort-Object -Property @{ Expression = { ConvertTo-UtcDate -Text (Get-UsageV2EventProperty -Object $_ -Name "observedUtc" -Default $null) } })
+    $latestTrace = $null
+    if ($traceEvents.Count -gt 0) { $latestTrace = $traceEvents[$traceEvents.Count - 1] }
+    $latestTraceId = [string](Get-UsageV2EventProperty -Object $latestTrace -Name "traceId" -Default "")
+
+    $usageEvents = @($events | Where-Object {
+            [string](Get-UsageV2EventProperty -Object $_ -Name "sessionId" -Default "") -eq $sessionId -and
+            [string](Get-UsageV2EventProperty -Object $_ -Name "type" -Default "") -eq "span.usage"
+        })
+    $agentEvents = @($events | Where-Object {
+            [string](Get-UsageV2EventProperty -Object $_ -Name "sessionId" -Default "") -eq $sessionId -and
+            [string](Get-UsageV2EventProperty -Object $_ -Name "type" -Default "") -eq "agent.ended"
+        })
+    $toolEvents = @($events | Where-Object {
+            [string](Get-UsageV2EventProperty -Object $_ -Name "sessionId" -Default "") -eq $sessionId -and
+            [string](Get-UsageV2EventProperty -Object $_ -Name "type" -Default "") -eq "tool.completed"
+        })
+
+    $lastRows = @()
+    $totalByModel = @{}
+    $warnings = New-Object "System.Collections.Generic.List[string]"
+    foreach ($warning in @((Get-UsageV2EventProperty -Object $sessionPayload -Name "warnings" -Default @()))) {
+        $text = [string]$warning
+        if (-not [string]::IsNullOrWhiteSpace($text) -and -not $warnings.Contains($text)) {
+            [void]$warnings.Add($text)
+        }
+    }
+    $unpricedModels = New-Object "System.Collections.Generic.HashSet[string]"
+    $sessionCost = 0.0
+    $sessionCostComplete = $true
+    foreach ($event in $usageEvents) {
+        $payload = Get-UsageV2EventProperty -Object $event -Name "payload" -Default $null
+        if (-not $payload) { continue }
+        $model = [string](Get-UsageV2EventProperty -Object $payload -Name "model" -Default "unknown")
+        if (-not $totalByModel.ContainsKey($model)) {
+            $totalByModel[$model] = [ordered]@{
+                model            = $model
+                calls            = [int]0
+                inputTokens      = [long]0
+                outputTokens     = [long]0
+                cacheReadTokens  = [long]0
+                cacheWriteTokens = [long]0
+                cache5mTokens    = [long]0
+                cache1hTokens    = [long]0
+                estimatedCostUsd = [double]0.0
+                costComplete     = $true
+            }
+        }
+        $target = $totalByModel[$model]
+        $target.calls += [int](Get-UsageV2EventNumber -Object $payload -Name "calls" -Default 0.0)
+        $target.inputTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "inputTokens" -Default 0.0)
+        $target.outputTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "outputTokens" -Default 0.0)
+        $target.cacheReadTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "cacheReadTokens" -Default 0.0)
+        $target.cacheWriteTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "cacheWriteTokens" -Default 0.0)
+        $target.cache5mTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "cache5mTokens" -Default 0.0)
+        $target.cache1hTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "cache1hTokens" -Default 0.0)
+        $cost = Get-UsageV2EventProperty -Object $payload -Name "estimatedCostUsd" -Default $null
+        if ($null -eq $cost) {
+            $target.costComplete = $false
+            $sessionCostComplete = $false
+            [void]$unpricedModels.Add($model)
+        }
+        else {
+            $target.estimatedCostUsd = [double]$target.estimatedCostUsd + [double]$cost
+            $sessionCost += [double]$cost
+        }
+        if ($latestTraceId -and [string](Get-UsageV2EventProperty -Object $event -Name "traceId" -Default "") -eq $latestTraceId) {
+            $lastRows += , $payload
+        }
+    }
+
+    $totalRows = @()
+    foreach ($model in ($totalByModel.Keys | Sort-Object)) {
+        $row = $totalByModel[$model]
+        $totalRows += , ([ordered]@{
+                model            = $row.model
+                calls            = [int]$row.calls
+                inputTokens      = [long]$row.inputTokens
+                outputTokens     = [long]$row.outputTokens
+                cacheReadTokens  = [long]$row.cacheReadTokens
+                cacheWriteTokens = [long]$row.cacheWriteTokens
+                cache5mTokens    = [long]$row.cache5mTokens
+                cache1hTokens    = [long]$row.cache1hTokens
+                estimatedCostUsd = $(if ($row.costComplete) { [double]$row.estimatedCostUsd } else { $null })
+            })
+    }
+
+    $agentsByRole = @{}
+    foreach ($event in $agentEvents) {
+        $payload = Get-UsageV2EventProperty -Object $event -Name "payload" -Default $null
+        $role = [string](Get-UsageV2EventProperty -Object $payload -Name "role" -Default "")
+        if ([string]::IsNullOrWhiteSpace($role)) { continue }
+        if (-not $agentsByRole.ContainsKey($role)) {
+            $agentsByRole[$role] = [ordered]@{
+                role         = $role
+                runs         = [int]0
+                tokensIn     = [long]0
+                tokensOut    = [long]0
+                estCost      = [double]0.0
+                costComplete = $true
+                lastUsedUtc  = $null
+            }
+        }
+        $agentsByRole[$role].runs = [int]$agentsByRole[$role].runs + [int](Get-UsageV2EventNumber -Object $payload -Name "runs" -Default 1.0)
+        $agentsByRole[$role].tokensIn = [long]$agentsByRole[$role].tokensIn + [long](Get-UsageV2EventNumber -Object $payload -Name "tokensIn" -Default 0.0)
+        $agentsByRole[$role].tokensOut = [long]$agentsByRole[$role].tokensOut + [long](Get-UsageV2EventNumber -Object $payload -Name "tokensOut" -Default 0.0)
+        $cost = Get-UsageV2EventProperty -Object $payload -Name "estCost" -Default $null
+        if ($null -eq $cost) {
+            $agentsByRole[$role].costComplete = $false
+        }
+        else {
+            $agentsByRole[$role].estCost = [double]$agentsByRole[$role].estCost + [double]$cost
+        }
+        $observed = [string](Get-UsageV2EventProperty -Object $event -Name "observedUtc" -Default "")
+        if ($observed) { $agentsByRole[$role].lastUsedUtc = $observed }
+    }
+    $agentRows = @()
+    foreach ($role in ($agentsByRole.Keys | Sort-Object)) { $agentRows += , $agentsByRole[$role] }
+
+    $toolsByKey = @{}
+    foreach ($event in $toolEvents) {
+        $payload = Get-UsageV2EventProperty -Object $event -Name "payload" -Default $null
+        $name = [string](Get-UsageV2EventProperty -Object $payload -Name "name" -Default "")
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
+        $kind = [string](Get-UsageV2EventProperty -Object $payload -Name "kind" -Default "tool")
+        $key = $kind + "|" + $name
+        if (-not $toolsByKey.ContainsKey($key)) {
+            $toolsByKey[$key] = [ordered]@{ name = $name; kind = $kind; calls = [int]0; failures = [int]0; lastUsedUtc = $null }
+        }
+        $toolsByKey[$key].calls = [int]$toolsByKey[$key].calls + [int](Get-UsageV2EventNumber -Object $payload -Name "calls" -Default 1.0)
+        $toolsByKey[$key].failures = [int]$toolsByKey[$key].failures + [int](Get-UsageV2EventNumber -Object $payload -Name "failures" -Default 0.0)
+        $observed = [string](Get-UsageV2EventProperty -Object $event -Name "observedUtc" -Default "")
+        if ($observed) { $toolsByKey[$key].lastUsedUtc = $observed }
+    }
+    $toolRows = @()
+    foreach ($key in ($toolsByKey.Keys | Sort-Object)) { $toolRows += , $toolsByKey[$key] }
+
+    $tracePayload = Get-UsageV2EventProperty -Object $latestTrace -Name "payload" -Default $null
+    $turnCost = 0.0
+    foreach ($row in @($lastRows)) {
+        $cost = Get-UsageV2EventProperty -Object $row -Name "estimatedCostUsd" -Default $null
+        if ($null -ne $cost) { $turnCost += [double]$cost }
+    }
+    $turns = [int](Get-UsageV2EventNumber -Object $sessionPayload -Name "turns" -Default ([double]$traceEvents.Count))
+    $aliases = @()
+    foreach ($alias in @((Get-UsageV2EventProperty -Object $sessionPayload -Name "aliases" -Default @()))) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$alias)) { $aliases += [string]$alias }
+    }
+    if ($unpricedModels.Count -gt 0) {
+        $unpricedWarning = "! no price data for: " + (($unpricedModels | Sort-Object) -join ", ") + " - excluded from the estimate"
+        if (-not $warnings.Contains($unpricedWarning)) { [void]$warnings.Add($unpricedWarning) }
+    }
+
+    $view = [ordered]@{
+        v                = 2
+        generatedUtc     = [DateTime]::UtcNow.ToUniversalTime().ToString("o", $script:Inv)
+        projectId        = Get-UsageProjectId -Root $ProjectRoot
+        platform         = $platform
+        sessionId        = $sessionId
+        aliases          = @($aliases)
+        sourceConfidence = [string](Get-UsageV2EventProperty -Object $sessionPayload -Name "sourceConfidence" -Default "high")
+        status           = "ok"
+        priceSource      = [string](Get-UsageV2EventProperty -Object $sessionPayload -Name "priceSource" -Default "unknown")
+        warnings         = @($warnings)
+        lastTurn         = [ordered]@{
+            traceId           = $latestTraceId
+            turn              = [int](Get-UsageV2EventNumber -Object $tracePayload -Name "turn" -Default ([double]$turns))
+            durationSeconds   = [double](Get-UsageV2EventNumber -Object $tracePayload -Name "durationSeconds" -Default 0.0)
+            estimatedCostUsd  = [double]$turnCost
+            agentRuns         = [int](Get-UsageV2EventNumber -Object $tracePayload -Name "agentRuns" -Default 0.0)
+            userMessages      = [int](Get-UsageV2EventNumber -Object $tracePayload -Name "userMessages" -Default 0.0)
+            assistantMessages = [int](Get-UsageV2EventNumber -Object $tracePayload -Name "assistantMessages" -Default 0.0)
+            rows              = @($lastRows)
+        }
+        totals           = [ordered]@{
+            turns            = [int]$turns
+            estimatedCostUsd = [double]$sessionCost
+            costComplete     = [bool]$sessionCostComplete
+            models           = $totalRows
+            agents           = $agentRows
+            tools            = $toolRows
+        }
+    }
+
+    $v2 = Get-UsageV2Dir -UsageDir $UsageDir
+    Write-JsonAtomic -Path (Join-Path (Join-Path $v2 "views") "current-session.json") -Value $view
+    Write-JsonAtomic -Path (Join-Path (Join-Path $v2 "views") "agent-summary.json") -Value ([ordered]@{
+            v            = 2
+            generatedUtc = [DateTime]::UtcNow.ToUniversalTime().ToString("o", $script:Inv)
+            sessionId    = $sessionId
+            agents       = $agentRows
+        })
+    Write-JsonAtomic -Path (Join-Path (Join-Path $v2 "views") "tool-summary.json") -Value ([ordered]@{
+            v            = 2
+            generatedUtc = [DateTime]::UtcNow.ToUniversalTime().ToString("o", $script:Inv)
+            sessionId    = $sessionId
+            tools        = $toolRows
+        })
+    return @{ status = "ok"; sessions = $sessionEvents.Count; events = $events.Count }
+}
+
+function Import-UsageV1HistoryToV2 {
+    param([string] $UsageDir, [string] $ProjectRoot)
+    $historyPath = Join-Path $UsageDir "history.jsonl"
+    if (-not (Test-Path -LiteralPath $historyPath)) { return @{ status = "no-history"; imported = 0 } }
+
+    $v2 = Get-UsageV2Dir -UsageDir $UsageDir
+    $statePath = Join-Path (Join-Path $v2 "state") "migrations.json"
+    $imported = @{}
+    $state = Read-JsonFile -Path $statePath
+    if ($state -and $state.importedHistory) {
+        foreach ($prop in $state.importedHistory.PSObject.Properties) {
+            $imported[$prop.Name] = [string]$prop.Value
+        }
+    }
+
+    $count = 0
+    $lineNumber = 0
+    foreach ($line in [System.IO.File]::ReadAllLines($historyPath)) {
+        $lineNumber++
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        $hash = Get-UsageStableHash -Value $line -Length 32
+        if ($imported.ContainsKey($hash)) { continue }
+
+        $record = $null
+        try { $record = $line | ConvertFrom-Json } catch { $record = $null }
+        if (-not $record -or -not $record.PSObject.Properties["v"] -or [int]$record.v -ne 1) { continue }
+        $ts = ConvertTo-UtcDate -Text (Get-UsageV2EventProperty -Object $record -Name "ts" -Default $null)
+        if (-not $ts) { $ts = [DateTime]::UtcNow }
+        $platform = [string](Get-UsageV2EventProperty -Object $record -Name "platform" -Default "unknown")
+        $sourceSessionId = [string](Get-UsageV2EventProperty -Object $record -Name "sessionId" -Default "unknown")
+        $sessionId = "hist_" + (Get-UsageStableHash -Value ($platform + "|" + $sourceSessionId) -Length 24)
+        $traceId = "trc_" + (Get-UsageStableHash -Value ("v1-history|" + $hash) -Length 24)
+        $event = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "migration.imported" -Platform $platform -SessionId $sessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|migration") -Length 24)) -IdempotencyKey ("v1-history|" + $hash) -Source @{ adapter = "v1-history"; path = $historyPath; offset = $lineNumber } -ObservedUtc $ts -Payload ([ordered]@{
+                sourceSessionId = $sourceSessionId
+                sourceTurn      = Get-UsageV2EventProperty -Object $record -Name "turn" -Default $null
+                platform        = $platform
+                record          = $record
+            })
+        Add-UsageV2Event -UsageDir $UsageDir -Event $event
+        $imported[$hash] = [DateTime]::UtcNow.ToUniversalTime().ToString("o", $script:Inv)
+        $count++
+    }
+
+    Write-JsonAtomic -Path $statePath -Value ([ordered]@{
+            updatedUtc      = [DateTime]::UtcNow.ToUniversalTime().ToString("o", $script:Inv)
+            importedHistory = $imported
+        })
+    return @{ status = "ok"; imported = $count }
+}
+
+function Write-UsageV2SessionSnapshot {
+    param(
+        [string] $UsageDir,
+        [string] $ProjectRoot,
+        [string] $PlatformName,
+        [string] $SessionId,
+        [string[]] $AliasSessionIds = @(),
+        [hashtable] $State,
+        [hashtable] $Prices,
+        [object[]] $Rows,
+        [double] $TurnCost,
+        [double] $SessionCost,
+        [bool] $SessionCostComplete,
+        [double] $WallSeconds,
+        [int] $AgentRuns,
+        [hashtable] $MessageCounts,
+        [hashtable] $ToolCounts,
+        [string[]] $Warnings = @()
+    )
+    if ([string]::IsNullOrWhiteSpace($UsageDir) -or [string]::IsNullOrWhiteSpace($SessionId) -or -not $State) { return }
+    $v2 = Get-UsageV2Dir -UsageDir $UsageDir
+    if ([string]::IsNullOrWhiteSpace($v2)) { return }
+
+    $observed = [DateTime]::UtcNow
+    $projectId = Get-UsageProjectId -Root $ProjectRoot
+    $turnOrdinal = [int]$State.session.turns
+    $traceId = "trc_" + (Get-UsageStableHash -Value ($projectId + "|" + $PlatformName + "|" + $SessionId + "|" + $turnOrdinal) -Length 24)
+    $source = @{ adapter = "hook"; path = $null; offset = $null }
+    $safeAliases = @()
+    foreach ($alias in @($AliasSessionIds)) {
+        if (-not [string]::IsNullOrWhiteSpace($alias) -and $alias -ne $SessionId) { $safeAliases += [string]$alias }
+    }
+
+    $turnRows = @()
+    foreach ($row in @($Rows)) {
+        $turnRows += , (ConvertTo-UsageV2RowObject -Row $row)
+    }
+
+    $agentRowsByRole = @{}
+    foreach ($row in @($turnRows)) {
+        $scope = [string]$row.scope
+        if ($scope -eq "main" -or [string]::IsNullOrWhiteSpace($scope)) { continue }
+        if (-not $agentRowsByRole.ContainsKey($scope)) {
+            $agentRowsByRole[$scope] = [ordered]@{
+                role        = $scope
+                runs        = [int]0
+                tokensIn    = [long]0
+                tokensOut   = [long]0
+                estCost     = [double]0.0
+                costComplete = $true
+                lastUsedUtc = $observed.ToUniversalTime().ToString("o", $script:Inv)
+            }
+        }
+        $agentRowsByRole[$scope].runs = [int]$agentRowsByRole[$scope].runs + 1
+        $agentRowsByRole[$scope].tokensIn = [long]$agentRowsByRole[$scope].tokensIn + [long]$row.inputTokens
+        $agentRowsByRole[$scope].tokensOut = [long]$agentRowsByRole[$scope].tokensOut + [long]$row.outputTokens
+        if ($null -eq $row.estimatedCostUsd) { $agentRowsByRole[$scope].costComplete = $false }
+        else { $agentRowsByRole[$scope].estCost = [double]$agentRowsByRole[$scope].estCost + [double]$row.estimatedCostUsd }
+    }
+    $agentRows = @()
+    foreach ($role in ($agentRowsByRole.Keys | Sort-Object)) { $agentRows += , $agentRowsByRole[$role] }
+
+    $toolRows = @()
+    if ($ToolCounts) {
+        foreach ($key in ($ToolCounts.Keys | Sort-Object)) {
+            $tool = $ToolCounts[$key]
+            $toolRows += , ([ordered]@{
+                    name        = [string]$tool.name
+                    kind        = [string]$tool.kind
+                    calls       = [int]$tool.calls
+                    failures    = [int]$tool.failures
+                    lastUsedUtc = $observed.ToUniversalTime().ToString("o", $script:Inv)
+                })
+        }
+    }
+
+    $totalRows = @()
+    foreach ($model in ($State.session.models.Keys | Sort-Object)) {
+        $bucket = $State.session.models[$model]
+        $price = Get-ModelPrice -Models $Prices.models -Model $model
+        $cost = $null
+        if ($price) { $cost = Get-BucketCost -Price $price -Bucket $bucket }
+        $totalRows += , ([ordered]@{
+                model            = [string]$model
+                calls            = [int]$bucket.calls
+                inputTokens      = [long]$bucket.in
+                outputTokens     = [long]$bucket.out
+                cacheReadTokens  = [long]$bucket.cacheRead
+                cacheWriteTokens = [long]($bucket.cache5m + $bucket.cache1h)
+                cache5mTokens    = [long]$bucket.cache5m
+                cache1hTokens    = [long]$bucket.cache1h
+                estimatedCostUsd = $cost
+            })
+    }
+
+    $view = [ordered]@{
+        v                = 2
+        generatedUtc     = $observed.ToUniversalTime().ToString("o", $script:Inv)
+        projectId        = $projectId
+        platform         = $PlatformName
+        sessionId        = $SessionId
+        aliases          = @($safeAliases)
+        sourceConfidence = "high"
+        status           = "ok"
+        priceSource      = $Prices.sourceLabel
+        warnings         = @($Warnings)
+        lastTurn         = [ordered]@{
+            traceId           = $traceId
+            turn              = [int]$turnOrdinal
+            durationSeconds   = [double]$WallSeconds
+            estimatedCostUsd  = [double]$TurnCost
+            agentRuns         = [int]$AgentRuns
+            userMessages      = [int]$MessageCounts["userMessages"]
+            assistantMessages = [int]$MessageCounts["assistantMessages"]
+            rows              = $turnRows
+        }
+        totals           = [ordered]@{
+            turns            = [int]$State.session.turns
+            estimatedCostUsd = [double]$SessionCost
+            costComplete     = [bool]$SessionCostComplete
+            models           = $totalRows
+            agents           = $agentRows
+            tools            = $toolRows
+        }
+    }
+    Write-JsonAtomic -Path (Join-Path (Join-Path $v2 "views") "current-session.json") -Value $view
+    Write-JsonAtomic -Path (Join-Path (Join-Path $v2 "views") "agent-summary.json") -Value ([ordered]@{
+            v            = 2
+            generatedUtc = $observed.ToUniversalTime().ToString("o", $script:Inv)
+            sessionId    = $SessionId
+            agents       = $agentRows
+        })
+    Write-JsonAtomic -Path (Join-Path (Join-Path $v2 "views") "tool-summary.json") -Value ([ordered]@{
+            v            = 2
+            generatedUtc = $observed.ToUniversalTime().ToString("o", $script:Inv)
+            sessionId    = $SessionId
+            tools        = $toolRows
+        })
+
+    $sessionEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "session.observed" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|session") -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|session") -Source $source -ObservedUtc $observed -Payload ([ordered]@{
+            aliases          = @($safeAliases)
+            turns            = [int]$State.session.turns
+            sourceConfidence = "high"
+            priceSource      = $Prices.sourceLabel
+            warnings         = @($Warnings)
+        })
+    Add-UsageV2Event -UsageDir $UsageDir -Event $sessionEvent
+
+    $traceEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "trace.ended" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|trace") -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|trace") -Source $source -ObservedUtc $observed -Payload ([ordered]@{
+            turn              = [int]$turnOrdinal
+            durationSeconds   = [double]$WallSeconds
+            agentRuns         = [int]$AgentRuns
+            userMessages      = [int]$MessageCounts["userMessages"]
+            assistantMessages = [int]$MessageCounts["assistantMessages"]
+        })
+    Add-UsageV2Event -UsageDir $UsageDir -Event $traceEvent
+
+    foreach ($row in @($turnRows)) {
+        $scope = [string]$row.scope
+        $model = [string]$row.model
+        $spanId = "spn_" + (Get-UsageStableHash -Value ($traceId + "|" + $scope + "|" + $model) -Length 24)
+        $usageEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "span.usage" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId $spanId -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|usage|" + $scope + "|" + $model) -Source $source -ObservedUtc $observed -Payload $row
+        Add-UsageV2Event -UsageDir $UsageDir -Event $usageEvent
+    }
+    foreach ($agent in @($agentRows)) {
+        $role = [string]$agent.role
+        $agentEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "agent.ended" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|agent|" + $role) -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|agent|" + $role) -Source $source -ObservedUtc $observed -Payload $agent
+        Add-UsageV2Event -UsageDir $UsageDir -Event $agentEvent
+    }
+    foreach ($tool in @($toolRows)) {
+        $name = [string]$tool.name
+        $kind = [string]$tool.kind
+        $toolEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "tool.completed" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|tool|" + $kind + "|" + $name) -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|tool|" + $kind + "|" + $name) -Source $source -ObservedUtc $observed -Payload $tool
+        Add-UsageV2Event -UsageDir $UsageDir -Event $toolEvent
+    }
+    try { [void](Update-UsageV2CurrentSessionViewFromEvents -UsageDir $UsageDir -ProjectRoot $ProjectRoot) } catch {}
+}
+
 function ConvertTo-CodexComparablePath {
     param([string] $Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return "" }

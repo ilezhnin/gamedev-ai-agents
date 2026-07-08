@@ -19,12 +19,14 @@ namespace GamedevAgentKit.Editor
         private string _message;
         private string _loadedProjectRoot;
         private Summary _summary;
+        private Dictionary<string, object> _currentSession;
         private UsageConfig _config = UsageConfig.Default();
 
         internal void Reload()
         {
             _loadedProjectRoot = AgentKitPaths.ProjectRoot;
             _summary = null;
+            _currentSession = null;
             _config = UsageConfig.Default();
             _message = null;
 
@@ -36,6 +38,7 @@ namespace GamedevAgentKit.Editor
             var usageDir = UsageDir(_loadedProjectRoot);
             _config = LoadConfig(Path.Combine(usageDir, "usage-config.json"));
             _summary = LoadSummary(Path.Combine(usageDir, "stats-summary.json"));
+            _currentSession = LoadJsonObject(Path.Combine(usageDir, "v2", "views", "current-session.json"));
         }
 
         internal void Draw(string projectRoot)
@@ -64,6 +67,7 @@ namespace GamedevAgentKit.Editor
             }
 
             DrawControls(projectRoot);
+            DrawCurrentSession();
 
             if (_summary == null)
             {
@@ -118,6 +122,26 @@ namespace GamedevAgentKit.Editor
                         Reload();
                     });
                 }
+
+                if (GUILayout.Button("Rebuild V2", GUILayout.Width(120f)))
+                {
+                    _refreshing = true;
+                    _message = null;
+                    AgentKitProcess.RunPowerShellAsync(".agents/scripts/usage-stats.ps1", projectRoot, new[] { "-Rebuild" }, exitCode =>
+                    {
+                        _refreshing = false;
+                        if (exitCode == AgentKitProcess.PowerShellNotFoundExitCode)
+                        {
+                            _message = "PowerShell not found. Install pwsh or Windows PowerShell and try again.";
+                        }
+                        else if (exitCode != 0)
+                        {
+                            _message = "Usage statistics rebuild exited with code " + exitCode + ".";
+                        }
+
+                        Reload();
+                    });
+                }
             }
 
             var retention = Mathf.Clamp(EditorGUILayout.IntField(new GUIContent("Retention", "Days of usage history to keep."), _config.RetentionDays, GUILayout.Width(180f)), 30, 365);
@@ -136,6 +160,149 @@ namespace GamedevAgentKit.Editor
                 catch (Exception ex)
                 {
                     _message = "Could not write usage settings: " + ex.Message;
+                }
+            }
+        }
+
+        private void DrawCurrentSession()
+        {
+            if (_currentSession == null)
+            {
+                return;
+            }
+
+            var lastTurn = ObjectValue(_currentSession, "lastTurn");
+            var totals = ObjectValue(_currentSession, "totals");
+            if (lastTurn == null || totals == null)
+            {
+                EditorGUILayout.HelpBox("Current session data is present but incomplete. Run Rebuild V2.", MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.LabelField("Current session", EditorStyles.boldLabel);
+            var status = Display(StringValue(_currentSession, "status"), "unknown");
+            var confidence = Display(StringValue(_currentSession, "sourceConfidence"), "unknown");
+            EditorGUILayout.LabelField(
+                Display(StringValue(_currentSession, "platform"), "unknown") +
+                " | session " + Display(StringValue(_currentSession, "sessionId"), "unknown") +
+                " | status " + status +
+                " | confidence " + confidence,
+                EditorStyles.miniLabel);
+
+            var complete = BoolValue(totals, "costComplete", true);
+            var costSuffix = complete ? string.Empty : "+";
+            EditorGUILayout.LabelField(
+                "Last turn " + LongValue(lastTurn, "turn", 0).ToString(CultureInfo.InvariantCulture) +
+                " | " + FormatDuration(DoubleValue(lastTurn, "durationSeconds", 0.0)) +
+                " | messages " + (LongValue(lastTurn, "userMessages", 0) + LongValue(lastTurn, "assistantMessages", 0)).ToString(CultureInfo.InvariantCulture) +
+                " | agents " + LongValue(lastTurn, "agentRuns", 0).ToString(CultureInfo.InvariantCulture) +
+                " | est $" + FormatMoney(DoubleValue(lastTurn, "estimatedCostUsd", 0.0)),
+                EditorStyles.miniLabel);
+            EditorGUILayout.LabelField(
+                "Session turns " + LongValue(totals, "turns", 0).ToString(CultureInfo.InvariantCulture) +
+                " | est $" + FormatMoney(DoubleValue(totals, "estimatedCostUsd", 0.0)) + costSuffix +
+                " | prices " + Display(StringValue(_currentSession, "priceSource"), "unknown"),
+                EditorStyles.miniLabel);
+
+            DrawCurrentSessionModels(ListValue(totals, "models"));
+            DrawCurrentSessionAgents(ListValue(totals, "agents"));
+            DrawCurrentSessionTools(ListValue(totals, "tools"));
+            DrawCurrentSessionHealth();
+        }
+
+        private void DrawCurrentSessionModels(List<object> models)
+        {
+            if (models.Count == 0)
+            {
+                return;
+            }
+
+            EditorGUILayout.LabelField("Current models", EditorStyles.boldLabel);
+            foreach (var item in models)
+            {
+                if (!(item is Dictionary<string, object> model))
+                {
+                    continue;
+                }
+
+                var costText = model.TryGetValue("estimatedCostUsd", out var costValue) && costValue is double cost
+                    ? "$" + FormatMoney(cost)
+                    : "n/a cost";
+                EditorGUILayout.LabelField(
+                    Display(StringValue(model, "model"), "unknown").PadRight(26) +
+                    "calls " + LongValue(model, "calls", 0).ToString(CultureInfo.InvariantCulture).PadRight(6) +
+                    "in " + FormatTokens(LongValue(model, "inputTokens", 0)).PadRight(8) +
+                    "out " + FormatTokens(LongValue(model, "outputTokens", 0)).PadRight(8) +
+                    "cacheR " + FormatTokens(LongValue(model, "cacheReadTokens", 0)).PadRight(8) +
+                    "cacheW " + FormatTokens(LongValue(model, "cacheWriteTokens", 0)).PadRight(8) +
+                    costText,
+                    EditorStyles.miniLabel);
+            }
+        }
+
+        private void DrawCurrentSessionAgents(List<object> agents)
+        {
+            if (agents.Count == 0)
+            {
+                return;
+            }
+
+            EditorGUILayout.LabelField("Current agents", EditorStyles.boldLabel);
+            foreach (var item in agents)
+            {
+                if (!(item is Dictionary<string, object> agent))
+                {
+                    continue;
+                }
+
+                EditorGUILayout.LabelField(
+                    Display(StringValue(agent, "role"), "unknown").PadRight(24) +
+                    "runs " + LongValue(agent, "runs", 0).ToString(CultureInfo.InvariantCulture).PadRight(5) +
+                    "tokens " + FormatTokens(LongValue(agent, "tokensIn", 0) + LongValue(agent, "tokensOut", 0)).PadRight(8) +
+                    "est $" + FormatMoney(DoubleValue(agent, "estCost", 0.0)).PadRight(8) +
+                    "last " + ShortTime(StringValue(agent, "lastUsedUtc")),
+                    EditorStyles.miniLabel);
+            }
+        }
+
+        private void DrawCurrentSessionTools(List<object> tools)
+        {
+            if (tools.Count == 0)
+            {
+                return;
+            }
+
+            EditorGUILayout.LabelField("Current tools", EditorStyles.boldLabel);
+            foreach (var item in tools)
+            {
+                if (!(item is Dictionary<string, object> tool))
+                {
+                    continue;
+                }
+
+                EditorGUILayout.LabelField(
+                    (Display(StringValue(tool, "kind"), "tool") + "/" + Display(StringValue(tool, "name"), "unknown")).PadRight(28) +
+                    "calls " + LongValue(tool, "calls", 0).ToString(CultureInfo.InvariantCulture).PadRight(5) +
+                    "fail " + LongValue(tool, "failures", 0).ToString(CultureInfo.InvariantCulture).PadRight(5) +
+                    "last " + ShortTime(StringValue(tool, "lastUsedUtc")),
+                    EditorStyles.miniLabel);
+            }
+        }
+
+        private void DrawCurrentSessionHealth()
+        {
+            var warnings = ListValue(_currentSession, "warnings");
+            if (warnings.Count == 0)
+            {
+                EditorGUILayout.LabelField("Health ok | v2 current-session view", EditorStyles.miniLabel);
+                return;
+            }
+
+            foreach (var warning in warnings)
+            {
+                if (warning is string text)
+                {
+                    EditorGUILayout.LabelField("Health warning: " + text, EditorStyles.miniLabel);
                 }
             }
         }
@@ -349,6 +516,31 @@ namespace GamedevAgentKit.Editor
             }
         }
 
+        private static Dictionary<string, object> LoadJsonObject(string path)
+        {
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+
+            try
+            {
+                return KitJson.Parse(File.ReadAllText(path)) as Dictionary<string, object>;
+            }
+            catch (FormatException)
+            {
+                return null;
+            }
+            catch (IOException)
+            {
+                return null;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                return null;
+            }
+        }
+
         private static WindowSummary ParseWindow(Dictionary<string, object> dict)
         {
             var window = new WindowSummary
@@ -521,6 +713,16 @@ namespace GamedevAgentKit.Editor
             return Path.Combine(projectRoot, ".agents", "usage");
         }
 
+        private static Dictionary<string, object> ObjectValue(Dictionary<string, object> dict, string key)
+        {
+            return dict != null && dict.TryGetValue(key, out var value) ? value as Dictionary<string, object> : null;
+        }
+
+        private static List<object> ListValue(Dictionary<string, object> dict, string key)
+        {
+            return dict != null && dict.TryGetValue(key, out var value) && value is List<object> list ? list : new List<object>();
+        }
+
         private static string StringValue(Dictionary<string, object> dict, string key)
         {
             return dict.TryGetValue(key, out var value) ? value as string : null;
@@ -569,6 +771,27 @@ namespace GamedevAgentKit.Editor
         private static string FormatPercent(double value)
         {
             return value.ToString("0.0", CultureInfo.InvariantCulture) + "%";
+        }
+
+        private static string FormatDuration(double seconds)
+        {
+            if (seconds < 0.0)
+            {
+                seconds = 0.0;
+            }
+
+            var time = TimeSpan.FromSeconds(seconds);
+            if (time.TotalHours >= 1.0)
+            {
+                return ((int)Math.Floor(time.TotalHours)).ToString(CultureInfo.InvariantCulture) + "h" + time.Minutes.ToString("00", CultureInfo.InvariantCulture) + "m";
+            }
+
+            if (time.TotalMinutes >= 1.0)
+            {
+                return time.Minutes.ToString(CultureInfo.InvariantCulture) + "m" + time.Seconds.ToString("00", CultureInfo.InvariantCulture) + "s";
+            }
+
+            return Math.Ceiling(time.TotalSeconds).ToString(CultureInfo.InvariantCulture) + "s";
         }
 
         private static string Display(string value, string fallback)

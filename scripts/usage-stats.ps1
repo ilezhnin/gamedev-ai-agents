@@ -9,6 +9,8 @@
 param(
     [string] $ProjectRoot = (Get-Location).Path,
     [switch] $NoCodexScan,
+    [switch] $Rebuild,
+    [switch] $MigrateV1,
     [switch] $Quiet
 )
 
@@ -394,6 +396,18 @@ function Invoke-UsageStats {
     $scriptDir = Split-Path -Parent $PSCommandPath
     $usageDir = Get-UsageDir -Root $ProjectRoot
     $config = Get-UsageConfig -UsageDir $usageDir
+    if ($Rebuild -or $MigrateV1) {
+        $migration = Import-UsageV1HistoryToV2 -UsageDir $usageDir -ProjectRoot $ProjectRoot
+        if (-not $Quiet -and $MigrateV1) {
+            Write-Output ("usage-stats: v1 migration " + $migration.status + " imported " + $migration.imported)
+        }
+    }
+    if ($Rebuild) {
+        $v2 = Update-UsageV2CurrentSessionViewFromEvents -UsageDir $usageDir -ProjectRoot $ProjectRoot
+        if (-not $Quiet) {
+            Write-Output ("usage-stats: v2 rebuild " + $v2.status)
+        }
+    }
     $warnings = @()
     $codexStatus = "disabled"
     if ($config.codexScanEnabled -and -not $NoCodexScan) {

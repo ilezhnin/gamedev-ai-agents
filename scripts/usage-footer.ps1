@@ -76,6 +76,164 @@ function ConvertTo-UsageReportSafeName {
     return $safe
 }
 
+function Get-UsageV2Property {
+    param($Object, [string] $Name, $Default = $null)
+    if (-not $Object) { return $Default }
+    if ($Object.PSObject.Properties[$Name]) { return $Object.PSObject.Properties[$Name].Value }
+    return $Default
+}
+
+function Get-UsageV2Number {
+    param($Object, [string] $Name, [double] $Default = 0.0)
+    $value = Get-UsageV2Property -Object $Object -Name $Name -Default $Default
+    if ($null -eq $value) { return $Default }
+    try { return [double]$value } catch { return $Default }
+}
+
+function Format-UsageV2Cost {
+    param($Value, [bool] $Complete = $true)
+    if ($null -eq $Value) { return "?" }
+    $text = Format-Money -Value ([double]$Value)
+    if (-not $Complete) { $text += "+" }
+    return $text
+}
+
+function Resolve-UsageV2CurrentSession {
+    param([string] $UsageDir, [string] $ResolvedPlatform, [string] $RequestedSessionId)
+    $path = Join-Path (Join-Path (Join-Path $UsageDir "v2") "views") "current-session.json"
+    $view = Read-JsonFile -Path $path
+    if (-not $view) { return $null }
+    if ([int](Get-UsageV2Property -Object $view -Name "v" -Default 0) -ne 2) { return $null }
+
+    $viewPlatform = ([string](Get-UsageV2Property -Object $view -Name "platform" -Default "")).ToLowerInvariant()
+    if ($ResolvedPlatform -ne "auto" -and $viewPlatform -ne $ResolvedPlatform.ToLowerInvariant()) { return $null }
+
+    if (-not [string]::IsNullOrWhiteSpace($RequestedSessionId)) {
+        $viewSession = [string](Get-UsageV2Property -Object $view -Name "sessionId" -Default "")
+        if ($viewSession -eq $RequestedSessionId) { return $view }
+        foreach ($alias in @((Get-UsageV2Property -Object $view -Name "aliases" -Default @()))) {
+            if ([string]$alias -eq $RequestedSessionId) { return $view }
+        }
+        return $null
+    }
+
+    return $view
+}
+
+function New-UsageV2TurnSummary {
+    param($View)
+    $platformName = [string](Get-UsageV2Property -Object $View -Name "platform" -Default "unknown")
+    $lastTurn = Get-UsageV2Property -Object $View -Name "lastTurn" -Default $null
+    $totals = Get-UsageV2Property -Object $View -Name "totals" -Default $null
+    $duration = Get-UsageV2Number -Object $lastTurn -Name "durationSeconds" -Default 0.0
+    $turnCost = Get-UsageV2Property -Object $lastTurn -Name "estimatedCostUsd" -Default $null
+    $sessionCost = Get-UsageV2Property -Object $totals -Name "estimatedCostUsd" -Default $null
+    $complete = [bool](Get-UsageV2Property -Object $totals -Name "costComplete" -Default $true)
+    $turns = [int](Get-UsageV2Number -Object $totals -Name "turns" -Default 0.0)
+    return ($platformName + ": turn " + (Format-Duration -Seconds $duration) + " | est $" + (Format-UsageV2Cost -Value $turnCost) + " | session $" + (Format-UsageV2Cost -Value $sessionCost -Complete $complete) + " (" + $turns + " turn(s))")
+}
+
+function Write-UsageV2Rows {
+    param($Rows, [bool] $IncludeScope)
+    $list = @($Rows)
+    if ($list.Count -eq 0) { return }
+    if ($IncludeScope) {
+        Write-Output ("    " + "model".PadRight(26) + "agent".PadRight(24) + "calls".PadRight(7) + "input".PadRight(9) + "output".PadRight(9) + "cacheW".PadRight(9) + "cacheR".PadRight(9) + "est$")
+    }
+    else {
+        Write-Output ("    " + "model".PadRight(26) + "calls".PadRight(7) + "input".PadRight(9) + "output".PadRight(9) + "cacheW".PadRight(9) + "cacheR".PadRight(9) + "est$")
+    }
+    foreach ($row in $list) {
+        $model = [string](Get-UsageV2Property -Object $row -Name "model" -Default "unknown")
+        $scope = [string](Get-UsageV2Property -Object $row -Name "scope" -Default "main")
+        $calls = [int](Get-UsageV2Number -Object $row -Name "calls" -Default 0.0)
+        $inputTokens = [long](Get-UsageV2Number -Object $row -Name "inputTokens" -Default 0.0)
+        $outputTokens = [long](Get-UsageV2Number -Object $row -Name "outputTokens" -Default 0.0)
+        $cacheWriteTokens = [long](Get-UsageV2Number -Object $row -Name "cacheWriteTokens" -Default 0.0)
+        $cacheReadTokens = [long](Get-UsageV2Number -Object $row -Name "cacheReadTokens" -Default 0.0)
+        $cost = Get-UsageV2Property -Object $row -Name "estimatedCostUsd" -Default $null
+        $costText = Format-UsageV2Cost -Value $cost
+        if ($IncludeScope) {
+            Write-Output ("    " + $model.PadRight(26) + $scope.PadRight(24) + ([string]$calls).PadRight(7) +
+                (Format-Tokens -Value $inputTokens).PadRight(9) + (Format-Tokens -Value $outputTokens).PadRight(9) +
+                (Format-Tokens -Value $cacheWriteTokens).PadRight(9) + (Format-Tokens -Value $cacheReadTokens).PadRight(9) + $costText)
+        }
+        else {
+            Write-Output ("    " + $model.PadRight(26) + ([string]$calls).PadRight(7) +
+                (Format-Tokens -Value $inputTokens).PadRight(9) + (Format-Tokens -Value $outputTokens).PadRight(9) +
+                (Format-Tokens -Value $cacheWriteTokens).PadRight(9) + (Format-Tokens -Value $cacheReadTokens).PadRight(9) + $costText)
+        }
+    }
+}
+
+function Write-UsageV2Agents {
+    param($Rows)
+    $list = @($Rows)
+    if ($list.Count -eq 0) { return }
+    Write-Output "  agents:"
+    foreach ($row in $list) {
+        $role = [string](Get-UsageV2Property -Object $row -Name "role" -Default "unknown")
+        $runs = [int](Get-UsageV2Number -Object $row -Name "runs" -Default 0.0)
+        $tokensIn = [long](Get-UsageV2Number -Object $row -Name "tokensIn" -Default 0.0)
+        $tokensOut = [long](Get-UsageV2Number -Object $row -Name "tokensOut" -Default 0.0)
+        $cost = Get-UsageV2Property -Object $row -Name "estCost" -Default $null
+        Write-Output ("    " + $role.PadRight(24) + "runs " + ([string]$runs).PadRight(5) + "tokens " + (Format-Tokens -Value ($tokensIn + $tokensOut)).PadRight(9) + "est $" + (Format-UsageV2Cost -Value $cost))
+    }
+}
+
+function Write-UsageV2Tools {
+    param($Rows)
+    $list = @($Rows)
+    if ($list.Count -eq 0) { return }
+    Write-Output "  tools:"
+    foreach ($row in $list) {
+        $kind = [string](Get-UsageV2Property -Object $row -Name "kind" -Default "tool")
+        $name = [string](Get-UsageV2Property -Object $row -Name "name" -Default "unknown")
+        $calls = [int](Get-UsageV2Number -Object $row -Name "calls" -Default 0.0)
+        $failures = [int](Get-UsageV2Number -Object $row -Name "failures" -Default 0.0)
+        Write-Output ("    " + ($kind + "/" + $name).PadRight(28) + "calls " + ([string]$calls).PadRight(5) + "fail " + $failures)
+    }
+}
+
+function Write-UsageV2Footer {
+    param($View, [string] $Mode)
+    $generated = [string](Get-UsageV2Property -Object $View -Name "generatedUtc" -Default "")
+    $generatedText = ""
+    $generatedUtc = ConvertTo-UtcDate -Text $generated
+    if ($generatedUtc) { $generatedText = $generatedUtc.ToString("yyyy-MM-dd HH:mm", $script:Inv) + " UTC" }
+    $summary = New-UsageV2TurnSummary -View $View
+    if ($Mode -eq "Brief") {
+        $suffix = ""
+        if ($generatedText) { $suffix = " | recorded " + $generatedText }
+        Write-Output ("Usage: current session - " + $summary + $suffix)
+        return
+    }
+
+    $platformName = [string](Get-UsageV2Property -Object $View -Name "platform" -Default "")
+    $session = [string](Get-UsageV2Property -Object $View -Name "sessionId" -Default "")
+    $priceSource = [string](Get-UsageV2Property -Object $View -Name "priceSource" -Default "")
+    $lastTurn = Get-UsageV2Property -Object $View -Name "lastTurn" -Default $null
+    $totals = Get-UsageV2Property -Object $View -Name "totals" -Default $null
+
+    Write-Output "Usage:"
+    if ($platformName) { Write-Output ("  platform: " + $platformName) }
+    if ($session) { Write-Output ("  session: " + $session) }
+    if ($generatedText) { Write-Output ("  recorded: " + $generatedText) }
+    Write-Output "  source: v2 current-session"
+    Write-Output "  note: final-response tokens are counted by the next lifecycle hook report."
+    Write-Output "  last turn:"
+    Write-Output ("    " + $summary)
+    Write-UsageV2Rows -Rows (Get-UsageV2Property -Object $lastTurn -Name "rows" -Default @()) -IncludeScope $true
+    Write-Output "  session totals:"
+    Write-UsageV2Rows -Rows (Get-UsageV2Property -Object $totals -Name "models" -Default @()) -IncludeScope $false
+    Write-UsageV2Agents -Rows (Get-UsageV2Property -Object $totals -Name "agents" -Default @())
+    Write-UsageV2Tools -Rows (Get-UsageV2Property -Object $totals -Name "tools" -Default @())
+    if ($priceSource) { Write-Output ("  prices: " + $priceSource + " | API-equivalent estimate, not billing") }
+    foreach ($warning in @((Get-UsageV2Property -Object $View -Name "warnings" -Default @()))) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$warning)) { Write-Output ("  warning: " + [string]$warning) }
+    }
+}
+
 function Resolve-FooterPlatform {
     param([string] $Requested)
     if ($Requested -ne "auto") { return $Requested }
@@ -156,6 +314,12 @@ try {
     $usageDir = Join-Path $root ".agents\usage"
     $resolvedPlatform = Resolve-FooterPlatform -Requested $Platform
     $resolvedSessionId = Resolve-FooterSessionId -Requested $SessionId -ResolvedPlatform $resolvedPlatform
+    $v2Session = Resolve-UsageV2CurrentSession -UsageDir $usageDir -ResolvedPlatform $resolvedPlatform -RequestedSessionId $resolvedSessionId
+    if ($v2Session) {
+        Write-UsageV2Footer -View $v2Session -Mode $Mode
+        exit 0
+    }
+
     $lastReport = Resolve-ReportPath -UsageDir $usageDir -ResolvedPlatform $resolvedPlatform -RequestedSessionId $resolvedSessionId
     if (-not $lastReport -or -not (Test-Path -LiteralPath $lastReport)) {
         if ($resolvedPlatform -eq "auto") {

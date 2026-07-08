@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.4.17 - 2026-07-08
+
+### Added
+- Started the Usage Analytics V2 migration with a local v2 event log, rebuildable current-session view, and footer support for reading current logical-session usage from the v2 view before falling back to legacy reports.
+- Added V2 current-session model, agent, tool, and health rendering to the Unity usage panel, plus a Rebuild V2 action.
+- Added an idempotent V1 history migration path that imports legacy `history.jsonl` rows as historical V2 events without making them the current session.
+
+### Fixed
+- Fixed Codex Desktop usage session totals so long-lived rollout files no longer make the visible current-session footer inherit old Codex turns and costs.
+- Fixed V2 tool analytics to count completed Codex tool operations instead of double-counting begin/end event pairs.
+
 ## 0.4.16 - 2026-07-07
 
 ### Changed

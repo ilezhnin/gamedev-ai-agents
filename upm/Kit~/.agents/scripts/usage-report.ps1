@@ -51,10 +51,11 @@ $script:SeenRequestIdCap = 1500   # dedup window for usage repeated across conte
 function Read-ReportState {
     param([string] $Path)
     $state = @{
-        files   = @{}
-        seen    = New-Object "System.Collections.Generic.List[string]"
-        session = @{ models = @{}; turns = 0 }
-        codex   = @{ in = [long]0; out = [long]0; cacheRead = [long]0; model = $null }
+        files          = @{}
+        seen           = New-Object "System.Collections.Generic.List[string]"
+        session        = @{ models = @{}; turns = 0 }
+        codex          = @{ in = [long]0; out = [long]0; cacheRead = [long]0; model = $null }
+        logicalSession = @{ id = $null; kind = $null }
     }
     $loaded = Read-JsonFile -Path $Path
     if (-not $loaded) { return $state }
@@ -81,6 +82,10 @@ function Read-ReportState {
             if ($loaded.codex.PSObject.Properties[$field]) { $state.codex[$field] = [long]$loaded.codex.$field }
         }
         if ($loaded.codex.PSObject.Properties["model"] -and $loaded.codex.model) { $state.codex.model = [string]$loaded.codex.model }
+    }
+    if ($loaded.logicalSession) {
+        if ($loaded.logicalSession.PSObject.Properties["id"] -and $loaded.logicalSession.id) { $state.logicalSession.id = [string]$loaded.logicalSession.id }
+        if ($loaded.logicalSession.PSObject.Properties["kind"] -and $loaded.logicalSession.kind) { $state.logicalSession.kind = [string]$loaded.logicalSession.kind }
     }
     return $state
 }
@@ -158,6 +163,33 @@ function Convert-AgentPathForHost {
     return $Path
 }
 
+function Set-CodexLogicalSessionCandidate {
+    param([hashtable] $SessionInfo, [string] $Kind, [string] $Id, [int] $Priority)
+    if (-not $SessionInfo -or [string]::IsNullOrWhiteSpace($Id)) { return }
+    $currentPriority = 0
+    if ($SessionInfo.ContainsKey("priority")) { $currentPriority = [int]$SessionInfo.priority }
+    if ($Priority -lt $currentPriority) { return }
+    $SessionInfo.id = $Id
+    $SessionInfo.kind = $Kind
+    $SessionInfo.priority = $Priority
+}
+
+function Add-ToolMetric {
+    param([hashtable] $ToolCounts, [string] $Name, [string] $Kind = "tool", [string] $Status = "ok")
+    if (-not $ToolCounts -or [string]::IsNullOrWhiteSpace($Name)) { return }
+    $key = $Kind + "|" + $Name
+    if (-not $ToolCounts.ContainsKey($key)) {
+        $ToolCounts[$key] = @{
+            name     = $Name
+            kind     = $Kind
+            calls    = [int]0
+            failures = [int]0
+        }
+    }
+    $ToolCounts[$key].calls = [int]$ToolCounts[$key].calls + 1
+    if ($Status -ne "ok") { $ToolCounts[$key].failures = [int]$ToolCounts[$key].failures + 1 }
+}
+
 function Read-TranscriptUsage {
     # Incrementally reads one transcript .jsonl: only lines past the stored
     # offset are considered, usage is deduplicated by requestId, and the
@@ -170,6 +202,7 @@ function Read-TranscriptUsage {
         [string] $Scope,
         [hashtable] $TurnBuckets,
         [hashtable] $MessageCounts,
+        [hashtable] $ToolCounts,
         [System.Collections.Generic.List[object]] $Intervals
     )
     if (-not $MessageCounts.ContainsKey("userMessages")) { $MessageCounts["userMessages"] = 0 }
@@ -252,6 +285,17 @@ function Read-TranscriptUsage {
         $key = $Scope + "|" + $model
         if (-not $TurnBuckets.ContainsKey($key)) { $TurnBuckets[$key] = New-TokenBucket }
         $MessageCounts["assistantMessages"] = [int]$MessageCounts["assistantMessages"] + 1
+        if ($entry.message.PSObject.Properties["content"] -and $entry.message.content) {
+            foreach ($block in @($entry.message.content)) {
+                if (-not $block -or -not $block.PSObject.Properties["type"]) { continue }
+                $blockType = [string]$block.type
+                if ($blockType -eq "tool_use" -or $blockType -eq "server_tool_use") {
+                    $toolName = $blockType
+                    if ($block.PSObject.Properties["name"] -and $block.name) { $toolName = [string]$block.name }
+                    Add-ToolMetric -ToolCounts $ToolCounts -Name $toolName -Kind "claude"
+                }
+            }
+        }
         Add-UsageToBucket -Bucket $TurnBuckets[$key] -Usage $usage
     }
     $State.files[$Path] = $lines.Count
@@ -266,7 +310,9 @@ function Read-CodexTranscriptUsage {
         [hashtable] $State,
         [hashtable] $TurnBuckets,
         [hashtable] $MessageCounts,
-        [System.Collections.Generic.List[object]] $Intervals
+        [hashtable] $ToolCounts,
+        [System.Collections.Generic.List[object]] $Intervals,
+        [hashtable] $SessionInfo
     )
     if (-not $MessageCounts.ContainsKey("userMessages")) { $MessageCounts["userMessages"] = 0 }
     if (-not $MessageCounts.ContainsKey("assistantMessages")) { $MessageCounts["assistantMessages"] = 0 }
@@ -301,6 +347,26 @@ function Read-CodexTranscriptUsage {
             }
         }
 
+        if ($entry.type -eq "session_meta" -and $entry.payload) {
+            if ($entry.payload.PSObject.Properties["first_window_id"] -and $entry.payload.first_window_id) {
+                Set-CodexLogicalSessionCandidate -SessionInfo $SessionInfo -Kind "window" -Id ([string]$entry.payload.first_window_id) -Priority 40
+            }
+            elseif ($entry.payload.PSObject.Properties["window_id"] -and $entry.payload.window_id) {
+                Set-CodexLogicalSessionCandidate -SessionInfo $SessionInfo -Kind "window" -Id ([string]$entry.payload.window_id) -Priority 40
+            }
+            if ($entry.payload.PSObject.Properties["turn_id"] -and $entry.payload.turn_id) {
+                Set-CodexLogicalSessionCandidate -SessionInfo $SessionInfo -Kind "turn" -Id ([string]$entry.payload.turn_id) -Priority 20
+            }
+            continue
+        }
+
+        if ($entry.type -eq "response_item" -and $entry.payload -and $entry.payload.PSObject.Properties["internal_chat_message_metadata_passthrough"] -and $entry.payload.internal_chat_message_metadata_passthrough) {
+            $meta = $entry.payload.internal_chat_message_metadata_passthrough
+            if ($meta.PSObject.Properties["turn_id"] -and $meta.turn_id) {
+                Set-CodexLogicalSessionCandidate -SessionInfo $SessionInfo -Kind "turn" -Id ([string]$meta.turn_id) -Priority 20
+            }
+        }
+
         if ($entry.type -eq "turn_context") {
             if ($entry.payload -and $entry.payload.PSObject.Properties["model"] -and $entry.payload.model) {
                 $currentModel = [string]$entry.payload.model
@@ -310,6 +376,20 @@ function Read-CodexTranscriptUsage {
 
         if ($entry.type -ne "event_msg" -or -not $entry.payload -or -not $entry.payload.PSObject.Properties["type"]) { continue }
         $payloadType = [string]$entry.payload.type
+        if (($payloadType -eq "task_started" -or $payloadType -eq "task_complete" -or $payloadType -eq "turn_aborted" -or $payloadType -eq "patch_apply_end") -and $entry.payload.PSObject.Properties["turn_id"] -and $entry.payload.turn_id) {
+            Set-CodexLogicalSessionCandidate -SessionInfo $SessionInfo -Kind "turn" -Id ([string]$entry.payload.turn_id) -Priority 20
+        }
+        if ($payloadType -eq "exec_command_end") {
+            Add-ToolMetric -ToolCounts $ToolCounts -Name "shell" -Kind "codex"
+        }
+        elseif ($payloadType -eq "patch_apply_end") {
+            Add-ToolMetric -ToolCounts $ToolCounts -Name "apply_patch" -Kind "codex"
+        }
+        elseif ($payloadType -eq "tool_call_end") {
+            $toolName = "tool"
+            if ($entry.payload.PSObject.Properties["name"] -and $entry.payload.name) { $toolName = [string]$entry.payload.name }
+            Add-ToolMetric -ToolCounts $ToolCounts -Name $toolName -Kind "codex"
+        }
         if ($payloadType -eq "user_message") {
             $MessageCounts["userMessages"] = [int]$MessageCounts["userMessages"] + 1
             continue
@@ -353,6 +433,7 @@ function Read-GeminiTelemetryUsage {
         [hashtable] $State,
         [hashtable] $TurnBuckets,
         [hashtable] $MessageCounts,
+        [hashtable] $ToolCounts,
         [System.Collections.Generic.List[object]] $Intervals,
         [string] $DefaultModel
     )
@@ -387,6 +468,7 @@ function Read-GeminiTelemetryUsage {
         $bucket.in += [long]($input + $tool)
         $bucket.out += [long]($output + $thought)
         $bucket.cacheRead += [long]$cache
+        if ($tool -gt 0) { Add-ToolMetric -ToolCounts $ToolCounts -Name "tool_tokens" -Kind "gemini" }
 
         $durationMs = Get-FirstLongProp -Object $entry -Names @("duration_ms", "duration")
         if ($durationMs -gt 0) { $durationSeconds += [double]$durationMs / 1000.0 }
@@ -455,10 +537,14 @@ function Invoke-UsageReport {
 
     $turnBuckets = @{}
     $messageCounts = @{ userMessages = 0; assistantMessages = 0 }
+    $toolCounts = @{}
     $intervals = New-Object "System.Collections.Generic.List[object]"
+    $reportSessionId = $sessionId
+    $reportSessionAliases = @()
+    $codexSessionInfo = @{ id = $null; kind = $null; priority = 0 }
 
     if ($platformName -eq "claude") {
-        Read-TranscriptUsage -Path $transcript -State $state -Seen $seen -SeenOrder $seenOrder -Scope "main" -TurnBuckets $turnBuckets -MessageCounts $messageCounts -Intervals $intervals
+        Read-TranscriptUsage -Path $transcript -State $state -Seen $seen -SeenOrder $seenOrder -Scope "main" -TurnBuckets $turnBuckets -MessageCounts $messageCounts -ToolCounts $toolCounts -Intervals $intervals
 
         # Subagent transcripts: <transcript-dir>/<session-id>/subagents/**/agent-*.jsonl
         # with agent-*.meta.json carrying agentType. Workflow-spawned agents live
@@ -471,20 +557,20 @@ function Invoke-UsageReport {
                 $meta = Read-JsonFile -Path ($file.FullName -replace "\.jsonl$", ".meta.json")
                 if ($meta -and $meta.agentType) { $agentType = [string]$meta.agentType }
                 $before = $intervals.Count
-                Read-TranscriptUsage -Path $file.FullName -State $state -Seen $seen -SeenOrder $seenOrder -Scope $agentType -TurnBuckets $turnBuckets -MessageCounts $messageCounts -Intervals $intervals
+                Read-TranscriptUsage -Path $file.FullName -State $state -Seen $seen -SeenOrder $seenOrder -Scope $agentType -TurnBuckets $turnBuckets -MessageCounts $messageCounts -ToolCounts $toolCounts -Intervals $intervals
                 if ($intervals.Count -gt $before) { $agentRuns++ }
             }
         }
     }
     elseif ($platformName -eq "codex") {
         $agentRuns = 0
-        Read-CodexTranscriptUsage -Path $transcript -State $state -TurnBuckets $turnBuckets -MessageCounts $messageCounts -Intervals $intervals
+        Read-CodexTranscriptUsage -Path $transcript -State $state -TurnBuckets $turnBuckets -MessageCounts $messageCounts -ToolCounts $toolCounts -Intervals $intervals -SessionInfo $codexSessionInfo
     }
     elseif ($platformName -eq "gemini") {
         $agentRuns = 0
         $defaultModel = "unknown"
         if ($hook.PSObject.Properties["model"] -and $hook.model) { $defaultModel = [string]$hook.model }
-        Read-GeminiTelemetryUsage -UsageDir $usageDir -State $state -TurnBuckets $turnBuckets -MessageCounts $messageCounts -Intervals $intervals -DefaultModel $defaultModel
+        Read-GeminiTelemetryUsage -UsageDir $usageDir -State $state -TurnBuckets $turnBuckets -MessageCounts $messageCounts -ToolCounts $toolCounts -Intervals $intervals -DefaultModel $defaultModel
     }
     else {
         return
@@ -494,6 +580,21 @@ function Invoke-UsageReport {
         # Nothing new to report; still persist advanced offsets.
         Save-ReportState -Path $statePath -State $state -SeenOrder $seenOrder
         return
+    }
+
+    if ($platformName -eq "codex") {
+        if (-not [string]::IsNullOrWhiteSpace($codexSessionInfo.id)) {
+            $reportSessionId = [string]$codexSessionInfo.id
+        }
+        if ([string]::IsNullOrWhiteSpace($codexSessionInfo.kind)) { $codexSessionInfo.kind = "session" }
+        if (-not [string]::IsNullOrWhiteSpace($reportSessionId) -and $reportSessionId -ne $sessionId) {
+            $reportSessionAliases += $sessionId
+        }
+        if ($state.logicalSession.id -ne $reportSessionId -or $state.logicalSession.kind -ne $codexSessionInfo.kind) {
+            $state.session = @{ models = @{}; turns = 0 }
+        }
+        $state.logicalSession.id = $reportSessionId
+        $state.logicalSession.kind = [string]$codexSessionInfo.kind
     }
 
     # Fold the turn into session totals (per model).
@@ -544,16 +645,20 @@ function Invoke-UsageReport {
     $wallSeconds = 0.0
     if ($wallFrom -and $wallTo) { $wallSeconds = ($wallTo - $wallFrom).TotalSeconds }
 
+    $reportWarnings = @($prices.warnings)
+    $unpricedWarning = $null
+    if ($unknownModels.Count -gt 0) {
+        $unpricedWarning = "! no price data for: " + (($unknownModels | Sort-Object) -join ", ") + " - excluded from the estimate"
+        $reportWarnings += $unpricedWarning
+    }
+
     $lines = @()
     $header = "Usage " + $platformName + ": turn " + (Format-Duration -Seconds $wallSeconds) + " | est $" + (Format-Money -Value $turnCost)
     $sessionPart = " | session $" + (Format-Money -Value $sessionCost)
     if (-not $sessionCostComplete) { $sessionPart += "+" }
     $header += $sessionPart + " (" + $state.session.turns + " turn(s))"
     $lines += $header
-    foreach ($warning in $prices.warnings) { $lines += $warning }
-    if ($unknownModels.Count -gt 0) {
-        $lines += ("! no price data for: " + (($unknownModels | Sort-Object) -join ", ") + " - excluded from the estimate")
-    }
+    foreach ($warning in $reportWarnings) { $lines += $warning }
 
     $multiRow = ($rows.Count -gt 1)
     if ($multiRow) {
@@ -580,7 +685,11 @@ function Invoke-UsageReport {
     $lines += ("  prices: " + $prices.sourceLabel + " | API-equivalent estimate, not billing")
 
     Save-ReportState -Path $statePath -State $state -SeenOrder $seenOrder
-    Write-LastReport -UsageDir $usageDir -TurnLines $lines -State $state -Prices $prices -SessionId $sessionId -PlatformName $platformName
+    Write-LastReport -UsageDir $usageDir -TurnLines $lines -State $state -Prices $prices -SessionId $reportSessionId -PlatformName $platformName -AliasSessionIds $reportSessionAliases
+    try {
+        Write-UsageV2SessionSnapshot -UsageDir $usageDir -ProjectRoot $root -PlatformName $platformName -SessionId $reportSessionId -AliasSessionIds $reportSessionAliases -State $state -Prices $prices -Rows $rows -TurnCost $turnCost -SessionCost $sessionCost -SessionCostComplete $sessionCostComplete -WallSeconds $wallSeconds -AgentRuns $agentRuns -MessageCounts $messageCounts -ToolCounts $toolCounts -Warnings $reportWarnings
+    }
+    catch {}
 
     $message = ($lines -join "`n")
     Write-Output (@{ systemMessage = $message } | ConvertTo-Json -Compress)
@@ -607,7 +716,7 @@ function Invoke-UsageReport {
                 ts                = $historyTs.ToUniversalTime().ToString("o", $script:Inv)
                 platform          = $platformName
                 source            = "session"
-                sessionId         = $sessionId
+                sessionId         = $reportSessionId
                 turn              = [int]$state.session.turns
                 wallSeconds       = [double]$wallSeconds
                 agentRuns         = [int]$agentRuns
@@ -628,6 +737,7 @@ function Save-ReportState {
             seen       = @($SeenOrder)
             session    = $State.session
             codex      = $State.codex
+            logicalSession = $State.logicalSession
         })
 }
 
@@ -640,7 +750,7 @@ function ConvertTo-UsageReportSafeName {
 }
 
 function Write-LastReport {
-    param([string] $UsageDir, [string[]] $TurnLines, [hashtable] $State, [hashtable] $Prices, [string] $SessionId, [string] $PlatformName)
+    param([string] $UsageDir, [string[]] $TurnLines, [hashtable] $State, [hashtable] $Prices, [string] $SessionId, [string] $PlatformName, [string[]] $AliasSessionIds = @())
     $lines = @(
         "# Usage report",
         "",
@@ -668,8 +778,13 @@ function Write-LastReport {
     if (-not [string]::IsNullOrWhiteSpace($PlatformName)) {
         $platformSafe = ConvertTo-UsageReportSafeName -Value $PlatformName
         [System.IO.File]::WriteAllText((Join-Path $UsageDir ("last-report-" + $platformSafe + ".md")), $text, (New-Object System.Text.UTF8Encoding $false))
-        if (-not [string]::IsNullOrWhiteSpace($SessionId)) {
-            $sessionSafe = ConvertTo-UsageReportSafeName -Value $SessionId
+        $sessionIds = New-Object "System.Collections.Generic.HashSet[string]"
+        if (-not [string]::IsNullOrWhiteSpace($SessionId)) { [void]$sessionIds.Add($SessionId) }
+        foreach ($alias in @($AliasSessionIds)) {
+            if (-not [string]::IsNullOrWhiteSpace($alias)) { [void]$sessionIds.Add($alias) }
+        }
+        foreach ($id in $sessionIds) {
+            $sessionSafe = ConvertTo-UsageReportSafeName -Value $id
             [System.IO.File]::WriteAllText((Join-Path $UsageDir ("last-report-" + $platformSafe + "-" + $sessionSafe + ".md")), $text, (New-Object System.Text.UTF8Encoding $false))
         }
     }
