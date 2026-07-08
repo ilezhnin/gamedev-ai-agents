@@ -22,16 +22,17 @@
 - Prefer non-alloc physics APIs in hot paths when existing project code does so.
 - Avoid LINQ in hot paths unless existing code accepts it.
 
-## Assembly Boundaries (asmdef)
+## Boundary Enforcement
 
-Assembly definitions are the kit's default boundary-enforcement mechanism. Treat them as architecture, not build plumbing.
+Assembly definitions are the kit's default boundary-enforcement mechanism, but some projects deliberately stay asmdef-less and enforce boundaries with source-scan guard tests. Detect the project policy before proposing changes.
 
-- One asmdef per module or system: runtime asmdef, `Editor` asmdef, and test asmdefs per module. Avoid growing an `Assembly-CSharp` monolith - when a legacy project has outgrown it, propose introducing asmdefs (with approval) instead of adding to the pile.
-- Keep references minimal and explicit: a module references only what its public behavior needs. No cycles, no platform leakage, no editor references from runtime assemblies.
-- Namespace and folder structure mirror the asmdef, so ownership is readable from the path.
+- In asmdef-based projects, keep one runtime asmdef plus `Editor` and test asmdefs per module. Keep references minimal and explicit: no cycles, no platform leakage, no editor references from runtime assemblies.
+- In asmdef-less projects, absence of per-module asmdefs is not a defect when the policy is documented and guarded. Strengthen editor-only source scans before proposing asmdefs.
+- Source-scan guard tests usually live under the owning module's `Tests/Editor` and scan the on-disk tree for forbidden folder tokens, illegal layer references, cross-module reach-ins, and folder/namespace mismatches.
+- Namespace and folder structure mirror the boundary mechanism, so ownership is readable from the path.
 - Editor scripts belong in `Editor` folders or editor-only asmdefs; use define constraints (`UNITY_EDITOR`, `UNITY_INCLUDE_TESTS`, platform defines) instead of scattering `#if` through shared files.
-- Tests reference the smallest assembly needed; use `InternalsVisibleTo` only for the module's own test assembly.
-- A dependency between modules that asmdef references cannot express cleanly is an architecture smell - add an adapter or a narrower port instead of a reference chain.
+- Tests reference the smallest assembly or source scope needed; use `InternalsVisibleTo` only for the module's own test assembly.
+- A dependency between modules that the boundary mechanism cannot express cleanly is an architecture smell - add an adapter or a narrower port instead of a reference chain.
 
 ## UI And Scene Wiring
 

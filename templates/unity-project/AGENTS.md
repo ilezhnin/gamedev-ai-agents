@@ -18,7 +18,7 @@ Assets/
 |   |   |   |-- Diagnostics/    # Read-only debug views, probes, and snapshots
 |   |   |   |-- Documentation/  # Living module docs
 |   |   |   |-- Tests/          # EditMode/PlayMode tests near the owner
-|   |   |   `-- <SubFeature>/   # Optional smaller capability with its own shape
+|   |   |   `-- <Subsystem>/    # Optional owned workflow with its own layers
 |   |   `-- Editor/             # Project-wide editor tooling
 |   |-- Generated/              # Generated project output; read-only unless changing the generator
 |   |-- Data/                   # Project-authored ScriptableObjects, catalogs, presets
@@ -60,7 +60,7 @@ Declare module owners so features land in the right place. Replace the examples 
 
 - <Audio, ambience, hit/landing sounds> -> <Assets/.../Scripts/GameAudio>
 - <Input, devices, shortcuts, cursor policy> -> <Assets/.../Scripts/GameInput>
-- <UI windows and screens> -> <Assets/.../Scripts/View/UI/Windows/<WindowName>>
+- <UI windows and screens> -> <Assets/.../Scripts/<UiModule>/<ScreenOrFlow>>
 - <Persistence, saves, migrations> -> <Assets/.../Scripts/GameStates>
 
 Rules:
@@ -70,6 +70,24 @@ Rules:
 - Cross-module features integrate through a small adapter or port at the boundary, not by reaching into another module's internals.
 - Each module keeps one public API and entry point so it can be replaced, extended, or tested alone.
 - Maintenance rule: when a module appears, disappears, or changes owner, update this map.
+
+## Script Organization
+
+These rules apply under `Assets/<ProjectRoot>/Scripts/<ModuleName>` unless the project documents a stricter shape.
+
+- Root layer folders use this fixed vocabulary: `Api`, `Core`, `Model`, `View`, `Diagnostics`, `Tests`, `Documentation`. Use only the layers the module actually needs.
+- Unity-special `Editor` and `Resources` folders are legal where Unity requires them and are not architecture layers.
+- Beside the root layer folders, the only legal sibling folder is a real subsystem. A subsystem is an owned workflow with its own layer folders (only the layers it needs) and may recursively contain deeper subsystems.
+- Organize multi-workflow modules subsystem-first. Do not scatter one workflow across root `Api`/`Core`/`Model`/`View` just because those folders exist.
+- A subsystem folder needs real volume: a named workflow, clear owner/lifecycle, several related types, and its own layer shape. A thin concern with one or two files folds into the parent `Core` or `Model` instead of getting a named folder.
+- Do not introduce new parking-lot folders such as `Managers`, `Services`, `Systems`, `Utils`, or `Runtime`. Existing legacy folders are migration context, not a pattern to copy.
+- Single-layer subsystems are legal: a View-only or Model-only workflow does not need fake `Core`. Grouping folders inside a layer, such as `Core/Native`, are also legal.
+
+### Usings And Namespaces
+
+- Folder and namespace mirror exactly: `Assets/<ProjectRoot>/Scripts/<Module>/<Subsystem>/Core` maps to `<RootNamespace>.<Module>.<Subsystem>.Core`.
+- Put the namespace before `#region Usings`; put all usings inside that region.
+- Use one contiguous using block ordered as `System.*`, Unity, third-party, project, then aliases. Do not add blank lines between groups, duplicate imports, dead imports, or group-label comments.
 
 ## Runtime Startup Pipeline
 
@@ -100,11 +118,15 @@ Declare the expected folder shape for new features or modules. Replace this exam
   Diagnostics/
   Documentation/
   Tests/
+  <SubsystemName>/
+    Core/
+    Model/
 ```
 
 Rules:
 
 - Copy the nearest established feature shape before adding a new one.
+- Use only layers the feature really needs; add subsystem folders only for named workflows with enough ownership and volume.
 - The template must name any required registration point, authoring guide, generated-code boundary, and test location.
 - Generated files are read-only unless the task is to change the generator; update the generation command instead.
 - Maintenance rule: when the project changes its feature shape, update this template in the same change.

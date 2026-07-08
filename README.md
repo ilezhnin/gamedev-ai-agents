@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.16-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.17-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -107,7 +107,7 @@ Unity (`unity-...`):
 | Skill | Purpose |
 | --- | --- |
 | `unity-orient` | Map an unfamiliar Unity project: version, packages, asmdefs, tests, risks |
-| `unity-implement` | Safe C# changes: serialization, lifecycle, asmdef boundaries |
+| `unity-implement` | Safe C# changes: serialization, lifecycle, script structure, boundaries |
 | `unity-tests` | Bootstrap and author EditMode/PlayMode tests, humble-object refactors |
 | `unity-debug` | Root-cause debugging: reproduce, localize, fix, guard; rendering triage |
 | `unity-review` | Code-owner review of Unity diffs with severity/confidence classification |
@@ -125,7 +125,7 @@ Shared:
 | `planning` | Writes `.agents/plans/active_plan.md` + `task_list.md` before execution |
 | `crossworking` | Delivery loop across agents: plan -> implement -> validate -> review -> PR |
 | `arch-audit` | Module architecture audit -> dependency-ordered refactor backlog (SOLID/KISS/DRY, fallbacks, runtime authoring lens) |
-| `codebase-audit` | Read-only whole-project issue audit with overengineering, fallback, runtime-authoring, security, rollback, and determinism findings |
+| `codebase-audit` | Read-only whole-project issue audit with script-organization, overengineering, fallback, runtime-authoring, security, rollback, and determinism findings |
 | `grill-me` | Relentless plan and design stress-testing before implementation |
 | `create-mr` | Verify, commit, push, open the PR/MR; conventional commits |
 | `learn` | Capture reusable lessons into AGENTS.md / learnings / skills |
@@ -143,7 +143,7 @@ Hierarchy rule: specialized stack roles implement, test, and review; broader-pro
 
 ### Project Contracts
 
-The install places living contracts that keep agents on rails: `AGENTS.md` at the project root (tech stack, module map, boundaries, skill routing) and, under `.agents/`: `ARCHITECTURE.md` (module shape, asmdef boundaries, determinism, serialization compatibility), `CODE_STYLE.md`, `DEPENDENCIES.md` (every package justified). `AGENTS.md` is the only root file the kit ships - discovery contracts of Codex, Cursor, and Antigravity require it there. Agents read the contracts before acting; `learn` keeps project lessons in `.agents/learnings.md`.
+The install places living contracts that keep agents on rails: `AGENTS.md` at the project root (tech stack, module map, boundaries, skill routing) and, under `.agents/`: `ARCHITECTURE.md` (module shape, boundary enforcement, determinism, serialization compatibility), `CODE_STYLE.md`, `DEPENDENCIES.md` (every package justified). `AGENTS.md` is the only root file the kit ships - discovery contracts of Codex, Cursor, and Antigravity require it there. Agents read the contracts before acting; `learn` keeps project lessons in `.agents/learnings.md`.
 
 ## Platforms
 

@@ -7,6 +7,11 @@
 - Added V2 current-session model, agent, tool, and health rendering to the Unity usage panel, plus a Rebuild V2 action.
 - Added an idempotent V1 history migration path that imports legacy `history.jsonl` rows as historical V2 events without making them the current session.
 
+### Changed
+- Tightened Unity script organization contracts around subsystem-first module layout, fixed layer-folder vocabulary, legal single-layer subsystems, legal grouping folders inside layers, and exact folder/namespace/usings mirroring.
+- Updated Unity implementation, review, architecture-audit, and read-only codebase-audit skills to enforce those structure rules and to read project overlays before judging folder or namespace changes.
+- Changed Unity boundary guidance so asmdefs remain the default enforcement mechanism, while documented asmdef-less projects are audited through source-scan guard tests instead of being automatically flagged for missing per-module asmdefs.
+
 ### Fixed
 - Fixed Codex Desktop usage session totals so long-lived rollout files no longer make the visible current-session footer inherit old Codex turns and costs.
 - Fixed V2 tool analytics to count completed Codex tool operations instead of double-counting begin/end event pairs.

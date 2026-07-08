@@ -27,7 +27,7 @@ When the project ships an `ARCHITECTURE.md`, that contract is the primary standa
 ## Workflow
 
 1. **Inventory**: list every file in the target module; classify by responsibility: public API, runtime orchestration, domain model, content/data loading, presentation/view, diagnostics, adapters, tests, documentation.
-2. **Dependency map**: which subsystems know about each other; which dependencies violate boundaries (UI mutating runtime internals, algorithms consuming foreign types directly, diagnostics reaching into runtime fields). In Unity, read asmdef references; missing asmdefs in a growing module is itself a finding.
+2. **Dependency map**: which subsystems know about each other; which dependencies violate boundaries (UI mutating runtime internals, algorithms consuming foreign types directly, diagnostics reaching into runtime fields). In Unity, detect the boundary mechanism first: asmdef references or source-scan guard tests. Missing asmdefs are a finding only when the project expects asmdef enforcement.
 3. **Trace flows**: initialization, loading, command execution, per-frame/per-request work, presentation, diagnostics, shutdown, reload, failure, retry.
 4. **State ownership**: one owner and one mutation path per mutable state. Find duplicated state, hidden mutation paths, cache ownership gaps, lifecycle races, silent failures, and fallback paths that hide authoring or wiring defects.
 5. **Target architecture**: define it as narrow public ports, internal services, domain models, adapters, diagnostics read models, and tests. Every subsystem gets one public API/entry point; cross-module data enters through adapters and becomes module-owned.
@@ -37,7 +37,8 @@ When the project ships an `ARCHITECTURE.md`, that contract is the primary standa
 
 ## Stack Notes
 
-- Unity: asmdefs are the boundary enforcement mechanism - runtime/editor/tests split per module, no cycles, minimal references. Propose introducing them where a module has outgrown `Assembly-CSharp`; do not propose removing them as cleanup.
+- Unity: asmdefs are the default boundary enforcement mechanism - runtime/editor/tests split per module, no cycles, minimal references. Some projects deliberately stay asmdef-less; if that policy is documented, treat source-scan guard tests as the enforcement mechanism and propose guard coverage instead of asmdefs.
+- Unity: source-scan guard tests should live near the owning module, usually under `Tests/Editor`, and scan the on-disk tree for forbidden folder tokens, illegal layer references, cross-module reach-ins, and folder/namespace mismatches.
 - Unity: gameplay-critical findings include nondeterminism (render-frame coupling, wall-clock time, unordered iteration, static random) and serialized-contract risks.
 - Unity: stable object hierarchies, serialized fields, UI layouts, materials, and component composition belong in scenes, prefabs, or assets. Runtime construction/configuration is a finding unless the object is genuinely spawned, pooled, data-driven, or variable at runtime.
 - Backend: composition root and DI registrations are the wiring boundary; SDK types leaking through gameplay/service-facing APIs are boundary findings; migrations and persisted contracts get the same versioning discipline as save data.

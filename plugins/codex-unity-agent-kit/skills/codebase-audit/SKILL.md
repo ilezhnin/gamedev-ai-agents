@@ -1,6 +1,6 @@
 ---
 name: codebase-audit
-description: Run a read-only whole-project issue audit and write a separate report without changing the project. Use when the user asks to analyze a Unity, C# game, or ASP.NET codebase for code quality, overengineering, bugs, vulnerabilities, security checks, silent fallbacks, runtime Unity object/field authoring, rollback/save/GGPO readiness, strict determinism, or asks to split audit work across subagents by block, module, or file.
+description: Run a read-only whole-project issue audit and write a separate report without changing the project. Use when the user asks to analyze a Unity, C# game, or ASP.NET codebase for code quality, script organization, overengineering, bugs, vulnerabilities, security checks, silent fallbacks, runtime Unity object/field authoring, rollback/save/GGPO readiness, strict determinism, or asks to split audit work across subagents by block, module, or file.
 ---
 
 # Codebase Audit
@@ -21,7 +21,7 @@ Find real project risks without modifying source, scenes, assets, settings, lock
 
 1. **Scope**: identify stack and boundaries. Unity projects have `Assets/`, `Packages/`, and `ProjectSettings/`; backend projects have `.sln`, `.slnx`, `.csproj`, `src/`, `tests/`, and deployment/config files.
 2. **Inventory**: map project-owned modules, tests, package manifests, persistence/save/database code, auth boundaries, networking, deterministic simulation paths, and CI/validation commands.
-3. **Decompose**: for broad audits, use subagents when available. Split by high-risk module or by audit lane: code quality, overengineering, bugs, vulnerabilities, security check, silent fallbacks, Unity runtime authoring, rollback/save/GGPO readiness, and strict determinism.
+3. **Decompose**: for broad audits, use subagents when available. Split by high-risk module or by audit lane: code quality, script organization, overengineering, bugs, vulnerabilities, security check, silent fallbacks, Unity runtime authoring, rollback/save/GGPO readiness, and strict determinism.
 4. **Delegate read-only**: each subagent must inspect fresh files, avoid edits, cite evidence, report "none found" when clean, and name skipped areas. Do not pass parent conclusions into reviewer prompts.
 5. **Synthesize**: deduplicate overlapping findings, reject weak claims, order by severity, and preserve minority reports as "needs verification" when evidence is incomplete.
 6. **Report**: write the Markdown report to the chosen path and state that no project files were changed besides the report.
@@ -30,7 +30,8 @@ Find real project risks without modifying source, scenes, assets, settings, lock
 
 ### Code Quality
 
-- Ownership and boundaries: parallel managers/services, fat interfaces, one-caller public APIs, cross-layer reach-through, missing asmdef/DI boundaries, or leaked SDK types.
+- Ownership and boundaries: parallel managers/services, fat interfaces, one-caller public APIs, cross-layer reach-through, missing boundary enforcement (asmdefs, DI, or guard tests), or leaked SDK types.
+- Script organization: root layer-first workflow splits, unclear non-layer folders beside layer folders, new parking-lot folders, folder/namespace mismatches, or using blocks that violate the local contract.
 - Maintainability defects: duplicated mutable state, complex control flow, unowned compatibility wrappers, dead code with live references, oversized files, nested types, and test-hostile design at real nondeterministic boundaries.
 - Project consistency: deviations from local naming, lifecycle, error handling, dependency, and documentation contracts when they create real maintenance risk.
 

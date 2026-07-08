@@ -12,13 +12,14 @@ Make narrow Unity C# changes that respect Unity serialization, assembly boundari
 ## Workflow
 
 1. Orient first if the relevant assembly, scene, prefab, or validation path is unclear.
-2. Read the project's `CODE_STYLE.md` and `ARCHITECTURE.md` when present; they override generic habits, and structural changes must follow the architecture contract.
+2. Before structural, folder, subsystem, namespace, or public-API changes, read `.agents/ARCHITECTURE.md` and `.agents/CODE_STYLE.md` when present, plus root `ARCHITECTURE.md` and `CODE_STYLE.md` overlays when present. These contracts override generic habits.
 3. Inspect nearby code, asmdefs, tests, and serialized usages before editing public or `[SerializeField]` members.
 4. Keep edits small and local. Follow existing architecture instead of adding a new pattern.
 5. Preserve `.meta` files and GUIDs. Do not move or rename assets unless the task requires it.
 6. Avoid adding packages, assets, or project settings changes without a clear need. Update `DEPENDENCIES.md` (when the project keeps one) in the same change as any package change.
 7. Add or update focused tests when the project already has a nearby EditMode, PlayMode, or pure C# test pattern.
-8. Run the cheapest meaningful validation. If Unity cannot be run, state exactly what was checked and what remains unverified.
+8. Before finishing, re-check touched structure and usings against the contracts: subsystem-first, no root layer-first workflow split, no new parking-lot folders, no unclear non-layer folder beside layers, folder/namespace mirror, and exact usings block. Single-layer subsystems and grouping folders inside a layer are legal.
+9. Run the cheapest meaningful validation. If Unity cannot be run, state exactly what was checked and what remains unverified.
 
 ## Unity C# Rules
 

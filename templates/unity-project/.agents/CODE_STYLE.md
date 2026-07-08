@@ -34,11 +34,32 @@ If the project has no header convention, propose this one to the user before ado
 ## Namespace And File Layout
 
 - Use the project root namespace (derive from asmdefs, existing files, or the csproj `RootNamespace`).
-- Namespace structure mirrors module and responsibility folders.
+- Namespace structure mirrors module, subsystem, and responsibility folders exactly. A folder/namespace mismatch is a structure defect, not a formatting nit.
 - Place the namespace declaration before the `#region Usings` block; put `using` directives inside the namespace and inside `#region Usings`.
-- Sort usings: `System.*`, Unity, third-party, project, aliases. No comments labeling groups.
+- The usings region has exactly one blank line after `#region Usings` and exactly one blank line before `#endregion`.
+- Sort usings in one contiguous block: `System.*`, Unity (`Unity*`), third-party, project, then aliases. Do not insert blank lines between groups and do not add comments labeling groups.
+- Remove duplicate imports and dead imports, including empty parent namespaces that provide no symbols to the file.
 - One file - one entity. This rule is hard and has no exceptions: every class, struct, interface, enum, record, and delegate lives in its own file named after it. Nested types are forbidden - extract them into their own files, including private ones (generated code is exempt per Scope).
 - No new `partial` types in runtime code (generated code and approved editor integration are exceptions).
+
+```csharp
+namespace ProjectRoot.Module.Subsystem.Core
+{
+    #region Usings
+
+    using System;
+    using UnityEngine;
+    using ThirdParty.Runtime;
+    using ProjectRoot.Module.Model;
+    using ResultAlias = ProjectRoot.Shared.Result;
+
+    #endregion
+
+    public sealed class ExampleService
+    {
+    }
+}
+```
 
 ## Naming
 

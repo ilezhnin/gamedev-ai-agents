@@ -31,6 +31,14 @@
 - Any repeated `Find`, `GetComponent`, resource loads, addressable loads, or LINQ in frequent loops?
 - Any new logging in hot paths?
 
+## Structure And Usings
+
+- Do touched folders follow the project contract: subsystem-first, only needed layers, and no root layer-first split of one workflow across `Api`/`Core`/`Model`/`View`?
+- Did the change introduce a new parking-lot folder (`Managers`, `Services`, `Systems`, `Utils`, `Runtime`) where a domain module already owns the responsibility?
+- Is any new non-layer folder beside layer folders only one or two loose files? If yes, should it fold into the parent `Core`/`Model` or become a real subsystem?
+- Are legal exceptions preserved: single-layer subsystems, grouping folders inside a layer such as `Core/Native`, and Unity-required `Editor`/`Resources` folders?
+- Do folder paths and namespaces mirror exactly, and does the usings block follow the required order without blank group separators, duplicates, dead imports, or group comments?
+
 ## Tests
 
 - Is there an EditMode test for pure logic?

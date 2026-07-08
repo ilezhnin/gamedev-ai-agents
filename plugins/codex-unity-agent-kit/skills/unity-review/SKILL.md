@@ -14,12 +14,13 @@ If the request is not a diff, PR, branch, or local-change review and asks for a 
 ## Review Workflow
 
 1. Determine the diff scope before reading broadly.
-2. Inspect nearby code and assets only when needed to prove or disprove a risk.
-3. Prioritize P0/P1 correctness, data-loss, build-breaking, serialization, lifecycle, and performance issues.
-4. Include file and line references for every actionable finding.
-5. Classify findings by severity: P0 blocks immediately, P1 must fix before merge, P2 should fix now, P3 is optional or follow-up.
-6. Do not list stylistic preferences unless they hide a real defect.
-7. If no issues are found, say so and name any validation that was not run.
+2. Read `.agents/ARCHITECTURE.md` and `.agents/CODE_STYLE.md` when present, plus root `ARCHITECTURE.md` and `CODE_STYLE.md` overlays when present, so structure and usings are reviewed against the actual project contract.
+3. Inspect nearby code and assets only when needed to prove or disprove a risk.
+4. Prioritize P0/P1 correctness, data-loss, build-breaking, serialization, lifecycle, and performance issues.
+5. Include file and line references for every actionable finding.
+6. Classify findings by severity: P0 blocks immediately, P1 must fix before merge, P2 should fix now, P3 is optional or follow-up.
+7. Do not list stylistic preferences unless they hide a real defect.
+8. If no issues are found, say so and name any validation that was not run.
 
 ## Quality Gates
 
@@ -28,6 +29,7 @@ If the request is not a diff, PR, branch, or local-change review and asks for a 
 - Check validation history: compile, EditMode/PlayMode tests, manual scene/prefab verification, or explicit blockers.
 - Prefer existing project patterns and Unity/C# APIs over new abstractions or dependencies.
 - Treat new packages, ProjectSettings changes, asmdef dependency changes, and generated files as higher-risk review items.
+- Re-check touched structure before finishing: subsystem-first, no root layer-first workflow split, no new parking-lot folders, no unclear non-layer folder beside layers, folder/namespace mirror, and exact usings block. Single-layer subsystems and grouping folders inside a layer are legal.
 - Identify newly dead or unreachable code, but do not ask for deletion unless the evidence is clear.
 - Do not accept "fix later" for build breaks, data loss, broken serialization, failing tests, or misleading validation claims.
 

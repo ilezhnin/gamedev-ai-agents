@@ -32,38 +32,81 @@ External callers must not know how internal services, catalogs, caches, or stora
 - Failure is explicit: typed outcomes, no silent no-ops, no swallowed exceptions, no empty IDs as failure markers, no "completed" results for rejected work.
 - Data flow is directional: authored content and input create domain requests; runtime services process them; presentation applies results; diagnostics observes read models.
 - One file - one entity, no exceptions; nested types are forbidden (see `CODE_STYLE.md`).
-- Boundaries are defended: assembly definitions plus tests or editor-only source scans catch forbidden dependencies.
+- Boundaries are defended: assembly definitions and/or editor-only source scans catch forbidden dependencies.
 - Optimize only after ownership and correctness are clear; performance work never exposes mutable internals.
 
 ## Module Shape
 
-A module is a runtime, editor, content, or presentation capability with a clear owner, a public boundary, lifecycle rules, and a nameable responsibility. Folder, namespace, and asmdef shape reflect real ownership:
+A module is a runtime, editor, content, or presentation capability with a clear owner, a public boundary, lifecycle rules, and a nameable responsibility. Folder and namespace shape reflect real ownership; asmdefs are used when the project chooses assembly-level enforcement:
 
 ```text
 ModuleName/
-  Api/            stable external contracts: role ports, typed results
-  Core/           lifecycle, command execution, runtime services, adapters, ports
-  Model/          domain concepts: ids, requests, results, snapshots, definitions
-  View/           presentation applied to Unity objects (runtime and editor)
-  Diagnostics/    read-only observation models and views
-  Documentation/  living module docs
-  Tests/          EditMode/PlayMode test assemblies
+  Api/             stable external contracts: role ports, typed results
+  Core/            lifecycle, command execution, runtime services, adapters, ports
+  Model/           domain concepts: ids, requests, results, snapshots, definitions
+  View/            presentation applied to Unity objects (runtime and editor)
+  Diagnostics/     read-only observation models and views
+  Documentation/   living module docs
+  Tests/           EditMode/PlayMode tests near the owner
+  <SubsystemName>/ optional owned workflow with its own layers
+```
+
+Layer folder vocabulary is fixed: `Api`, `Core`, `Model`, `View`, `Diagnostics`, `Tests`, and `Documentation`. Use only layers the module actually needs. Unity-special `Editor` and `Resources` folders are legal where Unity requires them and are not architecture layers.
+
+## Subsystem-First Structure
+
+Beside layer folders, the only legal sibling folder is a real subsystem. A subsystem recursively has its own layer folders (only the layers it needs) and may nest deeper subsystems. Folder and namespace mirror at every level.
+
+```text
+ModuleName/
+  Api/
+  Core/
+    Native/        legal grouping folder inside a layer
+  Model/
+  Diagnostics/
+  FirstWorkflow/
+    Api/
+    Core/
+    Model/
+    View/
+  SecondWorkflow/
+    Core/
+    Model/
+    NestedWorkflow/
+      Core/
+      Model/
+  Tests/
+    Editor/
+  Documentation/
 ```
 
 Subsystem rules:
 
-- A subsystem earns its own folder only with real volume: a named workflow, a clear owner and lifecycle, several related types, and its own `Core/`/`Model/` shape.
-- Never create: `Feature/Core/OneClass.cs`; an `Api/IFoo.cs` for one call site; `Managers`, `Services`, `Systems`, or `Runtime` folders as parking lots; a facade over a facade; a folder whose only purpose is a shorter class name.
+- A subsystem earns its own folder only with real volume: a named workflow, a clear owner and lifecycle, several related types, and its own layer shape.
+- Thin concerns with one or two files fold into the parent `Core` or `Model` instead of getting a named folder. Prefer folding; promote only when the workflow becomes named, owned, and growing.
+- Multi-workflow modules are subsystem-first. Do not scatter one workflow across root `Api`/`Core`/`Model`/`View` just because those folders exist.
 - Each module and subsystem keeps one public API and one entry point so it can be replaced, extended, or tested alone.
+- Single-layer subsystems are legal: a View-only or Model-only workflow does not need fake `Core`.
+- Grouping folders inside a layer, such as `Core/Native`, are legal. The "thin unclear folder" rule applies to non-layer folders beside layer folders, not to grouping inside a layer.
+- Do not introduce new parking-lot folders such as `Managers`, `Services`, `Systems`, `Utils`, or `Runtime`. Existing legacy folders are migration context, not a pattern to copy.
+- Never create: `Feature/Core/OneClass.cs`; an `Api/IFoo.cs` for one call site; a facade over a facade; a folder whose only purpose is a shorter class name.
 
 ## Assembly Boundaries
 
-Assembly definitions are the boundary enforcement mechanism of this project:
+Detect the project's boundary mechanism before proposing changes. Assembly definitions are the kit's default enforcement mechanism, but some projects deliberately keep gameplay code in one assembly and enforce boundaries with source-scan guard tests. The absence of per-module asmdefs is not a finding when that policy is documented and guarded.
 
-- One asmdef per module: runtime, `Editor`, and tests. New modules never grow the `Assembly-CSharp` monolith.
+For asmdef-based projects:
+
+- One asmdef per module: runtime, `Editor`, and tests. New modules do not grow the `Assembly-CSharp` monolith.
 - References are minimal and explicit; no cycles; no editor references from runtime assemblies; platform leakage blocked with define constraints.
 - A dependency that asmdef references cannot express cleanly is an architecture smell: add an adapter or a narrower port, not a reference chain.
 - Do not remove or restructure asmdefs as cleanup without an explicit architecture decision.
+
+For asmdef-less projects:
+
+- Boundary enforcement moves to editor-only source scans or guard tests under the owning module's `Tests/Editor`.
+- Guard tests scan the on-disk source tree (for example through `Application.dataPath`) and fail on forbidden folder tokens, illegal layer references, cross-module reach-ins, and folder/namespace mismatches.
+- Propose or strengthen guard tests before proposing asmdefs when the project documents an asmdef-less policy.
 
 ## Layer Rules
 
