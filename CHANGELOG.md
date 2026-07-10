@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.20 - 2026-07-10
+
+### Changed
+- Added explicit line-ending safety to global and project instructions: agents now verify semantic diffs before reporting whole-file rewrites, leave EOL-only noise unchanged, avoid bulk normalization, and do not alter Git or editor EOL settings unless explicitly requested.
+
 ## 0.4.19 - 2026-07-10
 
 ### Fixed

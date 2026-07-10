@@ -57,6 +57,7 @@ The kit's global profile (`~/.codex/AGENTS.md`, installed from the kit's `global
 - State assumptions and risks before editing; when interpretations diverge meaningfully, ask instead of silently choosing.
 - Minimum code that solves the task. No speculative abstractions, configurability, or new patterns beside existing ones.
 - Surgical changes: touch only what the task requires, remove orphans your change created, match existing style and architecture.
+- Treat LF/CRLF-only diffs as environment noise: verify with `git diff --ignore-cr-at-eol`, preserve existing line endings and encoding, and never bulk-normalize files or change Git/editor EOL settings unless explicitly asked.
 - Read first, edit second: find real entry points, call sites, consumers, and tests before changing them.
 - Reproduce bugs before fixing; fix root causes, never hide symptoms behind broad catches or silent fallbacks.
 - Preserve contracts: routes, DTO shapes, status codes, pagination, OpenAPI metadata, save/database schemas.

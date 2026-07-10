@@ -74,6 +74,16 @@ When your changes create orphans:
 
 A good patch looks intentional, small, and reviewable.
 
+#### Formatting And Line Endings
+
+- Follow the repository's declared formatting and line-ending policy when one exists. Otherwise preserve each touched file's existing line endings, encoding, BOM, and final-newline state.
+- Treat LF/CRLF-only differences as environment noise, not malformed formatting and not a reason to edit a file.
+- Before claiming that a file was wholly rewritten or that formatting is broken, inspect the semantic diff with `git diff --ignore-cr-at-eol -- <path>`; use `git ls-files --eol -- <path>` only when the mismatch itself needs diagnosis.
+- If the semantic diff is empty, report the EOL mismatch at most once and leave it unchanged. Do not normalize, stage, revert, or otherwise rewrite files solely to clean that noise.
+- Never run repository-wide formatting or EOL conversion during feature work (`dotnet format`, IDE cleanup, `dos2unix`, `unix2dos`, `sed` line-ending rewrites, or equivalents) unless the user explicitly requests it or an existing repository validation command requires it.
+- Do not change Git configuration, `.gitattributes`, `.editorconfig`, or editor settings to resolve line-ending noise unless the user explicitly asks for that configuration change.
+- In Unity repositories, assume broad text rewrites can trigger asset reimports; keep formatting and line-ending churn out of unrelated changes.
+
 ### 4. Goal-Driven Execution
 
 Define success criteria. Loop until verified.
