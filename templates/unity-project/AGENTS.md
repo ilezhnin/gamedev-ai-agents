@@ -162,7 +162,7 @@ The kit's global profile (`~/.codex/AGENTS.md`, installed from the kit's `global
 - Never log or commit secrets; treat player input, saves, mods, and network messages as untrusted.
 - Report honestly: what changed, what was verified, what remains unverified. Never claim unrun validation.
 - Communicate like an engineering log: concrete actions, files, commands, results, and blockers - no filler or playful narration; lead summaries with the outcome.
-- Before every final response, append visible usage stats from `.agents/scripts/usage-footer.ps1`: pass `-Platform codex` in Codex, `-Platform claude` in Claude Code, or `-Platform gemini` in Gemini CLI. The helper auto-scopes to the current session when the client exposes a session/thread id. Use `-Mode Brief` for a simple answer and `-Mode Full` after any `$skill`, subagent/delegated work, file edits, validation, commit, PR/MR work, or multi-step workflow. Paste the helper output into the response; do not rely on hook `systemMessage` output being shown by the client.
+- Before every final response, append visible usage stats from `.agents/scripts/usage-footer.ps1`: pass `-Platform codex`, `-Platform claude`, or `-Platform gemini` plus the exact `-SessionId` when the client exposes one. In Codex under WSL, pass `-SessionId "$CODEX_THREAD_ID"` explicitly because `powershell.exe` may not inherit it. Use `-Mode Brief` for a simple answer and `-Mode Full` after any `$skill`, subagent/delegated work, file edits, validation, commit, PR/MR work, or multi-step workflow; both modes render one operator line. Paste the helper output into the response, including `Usage: unavailable` when no exact session is available.
 - English only in every artifact: code, comments, docs, commit messages, branch names, learnings. Converse with the user in the user's language, but write into the repository only in English.
 - Stop and ask when requirements conflict, a change is destructive or irreversible, or you cannot verify a risky result.
 
@@ -200,6 +200,7 @@ Route by situation before acting. No task is "too small for a skill" - routing k
 | Read-only whole-project issue audit, no project changes, separate report | `$codebase-audit` |
 | Task needs a written plan or agent handoff | `$planning` |
 | Implement or refactor C# | `$unity-implement` |
+| Completed task diff needs behavior-preserving cleanup | `$simplify-change` |
 | Bootstrap or author tests, especially in legacy code | `$unity-tests` |
 | Errors, failing tests, broken scenes or behavior | `$unity-debug` |
 | Scene/prefab/asset merge conflict | `$unity-merge` |
@@ -209,7 +210,7 @@ Route by situation before acting. No task is "too small for a skill" - routing k
 | Unity editor or package upgrade | `$unity-upgrade` |
 | Review a diff, PR, or branch | `$unity-review` |
 | Choose and run the right checks | `$unity-validate` |
-| Coordinate a planned task across agents to a PR | `$crossworking` |
+| Coordinate a planned task across agents to a verified handoff | `$crossworking` |
 | Run the staged game pipeline: stage, milestone, or full auto | `$game-pipeline` |
-| Commit, push, and open the PR/MR | `$create-mr` |
+| Authorized commit, push, or PR/MR delivery | `$create-mr` |
 | Capture a reusable lesson | `$learn` |

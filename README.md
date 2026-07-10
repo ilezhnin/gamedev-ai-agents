@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.17-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.18-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>
@@ -26,7 +26,7 @@ This kit turns your AI coding agent - OpenAI Codex, Anthropic Claude Code, Googl
 
 - **2-minute install** - add one git URL in Unity Package Manager, click Install, done.
 - **Idea to playable** - `gdd` turns a one-line idea into a design contract; `game-pipeline` executes it through gated stages. Every milestone ends playable: compiles, PlayMode enters clean, the new mechanic is reachable in-game.
-- **27 skills** for real gamedev work: asset sourcing/generation, codebase audits, scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
+- **28 skills** for real gamedev work: behavior-preserving simplification, asset sourcing/generation, codebase audits, scene/prefab merges, EditMode/PlayMode tests, IL2CPP build triage, profiling with budgets, editor automation over MCP, staged upgrades.
 - **A studio of roles** - game designer, asset specialists, producer, architect, QA, devops, plus workers, reviewers, and researchers - rendered natively for every platform.
 - **Platform-independent by design** - one canon, thin rendered adapters. All state lives in repo files, so switching Codex <-> Claude Code <-> Gemini CLI <-> Antigravity mid-task loses nothing.
 - **Safe lifecycle** - hash-manifest installs: updates refresh only unmodified files, your local edits always survive, uninstall removes exactly what the kit shipped.
@@ -67,7 +67,7 @@ flowchart LR
     IDEA([Idea]) --> D
     subgraph loop [per milestone]
         direction LR
-        P[Plan] --> A[Assets] --> B[Build] --> T[Test] --> R[Review] --> S[Ship]
+        P[Plan] --> A[Assets] --> E[Execute] --> S[Prepare Delivery]
     end
     D[Define<br/>gdd] --> P
     S -->|next milestone| P
@@ -79,12 +79,10 @@ flowchart LR
 | Define | `gdd` | game-designer | Design contract grilled with the user and approved; milestones have acceptance criteria |
 | Plan | `planning`, `grill-me` | planner | No unresolved blocking questions |
 | Assets | `asset-pipeline` | asset-scout, asset-creator, unity-asset-integrator | Required placeholders or briefs exist; provenance/import risks recorded |
-| Build | `crossworking` -> `unity-implement`, `unity-mcp` | workers | Increment compiles and is committed |
-| Test | `unity-validate`, `unity-tests` | qa, test-runner | Acceptance criteria pass; console clean |
-| Review | `unity-review` | reviewers | No blocking findings |
-| Ship | `create-mr`, `unity-build` | pr-submitter, devops | PR opened / build artifact produced |
+| Execute | `crossworking` -> `unity-implement`, `simplify-change`, `unity-validate`, `unity-review` | workers, validator, reviewer | Final candidate fingerprint has post-simplification check, validation, and review green |
+| Prepare delivery | `create-mr`, `unity-build` only when explicitly requested | pr-submitter, devops | Authorized commit/push/PR/build uses the exact reviewed candidate |
 
-Three modes: **stage** (default - run one stage, stop), **milestone** (stages 2-7 without pauses between green gates), **auto** (loop milestones until the GDD's MVP checklist is done). Milestone and auto run only when you ask for them explicitly, and the pipeline requires the contract: without an approved GDD it offers `gdd` first. Pipeline state lives in `.agents/plans/pipeline.md`, the design contract in `docs/design/game-design.md` - any agent on any platform resumes from files, never from chat memory.
+Three modes: **stage** (default - run one stage, stop), **milestone** (Plan, Assets, and Execute for one named milestone), **auto** (loop milestones until the GDD's MVP checklist is done). Delivery actions run only when explicitly requested and authorized by repository policy. Pipeline state lives in `.agents/plans/pipeline.md`, the selected design contract in `.agents/plans/<slug>-gdd.md` - any agent on any platform resumes from files, never from chat memory.
 
 Milestones are vertical slices: "player moves and jumps in a graybox level", never "input system done". Balance lives in data assets with tuning ranges, art starts as placeholders so implementation never blocks, and QA captures PlayMode evidence (console, screenshots) through the Unity editor via MCP.
 
@@ -123,11 +121,12 @@ Shared:
 | Skill | Purpose |
 | --- | --- |
 | `planning` | Writes `.agents/plans/active_plan.md` + `task_list.md` before execution |
-| `crossworking` | Delivery loop across agents: plan -> implement -> validate -> review -> PR |
+| `crossworking` | Verified handoff loop: baseline -> implement -> simplify -> candidate -> validate -> review |
+| `simplify-change` | Behavior-preserving cleanup pass after implementation and before final validation/review |
 | `arch-audit` | Module architecture audit -> dependency-ordered refactor backlog (SOLID/KISS/DRY, fallbacks, runtime authoring lens) |
 | `codebase-audit` | Read-only whole-project issue audit with script-organization, overengineering, fallback, runtime-authoring, security, rollback, and determinism findings |
 | `grill-me` | Relentless plan and design stress-testing before implementation |
-| `create-mr` | Verify, commit, push, open the PR/MR; conventional commits |
+| `create-mr` | Verify complete task diff; perform only authorized commit, push, or PR/MR actions |
 | `learn` | Capture reusable lessons into AGENTS.md / learnings / skills |
 
 C# backend (`backend-...`), for game servers and services: `backend-orient`, `backend-implement`, `backend-tests`, `backend-debug`, `backend-review`, `backend-validate` - same discipline, ASP.NET flavored, installed by the backend template.
@@ -158,9 +157,9 @@ One canon, rendered adapters - `.codex/`, `.claude/`, and `.gemini/settings.json
 | Hooks | `canon/hooks.json` | `.codex/hooks.json` | `.claude/settings.json` | `.gemini/settings.json` | `.agents/rules/` (behavioral) |
 | Work state | `.agents/plans/`, `docs/` | shared | shared | shared | shared |
 
-Role reasoning is budgeted by responsibility: planning, architecture, game design, consistency, and production coordination render to Codex `xhigh` and Claude Code `max`; reviewers, generated-asset creation, and release engineering use `high`; execution, context building, asset sourcing/integration, research, validation, QA, and shipping roles stay at `medium`. Gemini CLI and Antigravity receive shared project behavior, but the kit does not pin per-role model choices there.
+Role models are budgeted by capability tier: Codex renders Sol for architecture/design/planning/review and Terra for everyday execution/research, with Luna for repeatable test runners. Claude renders `claude-fable-5` for the highest-decision and reviewer roles, `sonnet` for execution/research/asset work, and `haiku` for test runners without an unsupported effort override. Routine roles stay bounded at `xhigh`, `high`, or `medium`; unconstrained `max`/`ultra` modes are explicit one-off escalations only. Gemini CLI and Antigravity receive shared project behavior, but the kit does not pin per-role model choices there.
 
-Codex, Claude Code, and Gemini CLI get working hooks for the kit's `.meta`/GUID hygiene check after edits and usage reporting after a turn. Usage hooks write `.agents/usage/last-report.md`, platform-scoped reports, session-scoped reports, and history; because some clients hide hook messages, installed `AGENTS.md` also requires agents to append visible usage stats from `.agents/scripts/usage-footer.ps1 -Platform <platform>` to every final response. The footer auto-scopes to the current session when the client exposes a session/thread id. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
+Codex, Claude Code, and Gemini CLI get working hooks for the kit's `.meta`/GUID hygiene check after edits and usage reporting after a turn. Usage hooks write `.agents/usage/last-report.md`, platform-scoped reports, session-scoped reports, V2 events, and history; because some clients hide hook messages, installed `AGENTS.md` also requires agents to append visible usage stats from `.agents/scripts/usage-footer.ps1 -Platform <platform> -SessionId <exact-session-id>` to every final response. Without an exact session ID the footer fails closed as `Usage: unavailable` instead of showing a stale latest report. A commented `[mcp_servers.unity]` block in `.codex/config.toml` shows where to wire an [MCP for Unity](https://github.com/CoplayDev/unity-mcp) server - with it, `unity-mcp` and the pipeline's QA stage can drive the editor directly: scenes, PlayMode, tests, screenshots. Claude Code reads MCP servers from `.mcp.json`; a Cursor pointer rule ships too.
 
 ## Updating And Uninstalling
 
@@ -179,7 +178,7 @@ All scripted installers support `-Update`, `-Force`, `-Portable`, and `-WhatIf` 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-unity-project-template.ps1 -TargetProject "<path-to-unity-project>"
 ```
 
-Installs the template contracts, the 21 Unity+shared skills into `.agents/skills/` and `.claude/skills/`, renders all platform adapters from the canon, and writes `.agents/kit-manifest.json`. The target must contain `Assets/` and `ProjectSettings/` (`-AllowNonUnityTarget` to override).
+Installs the template contracts, the 22 Unity+shared skills into `.agents/skills/` and `.claude/skills/`, renders all platform adapters from the canon, and writes `.agents/kit-manifest.json`. The target must contain `Assets/` and `ProjectSettings/` (`-AllowNonUnityTarget` to override).
 
 **C# ASP.NET backend project** (game servers, services):
 
@@ -187,7 +186,7 @@ Installs the template contracts, the 21 Unity+shared skills into `.agents/skills
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-csharp-aspnet-project-template.ps1 -TargetProject "<path-to-backend-project>"
 ```
 
-Same shape: backend contracts, the 13 backend+shared skills, rendered adapters. The target must contain a `.sln`, `.slnx`, or `.csproj` (`-AllowNonDotnetTarget` to override).
+Same shape: backend contracts, the 14 backend+shared skills, rendered adapters. The target must contain a `.sln`, `.slnx`, or `.csproj` (`-AllowNonDotnetTarget` to override).
 
 **Global profile** (optional, engineering discipline for all projects):
 
@@ -195,7 +194,7 @@ Same shape: backend contracts, the 13 backend+shared skills, rendered adapters. 
 powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-global-profile.ps1
 ```
 
-Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 27 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
+Installs the `unity-codex` profile into `~/.codex` (run `codex --profile unity-codex`). `-InstallAgentsMd` activates the full 18-section global discipline (existing file is backed up), `-InstallSkills` copies all 28 skills to user scope, `-InstallClaude` adds the Claude Code global layer, `-InstallWslSkills` covers Codex-under-WSL setups.
 
 **Codex plugin marketplace**:
 
@@ -244,7 +243,7 @@ templates/
                            DEPENDENCIES.md; .claude/CLAUDE.md, .cursor/, .codex/config.toml
   csharp-aspnet-project/   same shape for ASP.NET
 plugins/
-  codex-unity-agent-kit/   the plugin: 27 skills (single source of truth)
+  codex-unity-agent-kit/   the plugin: 28 skills (single source of truth)
 upm/                       Unity Package Manager wrapper: editor setup window +
                            pre-rendered payload in Kit~ (generated, never hand-edited)
 .agents/plugins/           local marketplace pointing at the plugin

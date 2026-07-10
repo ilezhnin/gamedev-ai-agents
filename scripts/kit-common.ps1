@@ -4,7 +4,7 @@
 $script:KitRoot = Split-Path -Parent $PSScriptRoot
 $script:PluginSkillsRoot = Join-Path $script:KitRoot "plugins\codex-unity-agent-kit\skills"
 
-$script:SharedSkills = @("planning", "crossworking", "arch-audit", "codebase-audit", "create-mr", "grill-me", "learn")
+$script:SharedSkills = @("planning", "crossworking", "simplify-change", "arch-audit", "codebase-audit", "create-mr", "grill-me", "learn")
 $script:UnitySkills = @("unity-orient", "unity-implement", "unity-review", "unity-validate", "unity-debug", "unity-mcp", "unity-merge", "unity-build", "unity-upgrade", "unity-profile", "unity-tests", "gdd", "game-pipeline", "asset-pipeline")
 $script:BackendSkills = @("backend-orient", "backend-implement", "backend-review", "backend-validate", "backend-debug", "backend-tests")
 
@@ -230,8 +230,14 @@ function ConvertTo-CodexAgentToml {
     $lines += "name = `"$($Role.name)`""
     $lines += "description = `"$($Role.description)`""
     if ($Role.readonly) { $lines += 'sandbox_mode = "read-only"' }
-    $lines += "model_reasoning_effort = `"$($Role.reasoning)`""
+    if ($Role.codexModel) { $lines += "model = `"$($Role.codexModel)`"" }
+    $codexReasoning = $Role.reasoning
+    if ($Role.codexReasoning) { $codexReasoning = $Role.codexReasoning }
+    $lines += "model_reasoning_effort = `"$codexReasoning`""
     $lines += 'developer_instructions = """'
+    if ($Role.readonly) {
+        $lines += "Before inspecting, verify the effective child sandbox remains read-only after parent live overrides. If it does not, stop and require a separately launched read-only session or sandbox that exposes only frozen read-only inputs and cannot reach the writable workspace, Git common directory/refs, or evidence store; an OS-protected worktree alone is insufficient."
+    }
     foreach ($instruction in $Role.instructions) { $lines += $instruction }
     $lines += '"""'
     $nicknames = ($Role.nicknames | ForEach-Object { '"' + $_ + '"' }) -join ", "
@@ -244,9 +250,22 @@ function ConvertTo-ClaudeAgentMd {
     # Quote the description: unquoted colons are invalid YAML scalars.
     $escapedDescription = $Role.description -replace '"', '\"'
     $lines = @("---", "name: $($Role.name)", "description: `"$escapedDescription`"")
-    $lines += "effort: $(ConvertTo-ClaudeEffort -Reasoning $Role.reasoning)"
-    if ($Role.readonly) { $lines += "tools: Read, Grep, Glob" }
+    if ($Role.claudeModel) { $lines += "model: $($Role.claudeModel)" }
+    $claudeEffort = $null
+    if ($Role.PSObject.Properties["claudeEffort"]) { $claudeEffort = $Role.claudeEffort }
+    elseif (-not $Role.claudeModel -and $Role.reasoning) { $claudeEffort = ConvertTo-ClaudeEffort -Reasoning $Role.reasoning }
+    if ($claudeEffort) { $lines += "effort: $claudeEffort" }
+    if ($Role.claudeTools) { $lines += "tools: $(($Role.claudeTools) -join ', ')" }
+    elseif ($Role.readonly) { $lines += "tools: Read, Grep, Glob" }
+    if ($Role.claudePermissionMode) { $lines += "permissionMode: $($Role.claudePermissionMode)" }
+    if ($Role.skills) {
+        $lines += "skills:"
+        foreach ($skill in $Role.skills) { $lines += "  - $skill" }
+    }
     $lines += "---", ""
+    if ($Role.claudeModel -eq "claude-fable-5") {
+        $lines += "At start, verify the effective model is Fable; if Fable is unavailable, proceed only from an explicitly Opus-selected parent/session. Stop and report rather than silently inheriting Sonnet."
+    }
     foreach ($instruction in $Role.instructions) { $lines += $instruction }
     return ($lines -join "`n") + "`n"
 }
@@ -254,7 +273,6 @@ function ConvertTo-ClaudeAgentMd {
 function ConvertTo-ClaudeEffort {
     param([Parameter(Mandatory = $true)] [string] $Reasoning)
     if ($Reasoning -eq "minimal") { return "low" }
-    if ($Reasoning -eq "xhigh") { return "max" }
     return $Reasoning
 }
 
@@ -406,6 +424,19 @@ function ConvertTo-AntigravityRolesRule {
     $lines += "# Agent Roles (rendered from kit canon)"
     $lines += ""
     $lines += "When orchestrating subagents or adopting a persona for a delegated task, use these role contracts. Prefer the most specialized role for each job; broader-profile roles (planner, context-builder, producer, architect, oracle, researcher) coordinate and never write production code."
+    $lines += ""
+    $lines += "## Model Routing Policy"
+    $lines += ""
+    $lines += "- Use Claude Fable/xhigh for architect, game-designer, oracle, and planner. Pin the documented full model ID claude-fable-5. Before spawning one, verify Fable is allowed for the current account. If it is unavailable, run the role only from an explicitly Opus-selected parent or separate Opus session and report the fallback; never let an unavailable Fable ID silently inherit Sonnet."
+    $lines += "- Use the strongest frontier model/high for unity-reviewer and backend-reviewer. Use high reasoning for asset-creator and devops, mapped to each provider's best execution tier rather than automatically escalating to its deepest decision model."
+    $lines += "- Use the everyday workhorse/high profile for unity-worker, backend-worker, producer, qa, and researcher."
+    $lines += "- Use the everyday workhorse/medium profile for asset-scout, context-builder, pr-submitter, unity-asset-integrator, unity-explorer, and backend-explorer."
+    $lines += "- Use a fast repeatable-work profile for unity-test-runner and backend-test-runner; do not attach an unsupported reasoning override to a model without adaptive reasoning."
+    $lines += "- Reserve unconstrained max, ultra, or dynamic-orchestration modes for explicit one-off escalation. Do not pin them across routine roles."
+    $lines += "- Claude Mythos 5 is not a general-purpose Unity or backend role. Use the full ID claude-mythos-5 only as an explicit trusted-access per-task override for defensive cybersecurity or approved research workflows."
+    $lines += '- The main conversation owns $crossworking, $game-pipeline, and $asset-pipeline orchestration. Treat ordinary subagents as leaf roles; explicitly name the required $skill in teammate prompts because role preloads may not apply.'
+    $lines += "- Before spawning a configured read-only Codex role, verify the child's effective live sandbox is still read-only. Parent permission overrides can win over role defaults; if they do, use a separately launched read-only session or sandbox that exposes only frozen read-only inputs and cannot reach the writable workspace, Git common directory/refs, or evidence store."
+    $lines += "- In Claude teammate mode, role skill preloads are not guaranteed. Read-only explorer/reviewer roles expose the non-mutating Skill loader explicitly while Edit, Write, Bash, and mutation-capable MCP tools remain absent."
     foreach ($role in $Roles) {
         $lines += ""
         $lines += "## $($role.name)"

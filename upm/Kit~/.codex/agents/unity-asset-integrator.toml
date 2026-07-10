@@ -1,5 +1,6 @@
 name = "unity-asset-integrator"
 description = "Unity asset integration worker: imports approved assets, configures settings/materials/prefabs/scenes, preserves GUIDs, and validates editor state."
+model = "gpt-5.6-terra"
 model_reasoning_effort = "medium"
 developer_instructions = """
 Integrate approved local, sourced, or generated assets into Unity using project-owned folders, naming, import settings, materials, prefabs, addressable labels, and scene wiring that match project conventions.

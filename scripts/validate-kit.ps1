@@ -244,12 +244,32 @@ Report ($notInSets.Count -eq 0) "skill sets: every skill on disk is declared in 
 try {
     $roles = (Get-KitCanon -Name "roles").roles
     Report ($roles.Count -ge 12) "canon: roles.json parses with expected role count" "found $($roles.Count)"
+    $codexModels = @("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna")
+    $claudeModels = @("claude-fable-5", "sonnet", "haiku")
     foreach ($role in $roles) {
-        $fieldsOk = $role.name -and $role.description -and ($role.stack -in @("unity", "backend", "shared")) -and ($role.reasoning -in @("minimal", "low", "medium", "high", "xhigh")) -and $role.instructions.Count -gt 0
+        $fieldsOk = $role.name -and $role.description -and
+            ($role.stack -in @("unity", "backend", "shared")) -and
+            ($role.reasoning -in @("minimal", "low", "medium", "high", "xhigh")) -and
+            ($role.codexModel -in $codexModels) -and
+            ($role.codexReasoning -in @("minimal", "low", "medium", "high", "xhigh")) -and
+            ($role.claudeModel -in $claudeModels) -and
+            $role.instructions.Count -gt 0
+        if ($role.claudeModel -eq "haiku") {
+            $fieldsOk = $fieldsOk -and (-not $role.PSObject.Properties["claudeEffort"])
+        }
+        else {
+            $fieldsOk = $fieldsOk -and ($role.claudeEffort -in @("low", "medium", "high", "xhigh"))
+        }
+        if ($role.skills) {
+            foreach ($skill in $role.skills) {
+                $fieldsOk = $fieldsOk -and (Test-Path -LiteralPath (Join-Path $script:PluginSkillsRoot $skill))
+            }
+        }
         Report $fieldsOk "canon: role $($role.name) has valid fields"
         $toml = ConvertTo-CodexAgentToml -Role $role
         $md = ConvertTo-ClaudeAgentMd -Role $role
-        Report (($toml -match "developer_instructions") -and ($md -match "^---") -and ($md -match "(?m)^effort: (low|medium|high|xhigh|max)$")) "canon: role $($role.name) renders to both platforms"
+        $mdEffortOk = if ($role.claudeModel -eq "haiku") { $md -notmatch "(?m)^effort:" } else { $md -match "(?m)^effort: (low|medium|high|xhigh)$" }
+        Report (($toml -match "developer_instructions") -and ($toml -match "(?m)^model = `"$([regex]::Escape($role.codexModel))`"$") -and ($md -match "^---") -and ($md -match "(?m)^model: $([regex]::Escape($role.claudeModel))$") -and $mdEffortOk) "canon: role $($role.name) renders to both platforms"
     }
 }
 catch {
@@ -309,6 +329,19 @@ foreach ($root in @("templates", "plugins", "upm", "scripts")) {
     }
 }
 Report ($nonAscii.Count -eq 0) "ascii: templates/, plugins/, upm/, and scripts/ are ASCII" ($nonAscii -join ", ")
+
+# 8a: usage accounting regressions for exact session identity, lineage replay,
+# pricing, V2 snapshots, and compact fail-closed footer behavior.
+$usageTestScript = Join-Path $script:KitRoot "scripts\test-usage.ps1"
+if (Test-Path -LiteralPath $usageTestScript) {
+    $psExe = (Get-Process -Id $PID).Path
+    $usageOutput = @(& $psExe -NoProfile -ExecutionPolicy Bypass -File $usageTestScript 2>&1)
+    $usageOk = ($LASTEXITCODE -eq 0) -and (($usageOutput -join "`n") -match "usage regression tests: PASS")
+    Report $usageOk "usage: regression tests pass" (($usageOutput | Select-Object -Last 5) -join "; ")
+}
+else {
+    Report $false "usage: regression tests script exists"
+}
 
 # 8b: docs must reference paths that exist. Inline-code path references in the
 # contributor docs are checked against disk; for glob references the directory
@@ -391,6 +424,17 @@ else {
 
         $committed = Get-TreeHashes -Root $payloadRoot
         $fresh = Get-TreeHashes -Root $tempRender
+        $agentSkills = Get-TreeHashes -Root (Join-Path $tempRender ".agents\skills")
+        $claudeSkills = Get-TreeHashes -Root (Join-Path $tempRender ".claude\skills")
+        $skillMirrorDetails = @()
+        foreach ($key in $agentSkills.Keys) {
+            if (-not $claudeSkills.ContainsKey($key)) { $skillMirrorDetails += "missing in .claude: $key" }
+            elseif ($claudeSkills[$key] -ne $agentSkills[$key]) { $skillMirrorDetails += "differs: $key" }
+        }
+        foreach ($key in $claudeSkills.Keys) {
+            if (-not $agentSkills.ContainsKey($key)) { $skillMirrorDetails += "extra in .claude: $key" }
+        }
+        Report ($skillMirrorDetails.Count -eq 0) "upm: .agents/skills and .claude/skills mirrors are byte-identical" (($skillMirrorDetails | Select-Object -First 5) -join ", ")
         $driftDetails = @()
         foreach ($key in $fresh.Keys) {
             if (-not $committed.ContainsKey($key)) { $driftDetails += "missing: $key" }

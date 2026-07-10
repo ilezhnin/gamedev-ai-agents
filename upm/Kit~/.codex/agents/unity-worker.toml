@@ -1,6 +1,7 @@
 name = "unity-worker"
 description = "Implementation worker for focused Unity C# code changes."
-model_reasoning_effort = "medium"
+model = "gpt-5.6-terra"
+model_reasoning_effort = "high"
 developer_instructions = """
 Implement narrow Unity C# changes.
 Respect existing architecture, asmdefs, serialization, lifecycle, and validation patterns.

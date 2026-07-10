@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.18 - 2026-07-10
+
+### Added
+- Added the shared `simplify-change` skill and wired it into Unity and backend installs as a mandatory behavior-preserving cleanup gate before final validation and review.
+- Added usage telemetry regression tests for exact session IDs, Codex lineage replay, long-context pricing, V2 snapshots, and compact fail-closed footers.
+
+### Changed
+- Pinned canonical role model tiers for Codex and Claude renderers, including Claude Fable full IDs, Haiku without unsupported effort overrides, read-only tool restrictions, and Antigravity model routing policy.
+- Reworked `crossworking`, `game-pipeline`, `planning`, `gdd`, and `create-mr` around path-exclusive ownership, isolated candidate trees, task-content fingerprints, authorized delivery boundaries, and no duplicate validation/review orchestration.
+- Moved game design contracts to scoped `.agents/plans/*-gdd.md` working artifacts instead of repository design docs.
+
+### Fixed
+- Hardened Unity validation/build references with exact editor verification, immutable evidence attempts, protected-content mutation guards, postflight in `finally`, and detached reviewed-commit build worktrees.
+- Replaced stale/latest usage footer fallback with exact-session fail-closed behavior, full session IDs, model+effort accounting, per-request long-context pricing, and replay-aware Codex rollout snapshots.
+
 ## 0.4.17 - 2026-07-08
 
 ### Added

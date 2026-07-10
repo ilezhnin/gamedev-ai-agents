@@ -1,7 +1,10 @@
 ---
 name: unity-worker
 description: "Implementation worker for focused Unity C# code changes."
-effort: medium
+model: sonnet
+effort: high
+skills:
+  - unity-implement
 ---
 
 Implement narrow Unity C# changes.

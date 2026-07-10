@@ -11,6 +11,10 @@ $script:SnapshotWarnDays = 30     # snapshot-only data older than this adds a wa
 $script:AttemptCooldownHours = 6  # minimum spacing between refresh attempts
 
 $script:Inv = [System.Globalization.CultureInfo]::InvariantCulture
+$script:TokenBucketFields = @(
+    "calls", "in", "out", "cacheRead", "cache5m", "cache1h",
+    "longCalls", "longIn", "longOut", "longCacheRead"
+)
 
 function Read-JsonFile {
     param([string] $Path)
@@ -41,6 +45,19 @@ function Get-UsageDir {
         [System.IO.File]::WriteAllText($gitignore, "*`n", (New-Object System.Text.UTF8Encoding $false))
     }
     return $dir
+}
+
+function ConvertTo-UsageSafeName {
+    param([string] $Value)
+    if ([string]::IsNullOrWhiteSpace($Value)) { return "unknown" }
+    $safe = [regex]::Replace($Value, "[^A-Za-z0-9._-]", "_")
+    if ($safe.Length -gt 120) { $safe = $safe.Substring(0, 120) }
+    return $safe
+}
+
+function Get-UsageStatePath {
+    param([string] $UsageDir, [string] $SessionId)
+    return Join-Path $UsageDir ("state-" + (ConvertTo-UsageSafeName -Value $SessionId) + ".json")
 }
 
 function ConvertTo-UtcDate {
@@ -78,7 +95,84 @@ function Format-Money {
 }
 
 function New-TokenBucket {
-    return @{ calls = 0; in = [long]0; out = [long]0; cacheRead = [long]0; cache5m = [long]0; cache1h = [long]0 }
+    return @{
+        calls        = 0
+        in           = [long]0
+        out          = [long]0
+        cacheRead    = [long]0
+        cache5m      = [long]0
+        cache1h      = [long]0
+        longCalls    = 0
+        longIn       = [long]0
+        longOut      = [long]0
+        longCacheRead = [long]0
+    }
+}
+
+function Copy-TokenBucket {
+    param($Source)
+    $bucket = New-TokenBucket
+    if (-not $Source) { return $bucket }
+    foreach ($field in $script:TokenBucketFields) {
+        if ($Source -is [hashtable]) {
+            if ($Source.ContainsKey($field)) { $bucket[$field] = [long]$Source[$field] }
+        }
+        elseif ($Source.PSObject.Properties[$field]) {
+            $bucket[$field] = [long]$Source.$field
+        }
+    }
+    return $bucket
+}
+
+function Add-TokenBucket {
+    param([hashtable] $Target, $Source)
+    if (-not $Source) { return }
+    foreach ($field in $script:TokenBucketFields) {
+        $value = [long]0
+        if ($Source -is [hashtable]) {
+            if ($Source.ContainsKey($field)) { $value = [long]$Source[$field] }
+        }
+        elseif ($Source.PSObject.Properties[$field]) {
+            $value = [long]$Source.$field
+        }
+        $Target[$field] = [long]$Target[$field] + $value
+    }
+}
+
+function Subtract-TokenBucket {
+    param($Current, $Previous)
+    $result = New-TokenBucket
+    $currentBucket = Copy-TokenBucket -Source $Current
+    $previousBucket = Copy-TokenBucket -Source $Previous
+    foreach ($field in $script:TokenBucketFields) {
+        $currentValue = [long]$currentBucket[$field]
+        $previousValue = [long]$previousBucket[$field]
+        $delta = $currentValue - $previousValue
+        if ($delta -lt 0) { $delta = $currentValue }
+        $result[$field] = $delta
+    }
+    return $result
+}
+
+function ConvertTo-UsageHistoryRow {
+    param($Row)
+    $bucket = $Row.bucket
+    return [ordered]@{
+        model         = $Row.model
+        effort        = $Row.effort
+        scope         = $Row.scope
+        calls         = [int]$bucket.calls
+        in            = [long]$bucket.in
+        out           = [long]$bucket.out
+        cacheRead     = [long]$bucket.cacheRead
+        cache5m       = [long]$bucket.cache5m
+        cache1h       = [long]$bucket.cache1h
+        longCalls     = [int]$bucket.longCalls
+        longIn        = [long]$bucket.longIn
+        longOut       = [long]$bucket.longOut
+        longCacheRead = [long]$bucket.longCacheRead
+        estCost       = $Row.cost
+    }
 }
 
 function Add-UsageToBucket {
@@ -98,6 +192,18 @@ function Add-UsageToBucket {
         # rate), so the estimate errs low rather than inventing a premium.
         $Bucket.cache5m += [long]$Usage.cache_creation_input_tokens
     }
+}
+
+function Merge-PriceEntry {
+    param($Base, $Override)
+    $merged = [ordered]@{}
+    if ($Base) {
+        foreach ($prop in $Base.PSObject.Properties) { $merged[$prop.Name] = $prop.Value }
+    }
+    if ($Override) {
+        foreach ($prop in $Override.PSObject.Properties) { $merged[$prop.Name] = $prop.Value }
+    }
+    return [pscustomobject]$merged
 }
 
 function Get-PriceTable {
@@ -121,14 +227,20 @@ function Get-PriceTable {
     $cacheDate = $null
     if ($cache -and $cache.models) {
         $cacheDate = ConvertTo-UtcDate -Text $cache.fetched_at
-        foreach ($prop in $cache.models.PSObject.Properties) { $models[$prop.Name] = $prop.Value }
+        foreach ($prop in $cache.models.PSObject.Properties) {
+            $base = $null
+            if ($models.ContainsKey($prop.Name)) { $base = $models[$prop.Name] }
+            $models[$prop.Name] = Merge-PriceEntry -Base $base -Override $prop.Value
+        }
     }
 
     if ($snapshot -and $snapshot.overrides) {
         foreach ($override in $snapshot.overrides) {
             $until = ConvertTo-UtcDate -Text $override.until
             if ($until -and $now.Date -le $until.Date -and $override.prices) {
-                $models[$override.model] = $override.prices
+                $base = $null
+                if ($models.ContainsKey([string]$override.model)) { $base = $models[[string]$override.model] }
+                $models[[string]$override.model] = Merge-PriceEntry -Base $base -Override $override.prices
             }
         }
     }
@@ -145,6 +257,10 @@ function Get-PriceTable {
 
     if ($cacheDate) {
         $sourceLabel = "litellm " + $cacheDate.ToString("yyyy-MM-dd", $script:Inv)
+        if ($snapshotDate) {
+            $sourceLabel = "merged official snapshot " + $snapshotDate.ToString("yyyy-MM-dd", $script:Inv) +
+            " + litellm " + $cacheDate.ToString("yyyy-MM-dd", $script:Inv)
+        }
         $ageDays = ($now - $cacheDate).TotalDays
         if ($lastError -and $lastAttempt -and (-not $lastSuccess -or $lastAttempt -gt $lastSuccess)) {
             $warnings += ("! price refresh FAILED at " + $lastAttempt.ToString("yyyy-MM-dd HH:mm", $script:Inv) + " UTC - using prices from " + $cacheDate.ToString("yyyy-MM-dd", $script:Inv) + "; estimates may be outdated")
@@ -181,9 +297,8 @@ function Get-ModelPrice {
     # Dated snapshot ids (claude-haiku-4-5-20251001) fall back to the alias.
     $stripped = $Model -replace "[-@]\d{8}$", ""
     if ($stripped -ne $Model -and $Models.ContainsKey($stripped)) { return $Models[$stripped] }
-    foreach ($key in @($Models.Keys | Sort-Object -Property Length -Descending)) {
-        if ($Model.StartsWith([string]$key, [System.StringComparison]::OrdinalIgnoreCase)) { return $Models[$key] }
-    }
+    # Never infer a price from an arbitrary prefix. A newer model family may
+    # have materially different rates (for example gpt-5.6-sol vs gpt-5).
     return $null
 }
 
@@ -192,14 +307,30 @@ function Get-BucketCost {
     # 1.6 x cache_write_5m (the 2.0/1.25 multiplier ratio) when a source
     # lacks the 1h rate.
     param($Price, [hashtable] $Bucket)
-    $w5 = 0.0
-    if ($Price.PSObject.Properties["cache_write_5m"] -and $null -ne $Price.cache_write_5m) { $w5 = [double]$Price.cache_write_5m }
-    $w1 = $w5 * 1.6
-    if ($Price.PSObject.Properties["cache_write_1h"] -and $null -ne $Price.cache_write_1h) { $w1 = [double]$Price.cache_write_1h }
-    $cr = 0.0
-    if ($Price.PSObject.Properties["cache_read"] -and $null -ne $Price.cache_read) { $cr = [double]$Price.cache_read }
-    $total = ($Bucket.in * [double]$Price.in) + ($Bucket.out * [double]$Price.out) +
-    ($Bucket.cacheRead * $cr) + ($Bucket.cache5m * $w5) + ($Bucket.cache1h * $w1)
+    $short = Copy-TokenBucket -Source $Bucket
+    foreach ($pair in @(
+            @("calls", "longCalls"), @("in", "longIn"), @("out", "longOut"),
+            @("cacheRead", "longCacheRead")
+        )) {
+        $short[$pair[0]] = [Math]::Max([long]0, [long]$short[$pair[0]] - [long]$short[$pair[1]])
+    }
+
+    $shortW5 = 0.0
+    if ($Price.PSObject.Properties["cache_write_5m"] -and $null -ne $Price.cache_write_5m) { $shortW5 = [double]$Price.cache_write_5m }
+    $shortW1 = $shortW5 * 1.6
+    if ($Price.PSObject.Properties["cache_write_1h"] -and $null -ne $Price.cache_write_1h) { $shortW1 = [double]$Price.cache_write_1h }
+    $shortCr = 0.0
+    if ($Price.PSObject.Properties["cache_read"] -and $null -ne $Price.cache_read) { $shortCr = [double]$Price.cache_read }
+    $total = ($short.in * [double]$Price.in) + ($short.out * [double]$Price.out) +
+    ($short.cacheRead * $shortCr) + ($short.cache5m * $shortW5) + ($short.cache1h * $shortW1)
+
+    if ([long]$short.longCalls -gt 0) {
+        if (-not $Price.PSObject.Properties["long_in"] -or -not $Price.PSObject.Properties["long_out"]) { return $null }
+        $longCr = 0.0
+        if ($Price.PSObject.Properties["long_cache_read"] -and $null -ne $Price.long_cache_read) { $longCr = [double]$Price.long_cache_read }
+        $total += ($short.longIn * [double]$Price.long_in) + ($short.longOut * [double]$Price.long_out) +
+        ($short.longCacheRead * $longCr)
+    }
     return $total / 1000000.0
 }
 
@@ -445,6 +576,7 @@ function ConvertTo-UsageV2RowObject {
     if ($null -ne $Row.cost) { $cost = [double]$Row.cost }
     return [ordered]@{
         model            = [string]$Row.model
+        effort           = if ($Row.PSObject.Properties["effort"] -or ($Row -is [hashtable] -and $Row.ContainsKey("effort"))) { [string]$Row.effort } else { "unspecified" }
         scope            = [string]$Row.scope
         calls            = [int]$bucket.calls
         inputTokens      = [long]$bucket.in
@@ -453,6 +585,10 @@ function ConvertTo-UsageV2RowObject {
         cacheWriteTokens = [long]($bucket.cache5m + $bucket.cache1h)
         cache5mTokens    = [long]$bucket.cache5m
         cache1hTokens    = [long]$bucket.cache1h
+        longContextCalls = [int]$bucket.longCalls
+        longInputTokens  = [long]$bucket.longIn
+        longOutputTokens = [long]$bucket.longOut
+        longCacheReadTokens = [long]$bucket.longCacheRead
         estimatedCostUsd = $cost
     }
 }
@@ -546,9 +682,12 @@ function Update-UsageV2CurrentSessionViewFromEvents {
         $payload = Get-UsageV2EventProperty -Object $event -Name "payload" -Default $null
         if (-not $payload) { continue }
         $model = [string](Get-UsageV2EventProperty -Object $payload -Name "model" -Default "unknown")
-        if (-not $totalByModel.ContainsKey($model)) {
-            $totalByModel[$model] = [ordered]@{
+        $effort = [string](Get-UsageV2EventProperty -Object $payload -Name "effort" -Default "unspecified")
+        $modelKey = $model + "|" + $effort
+        if (-not $totalByModel.ContainsKey($modelKey)) {
+            $totalByModel[$modelKey] = [ordered]@{
                 model            = $model
+                effort           = $effort
                 calls            = [int]0
                 inputTokens      = [long]0
                 outputTokens     = [long]0
@@ -556,11 +695,15 @@ function Update-UsageV2CurrentSessionViewFromEvents {
                 cacheWriteTokens = [long]0
                 cache5mTokens    = [long]0
                 cache1hTokens    = [long]0
+                longContextCalls = [int]0
+                longInputTokens  = [long]0
+                longOutputTokens = [long]0
+                longCacheReadTokens = [long]0
                 estimatedCostUsd = [double]0.0
                 costComplete     = $true
             }
         }
-        $target = $totalByModel[$model]
+        $target = $totalByModel[$modelKey]
         $target.calls += [int](Get-UsageV2EventNumber -Object $payload -Name "calls" -Default 0.0)
         $target.inputTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "inputTokens" -Default 0.0)
         $target.outputTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "outputTokens" -Default 0.0)
@@ -568,6 +711,10 @@ function Update-UsageV2CurrentSessionViewFromEvents {
         $target.cacheWriteTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "cacheWriteTokens" -Default 0.0)
         $target.cache5mTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "cache5mTokens" -Default 0.0)
         $target.cache1hTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "cache1hTokens" -Default 0.0)
+        $target.longContextCalls += [int](Get-UsageV2EventNumber -Object $payload -Name "longContextCalls" -Default 0.0)
+        $target.longInputTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "longInputTokens" -Default 0.0)
+        $target.longOutputTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "longOutputTokens" -Default 0.0)
+        $target.longCacheReadTokens += [long](Get-UsageV2EventNumber -Object $payload -Name "longCacheReadTokens" -Default 0.0)
         $cost = Get-UsageV2EventProperty -Object $payload -Name "estimatedCostUsd" -Default $null
         if ($null -eq $cost) {
             $target.costComplete = $false
@@ -584,10 +731,11 @@ function Update-UsageV2CurrentSessionViewFromEvents {
     }
 
     $totalRows = @()
-    foreach ($model in ($totalByModel.Keys | Sort-Object)) {
-        $row = $totalByModel[$model]
+    foreach ($modelKey in ($totalByModel.Keys | Sort-Object)) {
+        $row = $totalByModel[$modelKey]
         $totalRows += , ([ordered]@{
                 model            = $row.model
+                effort           = $row.effort
                 calls            = [int]$row.calls
                 inputTokens      = [long]$row.inputTokens
                 outputTokens     = [long]$row.outputTokens
@@ -595,8 +743,19 @@ function Update-UsageV2CurrentSessionViewFromEvents {
                 cacheWriteTokens = [long]$row.cacheWriteTokens
                 cache5mTokens    = [long]$row.cache5mTokens
                 cache1hTokens    = [long]$row.cache1hTokens
+                longContextCalls = [int]$row.longContextCalls
+                longInputTokens  = [long]$row.longInputTokens
+                longOutputTokens = [long]$row.longOutputTokens
+                longCacheReadTokens = [long]$row.longCacheReadTokens
                 estimatedCostUsd = $(if ($row.costComplete) { [double]$row.estimatedCostUsd } else { $null })
             })
+    }
+    $snapshotModels = @((Get-UsageV2EventProperty -Object $sessionPayload -Name "models" -Default @()))
+    if ($snapshotModels.Count -gt 0) {
+        $totalRows = @($snapshotModels)
+        $snapshotCost = Get-UsageV2EventProperty -Object $sessionPayload -Name "estimatedCostUsd" -Default $null
+        if ($null -ne $snapshotCost) { $sessionCost = [double]$snapshotCost }
+        $sessionCostComplete = [bool](Get-UsageV2EventProperty -Object $sessionPayload -Name "costComplete" -Default $sessionCostComplete)
     }
 
     $agentsByRole = @{}
@@ -648,12 +807,20 @@ function Update-UsageV2CurrentSessionViewFromEvents {
     }
     $toolRows = @()
     foreach ($key in ($toolsByKey.Keys | Sort-Object)) { $toolRows += , $toolsByKey[$key] }
+    if ($sessionPayload -and $sessionPayload.PSObject.Properties["tools"]) {
+        $toolRows = @((Get-UsageV2EventProperty -Object $sessionPayload -Name "tools" -Default @()))
+    }
 
     $tracePayload = Get-UsageV2EventProperty -Object $latestTrace -Name "payload" -Default $null
     $turnCost = 0.0
+    $turnCostComplete = $true
     foreach ($row in @($lastRows)) {
         $cost = Get-UsageV2EventProperty -Object $row -Name "estimatedCostUsd" -Default $null
         if ($null -ne $cost) { $turnCost += [double]$cost }
+        else { $turnCostComplete = $false }
+    }
+    if ($latestTrace) {
+        $turnCostComplete = [bool](Get-UsageV2EventProperty -Object $tracePayload -Name "costComplete" -Default $turnCostComplete)
     }
     $turns = [int](Get-UsageV2EventNumber -Object $sessionPayload -Name "turns" -Default ([double]$traceEvents.Count))
     $aliases = @()
@@ -680,7 +847,8 @@ function Update-UsageV2CurrentSessionViewFromEvents {
             traceId           = $latestTraceId
             turn              = [int](Get-UsageV2EventNumber -Object $tracePayload -Name "turn" -Default ([double]$turns))
             durationSeconds   = [double](Get-UsageV2EventNumber -Object $tracePayload -Name "durationSeconds" -Default 0.0)
-            estimatedCostUsd  = [double]$turnCost
+            estimatedCostUsd  = $(if ($turnCostComplete) { [double]$turnCost } else { $null })
+            costComplete      = [bool]$turnCostComplete
             agentRuns         = [int](Get-UsageV2EventNumber -Object $tracePayload -Name "agentRuns" -Default 0.0)
             userMessages      = [int](Get-UsageV2EventNumber -Object $tracePayload -Name "userMessages" -Default 0.0)
             assistantMessages = [int](Get-UsageV2EventNumber -Object $tracePayload -Name "assistantMessages" -Default 0.0)
@@ -774,6 +942,7 @@ function Write-UsageV2SessionSnapshot {
         [hashtable] $Prices,
         [object[]] $Rows,
         [double] $TurnCost,
+        [bool] $TurnCostComplete = $true,
         [double] $SessionCost,
         [bool] $SessionCostComplete,
         [double] $WallSeconds,
@@ -789,7 +958,9 @@ function Write-UsageV2SessionSnapshot {
     $observed = [DateTime]::UtcNow
     $projectId = Get-UsageProjectId -Root $ProjectRoot
     $turnOrdinal = [int]$State.session.turns
-    $traceId = "trc_" + (Get-UsageStableHash -Value ($projectId + "|" + $PlatformName + "|" + $SessionId + "|" + $turnOrdinal) -Length 24)
+    $sampleOrdinal = $turnOrdinal
+    if ($State.session.ContainsKey("samples")) { $sampleOrdinal = [int]$State.session.samples }
+    $traceId = "trc_" + (Get-UsageStableHash -Value ($projectId + "|" + $PlatformName + "|" + $SessionId + "|sample|" + $sampleOrdinal) -Length 24)
     $source = @{ adapter = "hook"; path = $null; offset = $null }
     $safeAliases = @()
     foreach ($alias in @($AliasSessionIds)) {
@@ -838,15 +1009,33 @@ function Write-UsageV2SessionSnapshot {
                 })
         }
     }
+    $totalToolRows = @($toolRows)
+    if ($State.session.ContainsKey("tools")) {
+        $totalToolRows = @()
+        foreach ($key in ($State.session.tools.Keys | Sort-Object)) {
+            $tool = $State.session.tools[$key]
+            $totalToolRows += , ([ordered]@{
+                    name        = [string]$tool.name
+                    kind        = [string]$tool.kind
+                    calls       = [int]$tool.calls
+                    failures    = [int]$tool.failures
+                    lastUsedUtc = $observed.ToUniversalTime().ToString("o", $script:Inv)
+                })
+        }
+    }
 
     $totalRows = @()
-    foreach ($model in ($State.session.models.Keys | Sort-Object)) {
-        $bucket = $State.session.models[$model]
+    foreach ($sessionKey in ($State.session.models.Keys | Sort-Object)) {
+        $parts = @($sessionKey -split '\|', 2)
+        $model = $parts[0]
+        $effort = if ($parts.Count -gt 1) { $parts[1] } else { "unspecified" }
+        $bucket = $State.session.models[$sessionKey]
         $price = Get-ModelPrice -Models $Prices.models -Model $model
         $cost = $null
         if ($price) { $cost = Get-BucketCost -Price $price -Bucket $bucket }
         $totalRows += , ([ordered]@{
                 model            = [string]$model
+                effort           = [string]$effort
                 calls            = [int]$bucket.calls
                 inputTokens      = [long]$bucket.in
                 outputTokens     = [long]$bucket.out
@@ -854,6 +1043,10 @@ function Write-UsageV2SessionSnapshot {
                 cacheWriteTokens = [long]($bucket.cache5m + $bucket.cache1h)
                 cache5mTokens    = [long]$bucket.cache5m
                 cache1hTokens    = [long]$bucket.cache1h
+                longContextCalls = [int]$bucket.longCalls
+                longInputTokens  = [long]$bucket.longIn
+                longOutputTokens = [long]$bucket.longOut
+                longCacheReadTokens = [long]$bucket.longCacheRead
                 estimatedCostUsd = $cost
             })
     }
@@ -873,7 +1066,8 @@ function Write-UsageV2SessionSnapshot {
             traceId           = $traceId
             turn              = [int]$turnOrdinal
             durationSeconds   = [double]$WallSeconds
-            estimatedCostUsd  = [double]$TurnCost
+            estimatedCostUsd  = $(if ($TurnCostComplete) { [double]$TurnCost } else { $null })
+            costComplete      = [bool]$TurnCostComplete
             agentRuns         = [int]$AgentRuns
             userMessages      = [int]$MessageCounts["userMessages"]
             assistantMessages = [int]$MessageCounts["assistantMessages"]
@@ -885,7 +1079,7 @@ function Write-UsageV2SessionSnapshot {
             costComplete     = [bool]$SessionCostComplete
             models           = $totalRows
             agents           = $agentRows
-            tools            = $toolRows
+            tools            = $totalToolRows
         }
     }
     Write-JsonAtomic -Path (Join-Path (Join-Path $v2 "views") "current-session.json") -Value $view
@@ -899,20 +1093,27 @@ function Write-UsageV2SessionSnapshot {
             v            = 2
             generatedUtc = $observed.ToUniversalTime().ToString("o", $script:Inv)
             sessionId    = $SessionId
-            tools        = $toolRows
+            tools        = $totalToolRows
         })
 
-    $sessionEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "session.observed" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|session") -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|session") -Source $source -ObservedUtc $observed -Payload ([ordered]@{
+    $sessionEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "session.observed" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|session") -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|sample|" + $sampleOrdinal + "|session") -Source $source -ObservedUtc $observed -Payload ([ordered]@{
             aliases          = @($safeAliases)
             turns            = [int]$State.session.turns
+            samples          = [int]$sampleOrdinal
             sourceConfidence = "high"
             priceSource      = $Prices.sourceLabel
             warnings         = @($Warnings)
+            models           = @($totalRows)
+            tools            = @($totalToolRows)
+            estimatedCostUsd = [double]$SessionCost
+            costComplete     = [bool]$SessionCostComplete
         })
     Add-UsageV2Event -UsageDir $UsageDir -Event $sessionEvent
 
-    $traceEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "trace.ended" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|trace") -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|trace") -Source $source -ObservedUtc $observed -Payload ([ordered]@{
+    $traceEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "trace.ended" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|trace") -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|sample|" + $sampleOrdinal + "|trace") -Source $source -ObservedUtc $observed -Payload ([ordered]@{
             turn              = [int]$turnOrdinal
+            sample            = [int]$sampleOrdinal
+            costComplete      = [bool]$TurnCostComplete
             durationSeconds   = [double]$WallSeconds
             agentRuns         = [int]$AgentRuns
             userMessages      = [int]$MessageCounts["userMessages"]
@@ -923,23 +1124,25 @@ function Write-UsageV2SessionSnapshot {
     foreach ($row in @($turnRows)) {
         $scope = [string]$row.scope
         $model = [string]$row.model
-        $spanId = "spn_" + (Get-UsageStableHash -Value ($traceId + "|" + $scope + "|" + $model) -Length 24)
-        $usageEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "span.usage" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId $spanId -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|usage|" + $scope + "|" + $model) -Source $source -ObservedUtc $observed -Payload $row
+        $effort = [string]$row.effort
+        $spanId = "spn_" + (Get-UsageStableHash -Value ($traceId + "|" + $scope + "|" + $model + "|" + $effort) -Length 24)
+        $usageEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "span.usage" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId $spanId -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|sample|" + $sampleOrdinal + "|usage|" + $scope + "|" + $model + "|" + $effort) -Source $source -ObservedUtc $observed -Payload $row
         Add-UsageV2Event -UsageDir $UsageDir -Event $usageEvent
     }
     foreach ($agent in @($agentRows)) {
         $role = [string]$agent.role
-        $agentEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "agent.ended" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|agent|" + $role) -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|agent|" + $role) -Source $source -ObservedUtc $observed -Payload $agent
+        $agentEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "agent.ended" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|agent|" + $role) -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|sample|" + $sampleOrdinal + "|agent|" + $role) -Source $source -ObservedUtc $observed -Payload $agent
         Add-UsageV2Event -UsageDir $UsageDir -Event $agentEvent
     }
     foreach ($tool in @($toolRows)) {
         $name = [string]$tool.name
         $kind = [string]$tool.kind
-        $toolEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "tool.completed" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|tool|" + $kind + "|" + $name) -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|turn|" + $turnOrdinal + "|tool|" + $kind + "|" + $name) -Source $source -ObservedUtc $observed -Payload $tool
+        $toolEvent = New-UsageV2Event -ProjectRoot $ProjectRoot -Type "tool.completed" -Platform $PlatformName -SessionId $SessionId -TraceId $traceId -SpanId ("spn_" + (Get-UsageStableHash -Value ($traceId + "|tool|" + $kind + "|" + $name) -Length 24)) -IdempotencyKey ("usage-report|" + $PlatformName + "|" + $SessionId + "|sample|" + $sampleOrdinal + "|tool|" + $kind + "|" + $name) -Source $source -ObservedUtc $observed -Payload $tool
         Add-UsageV2Event -UsageDir $UsageDir -Event $toolEvent
     }
     try { [void](Update-UsageV2CurrentSessionViewFromEvents -UsageDir $UsageDir -ProjectRoot $ProjectRoot) } catch {}
 }
+
 
 function ConvertTo-CodexComparablePath {
     param([string] $Path)
@@ -981,20 +1184,14 @@ function ConvertFrom-CodexTokenCount {
     $deltaCache = $totalCache - $prevCache
     if ($deltaInRaw -lt 0 -or $deltaOut -lt 0 -or $deltaCache -lt 0) { return $null }
     if ($deltaInRaw -eq 0 -and $deltaOut -eq 0 -and $deltaCache -eq 0) {
-        return @{ changed = $false; totalIn = $totalIn; totalOut = $totalOut; totalCacheRead = $totalCache }
+        return @{ changed = $false }
     }
 
-    $uncachedIn = $deltaInRaw - $deltaCache
-    if ($uncachedIn -lt 0) { $uncachedIn = 0 }
     return @{
         changed        = $true
-        calls          = 1
-        in             = [long]$uncachedIn
+        rawInput       = [long]$deltaInRaw
         out            = [long]$deltaOut
         cacheRead      = [long]$deltaCache
-        totalIn        = $totalIn
-        totalOut       = $totalOut
-        totalCacheRead = $totalCache
     }
 }
 
@@ -1013,7 +1210,452 @@ function Get-CodexSessionRoots {
             [void]$roots.Add($sessions)
         }
     }
+    if (-not [string]::IsNullOrWhiteSpace($env:CODEX_HOME) -and $roots.Count -gt 0) { return @($roots) }
+    if ([System.IO.Path]::DirectorySeparatorChar -eq "\") {
+        $wslDistros = New-Object "System.Collections.Generic.List[string]"
+        try {
+            foreach ($line in @(& wsl.exe -l -q 2>$null)) {
+                $distro = ([string]$line -replace "`0", "").Trim()
+                if ([string]::IsNullOrWhiteSpace($distro)) { continue }
+                if (-not $wslDistros.Contains($distro)) { [void]$wslDistros.Add($distro) }
+            }
+        }
+        catch {}
+        foreach ($fallback in @("Ubuntu", "Ubuntu-24.04", "Ubuntu-22.04", "Debian")) {
+            if (-not $wslDistros.Contains($fallback)) { [void]$wslDistros.Add($fallback) }
+        }
+        foreach ($distro in $wslDistros) {
+            $rootSessions = "\\wsl.localhost\" + $distro + "\root\.codex\sessions"
+            if ((Test-Path -LiteralPath $rootSessions) -and -not $roots.Contains($rootSessions)) { [void]$roots.Add($rootSessions) }
+            $homeRoot = "\\wsl.localhost\" + $distro + "\home"
+            if (-not (Test-Path -LiteralPath $homeRoot)) { continue }
+            foreach ($homeDir in Get-ChildItem -LiteralPath $homeRoot -Directory -ErrorAction SilentlyContinue) {
+                $sessions = Join-Path $homeDir.FullName ".codex\sessions"
+                if ((Test-Path -LiteralPath $sessions) -and -not $roots.Contains($sessions)) { [void]$roots.Add($sessions) }
+            }
+        }
+    }
     return @($roots)
+}
+
+function Read-FirstLineShared {
+    param([string] $Path)
+    $stream = $null
+    $reader = $null
+    try {
+        $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+        $stream = New-Object System.IO.FileStream($Path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+        $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8, $true, 4096, $true)
+        return $reader.ReadLine()
+    }
+    finally {
+        if ($reader) { $reader.Dispose() }
+        if ($stream) { $stream.Dispose() }
+    }
+}
+
+function Get-CodexRolloutMetadata {
+    param([string] $Path)
+    if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) { return $null }
+    try {
+        $firstLine = Read-FirstLineShared -Path $Path
+        if ([string]::IsNullOrWhiteSpace($firstLine)) { return $null }
+        $first = $firstLine | ConvertFrom-Json
+        if (-not $first -or $first.type -ne "session_meta" -or -not $first.payload -or -not $first.payload.id) { return $null }
+        $payload = $first.payload
+        $rolloutId = [string]$payload.id
+        $rootSessionId = $rolloutId
+        if ($payload.PSObject.Properties["session_id"] -and $payload.session_id) { $rootSessionId = [string]$payload.session_id }
+
+        $parentId = ""
+        $depth = 0
+        $scope = "main"
+        $source = $null
+        if ($payload.PSObject.Properties["source"]) { $source = $payload.source }
+        if ($source -and -not ($source -is [string]) -and $source.PSObject.Properties["subagent"] -and $source.subagent) {
+            $subagent = $source.subagent
+            if ($subagent.PSObject.Properties["thread_spawn"] -and $subagent.thread_spawn) {
+                $spawn = $subagent.thread_spawn
+                if ($spawn.PSObject.Properties["parent_thread_id"] -and $spawn.parent_thread_id) { $parentId = [string]$spawn.parent_thread_id }
+                if ($spawn.PSObject.Properties["depth"] -and $null -ne $spawn.depth) { $depth = [int]$spawn.depth }
+                if ($spawn.PSObject.Properties["agent_path"] -and $spawn.agent_path) {
+                    $scope = [string]$spawn.agent_path
+                    if ($scope.StartsWith("/root/", [System.StringComparison]::Ordinal)) { $scope = $scope.Substring(6) }
+                    else { $scope = $scope.TrimStart("/") }
+                }
+                elseif ($spawn.PSObject.Properties["agent_role"] -and $spawn.agent_role) { $scope = [string]$spawn.agent_role }
+                else { $scope = "subagent" }
+            }
+        }
+
+        return [pscustomobject]@{
+            path          = $Path
+            id            = $rolloutId
+            sessionId     = $rootSessionId
+            parentId      = $parentId
+            depth         = $depth
+            scope         = $scope
+            startedUtc    = ConvertTo-UtcDate -Text $first.timestamp
+            cwd           = if ($payload.PSObject.Properties["cwd"]) { [string]$payload.cwd } else { "" }
+        }
+    }
+    catch { return $null }
+}
+
+function Find-CodexSessionRollouts {
+    param(
+        [string] $SessionId,
+        [string] $MainTranscript,
+        [string[]] $RolloutPaths
+    )
+    if ([string]::IsNullOrWhiteSpace($SessionId)) { return @() }
+    $candidates = New-Object "System.Collections.Generic.List[string]"
+    $seenPaths = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
+
+    foreach ($path in @($RolloutPaths)) {
+        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path) -and $seenPaths.Add($path)) { [void]$candidates.Add($path) }
+    }
+
+    $mainPath = $null
+    if (-not [string]::IsNullOrWhiteSpace($MainTranscript) -and (Test-Path -LiteralPath $MainTranscript)) {
+        $meta = Get-CodexRolloutMetadata -Path $MainTranscript
+        if ($meta -and $meta.sessionId -eq $SessionId) {
+            $mainPath = $MainTranscript
+            if ($seenPaths.Add($MainTranscript)) { [void]$candidates.Add($MainTranscript) }
+        }
+    }
+
+    $sessionRoots = @(Get-CodexSessionRoots)
+    if (-not $mainPath) {
+        foreach ($root in $sessionRoots) {
+            foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File -Filter "rollout-*.jsonl" -ErrorAction SilentlyContinue) {
+                if (-not $file.BaseName.EndsWith($SessionId, [System.StringComparison]::OrdinalIgnoreCase)) { continue }
+                $meta = Get-CodexRolloutMetadata -Path $file.FullName
+                if ($meta -and $meta.id -eq $SessionId -and $meta.sessionId -eq $SessionId) {
+                    $mainPath = $file.FullName
+                    if ($seenPaths.Add($mainPath)) { [void]$candidates.Add($mainPath) }
+                    break
+                }
+            }
+            if ($mainPath) { break }
+        }
+    }
+
+    if ($mainPath -and @($RolloutPaths).Count -eq 0) {
+        $mainMeta = Get-CodexRolloutMetadata -Path $mainPath
+        $cutoff = [DateTime]::MinValue
+        if ($mainMeta -and $mainMeta.startedUtc) { $cutoff = $mainMeta.startedUtc.AddMinutes(-5) }
+        $derivedRoot = Split-Path -Parent $mainPath
+        for ($i = 0; $i -lt 3 -and $derivedRoot; $i++) { $derivedRoot = Split-Path -Parent $derivedRoot }
+        if ($derivedRoot -and (Test-Path -LiteralPath $derivedRoot) -and $sessionRoots -notcontains $derivedRoot) { $sessionRoots += $derivedRoot }
+        foreach ($root in $sessionRoots) {
+            foreach ($file in Get-ChildItem -LiteralPath $root -Recurse -File -Filter "rollout-*.jsonl" -ErrorAction SilentlyContinue) {
+                if ($file.LastWriteTimeUtc -lt $cutoff -or -not $seenPaths.Add($file.FullName)) { continue }
+                [void]$candidates.Add($file.FullName)
+            }
+        }
+    }
+
+    $result = @()
+    foreach ($path in $candidates) {
+        $meta = Get-CodexRolloutMetadata -Path $path
+        if ($meta -and $meta.sessionId -eq $SessionId) { $result += , $meta }
+    }
+    return @($result | Sort-Object @{ Expression = { $_.depth } }, @{ Expression = { $_.startedUtc } }, @{ Expression = { $_.id } })
+}
+
+function Read-CodexRolloutUsageData {
+    param($Metadata)
+    $turnIds = New-Object "System.Collections.Generic.List[string]"
+    $seenTurns = New-Object "System.Collections.Generic.HashSet[string]"
+    $events = New-Object "System.Collections.Generic.List[object]"
+    $responseTools = New-Object "System.Collections.Generic.List[object]"
+    $legacyTools = New-Object "System.Collections.Generic.List[object]"
+    $warnings = New-Object "System.Collections.Generic.List[string]"
+    $activeTurnId = ""
+    $currentModel = "unknown"
+    $currentEffort = "unspecified"
+    $lineNumber = 0
+
+    $stream = $null
+    $reader = $null
+    try {
+        $share = [System.IO.FileShare]::ReadWrite -bor [System.IO.FileShare]::Delete
+        $stream = New-Object System.IO.FileStream([string]$Metadata.path, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, $share)
+        $reader = New-Object System.IO.StreamReader($stream, [System.Text.Encoding]::UTF8, $true, 65536, $true)
+        while ($null -ne ($line = $reader.ReadLine())) {
+            $lineNumber++
+            if ($line.IndexOf('"turn_context"', [System.StringComparison]::Ordinal) -lt 0 -and
+                $line.IndexOf('"task_started"', [System.StringComparison]::Ordinal) -lt 0 -and
+                $line.IndexOf('"token_count"', [System.StringComparison]::Ordinal) -lt 0 -and
+                $line.IndexOf('"custom_tool_call"', [System.StringComparison]::Ordinal) -lt 0 -and
+                $line.IndexOf('"function_call"', [System.StringComparison]::Ordinal) -lt 0 -and
+                $line.IndexOf('"exec_command_end"', [System.StringComparison]::Ordinal) -lt 0 -and
+                $line.IndexOf('"patch_apply_end"', [System.StringComparison]::Ordinal) -lt 0 -and
+                $line.IndexOf('"tool_call_end"', [System.StringComparison]::Ordinal) -lt 0) { continue }
+            $entry = $null
+            try { $entry = $line | ConvertFrom-Json } catch { continue }
+            if (-not $entry) { continue }
+
+            if ($entry.type -eq "response_item" -and $entry.payload) {
+                $responseType = [string]$entry.payload.type
+                if ($responseType -eq "custom_tool_call" -or $responseType -eq "function_call") {
+                    $toolTurnId = $activeTurnId
+                    if ($entry.payload.PSObject.Properties["internal_chat_message_metadata_passthrough"] -and $entry.payload.internal_chat_message_metadata_passthrough) {
+                        $meta = $entry.payload.internal_chat_message_metadata_passthrough
+                        if ($meta.PSObject.Properties["turn_id"] -and $meta.turn_id) { $toolTurnId = [string]$meta.turn_id }
+                    }
+                    $toolName = $responseType
+                    if ($entry.payload.PSObject.Properties["name"] -and $entry.payload.name) { $toolName = [string]$entry.payload.name }
+                    [void]$responseTools.Add([pscustomobject]@{ turnId = $toolTurnId; name = $toolName; kind = "codex"; failures = [int]0 })
+                }
+                continue
+            }
+
+            if ($entry.type -eq "turn_context" -and $entry.payload) {
+                if ($entry.payload.PSObject.Properties["turn_id"] -and $entry.payload.turn_id) { $activeTurnId = [string]$entry.payload.turn_id }
+                if ($entry.payload.PSObject.Properties["model"] -and $entry.payload.model) { $currentModel = [string]$entry.payload.model }
+                if ($entry.payload.PSObject.Properties["effort"] -and $entry.payload.effort) { $currentEffort = [string]$entry.payload.effort }
+                if (-not [string]::IsNullOrWhiteSpace($activeTurnId) -and $seenTurns.Add($activeTurnId)) { [void]$turnIds.Add($activeTurnId) }
+                continue
+            }
+
+            if ($entry.type -ne "event_msg" -or -not $entry.payload -or -not $entry.payload.PSObject.Properties["type"]) { continue }
+            $payloadType = [string]$entry.payload.type
+            if ($payloadType -eq "exec_command_end" -or $payloadType -eq "patch_apply_end" -or $payloadType -eq "tool_call_end") {
+                $toolName = if ($payloadType -eq "exec_command_end") { "shell" } elseif ($payloadType -eq "patch_apply_end") { "apply_patch" } else { "tool" }
+                if ($payloadType -eq "tool_call_end" -and $entry.payload.PSObject.Properties["name"] -and $entry.payload.name) { $toolName = [string]$entry.payload.name }
+                [void]$legacyTools.Add([pscustomobject]@{ turnId = $activeTurnId; name = $toolName; kind = "codex"; failures = [int]0 })
+                continue
+            }
+            if ($payloadType -eq "task_started") {
+                if ($entry.payload.PSObject.Properties["turn_id"] -and $entry.payload.turn_id) {
+                    $activeTurnId = [string]$entry.payload.turn_id
+                    if ($seenTurns.Add($activeTurnId)) { [void]$turnIds.Add($activeTurnId) }
+                }
+                continue
+            }
+            if ($payloadType -ne "token_count" -or -not $entry.payload.info -or -not $entry.payload.info.total_token_usage) { continue }
+            $total = $entry.payload.info.total_token_usage
+            if (-not $total.PSObject.Properties["input_tokens"] -or -not $total.PSObject.Properties["output_tokens"]) {
+                [void]$warnings.Add("token_count without input/output totals at line " + $lineNumber)
+                continue
+            }
+            $last = $null
+            if ($entry.payload.info.PSObject.Properties["last_token_usage"]) { $last = $entry.payload.info.last_token_usage }
+            [void]$events.Add([pscustomobject]@{
+                    turnId       = $activeTurnId
+                    model        = $currentModel
+                    effort       = $currentEffort
+                    timestampUtc = ConvertTo-UtcDate -Text $entry.timestamp
+                    totalIn      = [long]$total.input_tokens
+                    totalOut     = [long]$total.output_tokens
+                    totalCache   = if ($total.PSObject.Properties["cached_input_tokens"] -and $total.cached_input_tokens) { [long]$total.cached_input_tokens } else { [long]0 }
+                    lastIn       = if ($last -and $last.PSObject.Properties["input_tokens"]) { [long]$last.input_tokens } else { [long]-1 }
+                    lastOut      = if ($last -and $last.PSObject.Properties["output_tokens"]) { [long]$last.output_tokens } else { [long]-1 }
+                    lastCache    = if ($last -and $last.PSObject.Properties["cached_input_tokens"] -and $last.cached_input_tokens) { [long]$last.cached_input_tokens } else { [long]0 }
+                })
+        }
+    }
+    catch { [void]$warnings.Add("could not read rollout: " + $_.Exception.Message) }
+    finally {
+        if ($reader) { $reader.Dispose() }
+        if ($stream) { $stream.Dispose() }
+    }
+
+    $tools = New-Object "System.Collections.Generic.List[object]"
+    if ($responseTools.Count -gt 0) {
+        $modernNames = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
+        foreach ($tool in $responseTools) {
+            [void]$tools.Add($tool)
+            [void]$modernNames.Add([string]$tool.name)
+        }
+        if ($modernNames.Contains("exec")) { [void]$modernNames.Add("shell") }
+        foreach ($tool in $legacyTools) {
+            $name = [string]$tool.name
+            if ($name -eq "tool" -or $modernNames.Contains($name)) { continue }
+            [void]$tools.Add($tool)
+        }
+    }
+    else {
+        foreach ($tool in $legacyTools) { [void]$tools.Add($tool) }
+    }
+    return [pscustomobject]@{
+        turnIds  = $turnIds.ToArray()
+        events   = $events.ToArray()
+        tools    = $tools.ToArray()
+        warnings = $warnings.ToArray()
+    }
+}
+
+function Get-CodexSessionUsage {
+    param(
+        [string] $SessionId,
+        [string] $MainTranscript,
+        [string[]] $RolloutPaths,
+        [hashtable] $PriceModels
+    )
+    $result = @{
+        status      = "no-data"
+        rows        = @()
+        warnings    = @()
+        rollouts    = 0
+        agentRuns   = 0
+        turns       = 0
+        wallFrom    = $null
+        wallTo      = $null
+        toolCounts  = @{}
+        rolloutRevision = ""
+    }
+    $metadata = @(Find-CodexSessionRollouts -SessionId $SessionId -MainTranscript $MainTranscript -RolloutPaths $RolloutPaths)
+    if ($metadata.Count -eq 0) { return $result }
+
+    $validMetadata = @()
+    $validIds = New-Object "System.Collections.Generic.HashSet[string]"
+    foreach ($meta in $metadata) {
+        if (-not [string]::IsNullOrWhiteSpace($meta.parentId) -and -not $validIds.Contains($meta.parentId)) {
+            $result.warnings += ("missing parent rollout " + $meta.parentId + " for " + $meta.id + "; descendant excluded")
+            continue
+        }
+        $validMetadata += , $meta
+        [void]$validIds.Add([string]$meta.id)
+    }
+    if ($validMetadata.Count -eq 0) { $result.status = "partial"; return $result }
+    $revisionParts = @()
+    foreach ($meta in @($validMetadata | Sort-Object -Property id)) {
+        $file = Get-Item -LiteralPath $meta.path -ErrorAction SilentlyContinue
+        if (-not $file) { continue }
+        $revisionParts += ([string]$meta.id) + ":" + ([string]$file.Length) + ":" + ([string]$file.LastWriteTimeUtc.Ticks)
+    }
+    if ($revisionParts.Count -gt 0) { $result.rolloutRevision = Get-UsageStableHash -Value ($revisionParts -join "|") -Length 32 }
+
+    $dataById = @{}
+    $ownerByTurn = @{}
+    foreach ($meta in $validMetadata) {
+        $data = Read-CodexRolloutUsageData -Metadata $meta
+        $dataById[$meta.id] = $data
+        foreach ($warning in @($data.warnings)) { $result.warnings += ($meta.id + ": " + $warning) }
+        foreach ($turnId in @($data.turnIds)) {
+            if (-not $ownerByTurn.ContainsKey($turnId)) { $ownerByTurn[$turnId] = $meta.id }
+        }
+    }
+
+    $rowBuckets = @{}
+    $filesWithOwnedUsage = New-Object "System.Collections.Generic.HashSet[string]"
+    $rootTurnsWithUsage = New-Object "System.Collections.Generic.HashSet[string]"
+    foreach ($meta in $validMetadata) {
+        $data = $dataById[$meta.id]
+        foreach ($tool in @($data.tools)) {
+            if ([string]::IsNullOrWhiteSpace($tool.turnId) -or -not $ownerByTurn.ContainsKey($tool.turnId) -or $ownerByTurn[$tool.turnId] -ne $meta.id) { continue }
+            $toolKey = $tool.kind + "|" + $tool.name
+            if (-not $result.toolCounts.ContainsKey($toolKey)) {
+                $result.toolCounts[$toolKey] = @{ name = [string]$tool.name; kind = [string]$tool.kind; calls = [int]0; failures = [int]0 }
+            }
+            $result.toolCounts[$toolKey].calls = [int]$result.toolCounts[$toolKey].calls + 1
+            $result.toolCounts[$toolKey].failures = [int]$result.toolCounts[$toolKey].failures + [int]$tool.failures
+        }
+        $previous = @{ in = [long]0; out = [long]0; cacheRead = [long]0 }
+        $unattributedWarned = $false
+        foreach ($event in @($data.events)) {
+            $totalUsage = [pscustomobject]@{
+                input_tokens        = [long]$event.totalIn
+                output_tokens       = [long]$event.totalOut
+                cached_input_tokens = [long]$event.totalCache
+            }
+            $delta = ConvertFrom-CodexTokenCount -TotalUsage $totalUsage -Previous $previous
+            $previous.in = [long]$event.totalIn
+            $previous.out = [long]$event.totalOut
+            $previous.cacheRead = [long]$event.totalCache
+            if (-not $delta) {
+                $result.warnings += ($meta.id + ": cumulative token counter decreased; event excluded")
+                continue
+            }
+            if (-not $delta.changed) { continue }
+            if ([string]::IsNullOrWhiteSpace($event.turnId) -or -not $ownerByTurn.ContainsKey($event.turnId)) {
+                # Partial-fork child rollouts can replay cumulative ancestor
+                # counters before their first task_started/turn_context entry.
+                # They advance the baseline but never belong to the child.
+                if ($meta.id -eq $SessionId -and -not $unattributedWarned) {
+                    $result.warnings += ($meta.id + ": token event without a turn id; event excluded")
+                    $unattributedWarned = $true
+                }
+                continue
+            }
+            if ($ownerByTurn[$event.turnId] -ne $meta.id) { continue }
+
+            $rawInput = [long]$delta.rawInput
+            $output = [long]$delta.out
+            $cacheRead = [long]$delta.cacheRead
+            if ($event.lastIn -ge 0 -and ($event.lastIn -ne $rawInput -or $event.lastOut -ne $output -or $event.lastCache -ne $cacheRead)) {
+                $result.warnings += ($meta.id + ": last_token_usage disagrees with cumulative delta; event excluded")
+                continue
+            }
+            $uncachedInput = [Math]::Max([long]0, $rawInput - $cacheRead)
+            $model = [string]$event.model
+            $effort = [string]$event.effort
+            if ([string]::IsNullOrWhiteSpace($model)) { $model = "unknown" }
+            if ([string]::IsNullOrWhiteSpace($effort)) { $effort = "unspecified" }
+            $key = $meta.scope + "|" + $model + "|" + $effort
+            if (-not $rowBuckets.ContainsKey($key)) {
+                $rowBuckets[$key] = [pscustomobject]@{
+                    scope  = [string]$meta.scope
+                    model  = $model
+                    effort = $effort
+                    bucket = New-TokenBucket
+                }
+            }
+            $bucket = $rowBuckets[$key].bucket
+            $bucket.calls++
+            $bucket.in += $uncachedInput
+            $bucket.out += $output
+            $bucket.cacheRead += $cacheRead
+
+            $price = $null
+            if ($PriceModels) { $price = Get-ModelPrice -Models $PriceModels -Model $model }
+            $isLong = $false
+            if ($price -and $price.PSObject.Properties["long_context_threshold"] -and $null -ne $price.long_context_threshold) {
+                $isLong = $rawInput -gt [long]$price.long_context_threshold
+            }
+            if ($isLong) {
+                $bucket.longCalls++
+                $bucket.longIn += $uncachedInput
+                $bucket.longOut += $output
+                $bucket.longCacheRead += $cacheRead
+            }
+
+            [void]$filesWithOwnedUsage.Add($meta.id)
+            if ($meta.id -eq $SessionId) { [void]$rootTurnsWithUsage.Add([string]$event.turnId) }
+            if ($event.timestampUtc) {
+                if (-not $result.wallFrom -or $event.timestampUtc -lt $result.wallFrom) { $result.wallFrom = $event.timestampUtc }
+                if (-not $result.wallTo -or $event.timestampUtc -gt $result.wallTo) { $result.wallTo = $event.timestampUtc }
+            }
+        }
+    }
+
+    $rows = @()
+    foreach ($key in ($rowBuckets.Keys | Sort-Object)) {
+        $row = $rowBuckets[$key]
+        $price = $null
+        if ($PriceModels) { $price = Get-ModelPrice -Models $PriceModels -Model $row.model }
+        $cost = $null
+        if ($price) { $cost = Get-BucketCost -Price $price -Bucket $row.bucket }
+        $rows += , [pscustomobject]@{
+            scope  = $row.scope
+            model  = $row.model
+            effort = $row.effort
+            bucket = $row.bucket
+            cost   = $cost
+        }
+    }
+    foreach ($meta in $validMetadata) {
+        if ($meta.id -ne $SessionId -and $filesWithOwnedUsage.Contains($meta.id)) { $result.agentRuns++ }
+    }
+    $result.rows = $rows
+    $result.rollouts = $validMetadata.Count
+    $result.turns = $rootTurnsWithUsage.Count
+    if ($rows.Count -gt 0) { $result.status = if ($result.warnings.Count -gt 0) { "partial" } else { "ok" } }
+    elseif ($result.warnings.Count -gt 0) { $result.status = "partial" }
+    return $result
 }
 
 function Get-CodexRolloutRecords {
@@ -1023,215 +1665,88 @@ function Get-CodexRolloutRecords {
         [string] $ScriptDir,
         [int] $RetentionDays = 90
     )
-
-    $result = @{
-        status   = "no-data"
-        records  = 0
-        warnings = @()
-    }
+    $result = @{ status = "no-data"; records = 0; warnings = @() }
     if ([string]::IsNullOrWhiteSpace($ProjectRoot) -or [string]::IsNullOrWhiteSpace($UsageDir)) { return $result }
-
     $sessionRoots = @(Get-CodexSessionRoots)
     if ($sessionRoots.Count -eq 0) { return $result }
 
-    $historySessions = New-Object "System.Collections.Generic.HashSet[string]"
+    $recordedRevisions = New-Object "System.Collections.Generic.HashSet[string]"
     $historyPath = Join-Path $UsageDir "history.jsonl"
     if (Test-Path -LiteralPath $historyPath) {
-        foreach ($line in [System.IO.File]::ReadAllLines($historyPath)) {
+        foreach ($line in [System.IO.File]::ReadLines($historyPath)) {
             if ([string]::IsNullOrWhiteSpace($line)) { continue }
             $record = $null
-            try { $record = $line | ConvertFrom-Json } catch { $record = $null }
-            if ($record -and $record.platform -eq "codex" -and $record.sessionId) {
-                [void]$historySessions.Add([string]$record.sessionId)
+            try { $record = $line | ConvertFrom-Json } catch { continue }
+            if (-not $record -or $record.platform -ne "codex" -or -not $record.sessionId) { continue }
+            if ($record.source -ne "rollout-scan" -and $record.source -ne "session-snapshot") { continue }
+            if ($record.PSObject.Properties["rolloutRevision"] -and -not [string]::IsNullOrWhiteSpace([string]$record.rolloutRevision)) {
+                [void]$recordedRevisions.Add(([string]$record.sessionId) + "|" + ([string]$record.rolloutRevision))
             }
-        }
-    }
-
-    $statePath = Join-Path $UsageDir "codex-scan-state.json"
-    $stateFiles = @{}
-    $loadedState = Read-JsonFile -Path $statePath
-    if ($loadedState -and $loadedState.files) {
-        foreach ($prop in $loadedState.files.PSObject.Properties) {
-            $stateFiles[$prop.Name] = $prop.Value
         }
     }
 
     $rootKey = ConvertTo-CodexComparablePath -Path $ProjectRoot
-    $now = [DateTime]::UtcNow
-    $cutoff = $now.AddDays(-1 * [Math]::Max(1, $RetentionDays))
-    $doneCutoff = $now.AddHours(-48)
-    $prices = Get-PriceTable -ScriptDir $ScriptDir -UsageDir $UsageDir
-    $formatUnknown = $false
-    $matchingFiles = 0
-
-    $files = @()
+    $cutoff = [DateTime]::UtcNow.AddDays(-1 * [Math]::Max(1, $RetentionDays))
+    $completeCutoff = [DateTime]::UtcNow.AddHours(-2)
+    $groups = @{}
     foreach ($sessionsRoot in $sessionRoots) {
-        $files += @(Get-ChildItem -LiteralPath $sessionsRoot -Recurse -File -Filter "rollout-*.jsonl" -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTimeUtc -ge $cutoff })
+        foreach ($file in Get-ChildItem -LiteralPath $sessionsRoot -Recurse -File -Filter "rollout-*.jsonl" -ErrorAction SilentlyContinue) {
+            if ($file.LastWriteTimeUtc -lt $cutoff) { continue }
+            $meta = Get-CodexRolloutMetadata -Path $file.FullName
+            if (-not $meta -or (ConvertTo-CodexComparablePath -Path $meta.cwd) -ne $rootKey) { continue }
+            if (-not $groups.ContainsKey($meta.sessionId)) { $groups[$meta.sessionId] = New-Object "System.Collections.Generic.List[object]" }
+            [void]$groups[$meta.sessionId].Add([pscustomobject]@{ meta = $meta; lastWriteUtc = $file.LastWriteTimeUtc; length = [long]$file.Length })
+        }
     }
-    foreach ($file in $files) {
-        $path = $file.FullName
-        $lines = $null
-        try { $lines = [System.IO.File]::ReadAllLines($path) } catch { continue }
-        if (-not $lines -or $lines.Count -eq 0) { continue }
 
-        $first = $null
-        try { $first = $lines[0] | ConvertFrom-Json } catch { $formatUnknown = $true; $result.warnings += ("codex format unknown in " + $path + ": invalid session_meta"); continue }
-        if (-not $first -or $first.type -ne "session_meta" -or -not $first.PSObject.Properties["payload"] -or -not $first.payload -or -not $first.payload.PSObject.Properties["cwd"]) {
-            $formatUnknown = $true
-            $result.warnings += ("codex format unknown in " + $path + ": missing session_meta.cwd")
+    $prices = Get-PriceTable -ScriptDir $ScriptDir -UsageDir $UsageDir
+    foreach ($sessionId in ($groups.Keys | Sort-Object)) {
+        $items = @($groups[$sessionId] | ForEach-Object { $_ })
+        $rootItem = @($items | Where-Object { $_.meta.id -eq $sessionId -and [string]::IsNullOrWhiteSpace($_.meta.parentId) } | Select-Object -First 1)
+        if ($rootItem.Count -eq 0) {
+            $result.warnings += ("codex session " + $sessionId + " has descendants but no root rollout; excluded")
             continue
         }
-        if ((ConvertTo-CodexComparablePath -Path ([string]$first.payload.cwd)) -ne $rootKey) { continue }
-        $sessionId = [System.IO.Path]::GetFileNameWithoutExtension($path)
-        if ($first.payload.PSObject.Properties["id"] -and $first.payload.id) { $sessionId = [string]$first.payload.id }
-
-        $matchingFiles++
-        $fileState = $null
-        if ($stateFiles.ContainsKey($path)) { $fileState = $stateFiles[$path] }
-        $offset = 0
-        $done = $false
-        $currentModel = $null
-        $prev = @{ in = [long]0; out = [long]0; cacheRead = [long]0 }
-        if ($fileState) {
-            if ($fileState.PSObject.Properties["lines"]) { $offset = [int]$fileState.lines }
-            if ($fileState.PSObject.Properties["done"] -and $fileState.done) { $done = $true }
-            if ($fileState.PSObject.Properties["lastModel"] -and $fileState.lastModel) { $currentModel = [string]$fileState.lastModel }
-            if ($fileState.PSObject.Properties["lastTotalIn"]) { $prev["in"] = [long]$fileState.lastTotalIn }
-            if ($fileState.PSObject.Properties["lastTotalOut"]) { $prev["out"] = [long]$fileState.lastTotalOut }
-            if ($fileState.PSObject.Properties["lastTotalCacheRead"]) { $prev["cacheRead"] = [long]$fileState.lastTotalCacheRead }
-        }
-        if ($done -and $offset -ge $lines.Count) { continue }
-        if ($offset -gt $lines.Count) { $offset = 0 }
-
-        $buckets = @{}
-        $userMessages = 0
-        $assistantMessages = 0
-        $lastTs = $null
-        for ($i = $offset; $i -lt $lines.Count; $i++) {
-            $entry = $null
-            try { $entry = $lines[$i] | ConvertFrom-Json }
-            catch {
-                if ($i -lt ($lines.Count - 1)) {
-                    $formatUnknown = $true
-                    $result.warnings += ("codex format unknown in " + $path + ": invalid json line " + ($i + 1))
-                }
-                continue
-            }
-            if (-not $entry) { continue }
-            if ($entry.PSObject.Properties["timestamp"]) {
-                $ts = ConvertTo-UtcDate -Text $entry.timestamp
-                if ($ts) { $lastTs = $ts }
-            }
-
-            if ($entry.type -eq "turn_context") {
-                if ($entry.PSObject.Properties["payload"] -and $entry.payload -and $entry.payload.PSObject.Properties["model"] -and $entry.payload.model) {
-                    $currentModel = [string]$entry.payload.model
-                }
-                else {
-                    $formatUnknown = $true
-                    $result.warnings += ("codex format unknown in " + $path + ": turn_context without model")
-                }
-                continue
-            }
-
-            if ($entry.type -ne "event_msg" -or -not $entry.PSObject.Properties["payload"] -or -not $entry.payload -or -not $entry.payload.PSObject.Properties["type"]) { continue }
-            $payloadType = [string]$entry.payload.type
-            if ($payloadType -eq "user_message") {
-                $userMessages++
-                continue
-            }
-            if ($payloadType -eq "agent_message") {
-                $assistantMessages++
-                continue
-            }
-            if ($payloadType -ne "token_count") { continue }
-            if (-not $entry.payload.PSObject.Properties["info"] -or -not $entry.payload.info) { continue }
-            if (-not $entry.payload.info.PSObject.Properties["total_token_usage"] -or -not $entry.payload.info.total_token_usage) {
-                $formatUnknown = $true
-                $result.warnings += ("codex format unknown in " + $path + ": token_count without total_token_usage")
-                continue
-            }
-            if ([string]::IsNullOrWhiteSpace($currentModel)) {
-                $formatUnknown = $true
-                $result.warnings += ("codex format unknown in " + $path + ": token_count before model")
-                continue
-            }
-
-            $delta = ConvertFrom-CodexTokenCount -TotalUsage $entry.payload.info.total_token_usage -Previous $prev
-            if (-not $delta) {
-                $formatUnknown = $true
-                $result.warnings += ("codex format unknown in " + $path + ": token totals decreased or missing fields")
-                continue
-            }
-            $prev["in"] = [long]$delta.totalIn
-            $prev["out"] = [long]$delta.totalOut
-            $prev["cacheRead"] = [long]$delta.totalCacheRead
-            if (-not $delta.changed) { continue }
-
-            if (-not $buckets.ContainsKey($currentModel)) { $buckets[$currentModel] = New-TokenBucket }
-            $bucket = $buckets[$currentModel]
-            $bucket.calls += [int]$delta.calls
-            $bucket.in += [long]$delta.in
-            $bucket.out += [long]$delta.out
-            $bucket.cacheRead += [long]$delta.cacheRead
+        $latestWriteUtc = @($items | Sort-Object -Property lastWriteUtc -Descending | Select-Object -First 1)[0].lastWriteUtc
+        if ($latestWriteUtc -ge $completeCutoff) { continue }
+        $revisionParts = @($items | Sort-Object -Property @{ Expression = { $_.meta.id } } | ForEach-Object {
+                ([string]$_.meta.id) + ":" + ([string]$_.length) + ":" + ([string]$_.lastWriteUtc.Ticks)
+            })
+        $rolloutRevision = Get-UsageStableHash -Value ($revisionParts -join "|") -Length 32
+        if ($recordedRevisions.Contains($sessionId + "|" + $rolloutRevision)) { continue }
+        $paths = @($items | ForEach-Object { [string]$_.meta.path })
+        $snapshot = Get-CodexSessionUsage -SessionId $sessionId -MainTranscript $rootItem[0].meta.path -RolloutPaths $paths -PriceModels $prices.models
+        foreach ($warning in @($snapshot.warnings)) { $result.warnings += ($sessionId + ": " + $warning) }
+        if ($snapshot.status -ne "ok" -or @($snapshot.rows).Count -eq 0) {
+            if ($snapshot.status -ne "ok") { $result.warnings += ($sessionId + ": lineage snapshot is " + $snapshot.status + "; checkpoint not written") }
+            continue
         }
 
-        $rows = @()
-        foreach ($model in ($buckets.Keys | Sort-Object)) {
-            $bucket = $buckets[$model]
-            $price = Get-ModelPrice -Models $prices.models -Model $model
-            $cost = $null
-            if ($price) { $cost = Get-BucketCost -Price $price -Bucket $bucket }
-            $rows += , ([ordered]@{
-                    model     = $model
-                    scope     = "main"
-                    calls     = [int]$bucket.calls
-                    in        = [long]$bucket.in
-                    out       = [long]$bucket.out
-                    cacheRead = [long]$bucket.cacheRead
-                    cache5m   = [long]0
-                    cache1h   = [long]0
-                    estCost   = $cost
-                })
+        $historyRows = @()
+        foreach ($row in @($snapshot.rows)) {
+            $historyRows += , (ConvertTo-UsageHistoryRow -Row $row)
         }
-
-        if ($rows.Count -gt 0 -and -not $historySessions.Contains($sessionId)) {
-            $recordTs = $file.LastWriteTimeUtc
-            if ($lastTs) { $recordTs = $lastTs }
-            Add-HistoryRecord -UsageDir $UsageDir -Record ([ordered]@{
-                    v                 = 1
-                    ts                = $recordTs.ToUniversalTime().ToString("o", $script:Inv)
-                    platform          = "codex"
-                    source            = "session"
-                    sessionId         = $sessionId
-                    turn              = $null
-                    wallSeconds       = [double]0
-                    agentRuns         = [int]0
-                    userMessages      = [int]$userMessages
-                    assistantMessages = [int]$assistantMessages
-                    rows              = $rows
-                })
-            [void]$historySessions.Add($sessionId)
-            $result.records = [int]$result.records + 1
-        }
-
-        $stateFiles[$path] = [ordered]@{
-            lines              = [int]$lines.Count
-            done               = [bool]($file.LastWriteTimeUtc -lt $doneCutoff)
-            lastTotalIn        = [long]$prev["in"]
-            lastTotalOut       = [long]$prev["out"]
-            lastTotalCacheRead = [long]$prev["cacheRead"]
-            lastModel          = $currentModel
-        }
+        $recordTs = $rootItem[0].lastWriteUtc
+        if ($snapshot.wallTo) { $recordTs = $snapshot.wallTo }
+        Add-HistoryRecord -UsageDir $UsageDir -Record ([ordered]@{
+                v                 = 1
+                accountingVersion = 2
+                ts                = $recordTs.ToUniversalTime().ToString("o", $script:Inv)
+                platform          = "codex"
+                source            = "rollout-scan"
+                sessionId         = $sessionId
+                rolloutRevision   = $rolloutRevision
+                turn              = [int]$snapshot.turns
+                wallSeconds       = if ($snapshot.wallFrom -and $snapshot.wallTo) { [double]($snapshot.wallTo - $snapshot.wallFrom).TotalSeconds } else { [double]0 }
+                agentRuns         = [int]$snapshot.agentRuns
+                userMessages      = [int]0
+                assistantMessages = [int]0
+                rows              = $historyRows
+            })
+        [void]$recordedRevisions.Add($sessionId + "|" + $rolloutRevision)
+        $result.records++
     }
 
-    Write-JsonAtomic -Path $statePath -Value ([ordered]@{
-            updatedUtc = [DateTime]::UtcNow.ToString("o")
-            files      = $stateFiles
-        })
-
-    if ($formatUnknown -and $result.records -eq 0) { $result.status = "format-unknown" }
-    elseif ($matchingFiles -gt 0) { $result.status = "ok" }
-    else { $result.status = "no-data" }
+    if ($groups.Count -gt 0) { $result.status = "ok" }
     return $result
 }

@@ -1,6 +1,7 @@
 ---
 name: devops
 description: "Build and release engineer: CI pipelines, batchmode Unity and dotnet builds, versioning, tags, and release hygiene."
+model: sonnet
 effort: high
 ---
 

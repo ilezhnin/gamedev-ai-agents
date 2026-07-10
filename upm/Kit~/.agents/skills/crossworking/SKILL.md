@@ -1,129 +1,123 @@
 ---
 name: crossworking
-description: Coordinate a planned task across agents from planning through context, assets, implementation, review, validation, and create-mr handoff. Use when the user asks for crossworking, teamwork, a team of agents, multi-agent execution, asset sourcing/generation handoffs, parallel workers plus reviewers/testers, running an existing `.agents/plans/active_plan.md`, a larger Unity/C# or ASP.NET feature, or taking a planned task all the way to a Pull Request / Merge Request.
+description: Coordinate a planned Unity or C#/ASP.NET task across agents through workspace baselining, implementation, focused baseline validation, behavior-preserving simplification, final validation, independent review, and a verified local handoff without committing or pushing. Use when the user asks for crossworking, teamwork, multi-agent execution, parallel workers/reviewers/testers, running an existing `.agents/plans/active_plan.md`, or executing one game-pipeline milestone. Use $codebase-audit instead for a read-only project or module audit.
 ---
 
 # Crossworking
 
 ## Goal
 
-Run a controlled delivery loop for a task that has a plan or needs one. The parent agent stays responsible for decisions, while workers implement, reviewers inspect, validators test, and create-mr prepares the Pull Request / Merge Request. For read-only project issue audits and reports with no implementation, use `$codebase-audit` instead.
+Produce one final task diff that is implemented, simplified, validated, and independently reviewed. The parent owns decisions and scope; one writer edits; specialized agents inspect and verify. Stop at a verified local handoff; delivery belongs to the caller or a separately authorized workflow.
 
-## Required Artifacts
+## Required State
 
-Read these first when present:
+Read `.agents/plans/active_plan.md` and `.agents/plans/task_list.md`. Before any writer starts, record in the plan or scoped handoff:
 
-- `.agents/plans/active_plan.md`
-- `.agents/plans/task_list.md`
+- Starting branch and base SHA.
+- Initial staged, unstaged, and untracked paths.
+- Task-owned paths and known pre-existing user changes.
+- Acceptance criteria and exact baseline/final checks.
+- Delivery boundary: verified handoff only. Record any separately authorized follow-up action for the caller, but do not perform it inside crossworking.
 
-If either file is missing, stale, or too vague to execute, use `$planning` first and stop for user review when the plan contains blocking questions. Use `$grill-me` before implementation when the plan has unclear product value, Unity lifecycle risk, persistence risk, migration risk, or high design uncertainty.
+If the plan is missing, stale, or has unresolved blocking questions, use `$planning` first. A task-owned path may not already contain user changes, even if hunks look separable; narrow the scope or stop before writing. Require the local task branch to start at the recorded base without unrelated commits. When the primary checkout is dirty, create that task branch in a separate worktree and never switch or carry the mixed primary tree into the task workspace.
 
 ## Coordination Rules
 
-- Keep one parent agent in charge of scope, decisions, synthesis, and final reporting.
-- Use subagent or multi-agent tools when they are available. If they are not available, execute the same phases sequentially in the parent thread and report that delegation was unavailable.
-- Use only one writer in a working tree at a time. Split implementation across multiple workers only when the tasks are independent and isolated worktrees or equivalent safeguards are available.
-- Review agents must inspect fresh repository state and current diffs. They must not rely only on parent-thread summaries. When prompting a reviewer, do not pass your own conclusions - pass the diff scope and ask the reviewer to find issues or state explicitly that none were found.
-- Do not let reviewers edit code. Use a writer/fixer pass for accepted fixes.
-- Commit after each verified increment when the branch is task-local, so a broken state reverts to last-known-good instead of unwinding by hand. Keep each increment compilable.
-- Keep `.agents/plans/task_list.md` current as phases complete or blockers appear. The plan artifacts are the handoff point: any agent on any platform (Codex, Claude Code, Antigravity) must be able to resume the task from them alone.
-- Do not create a PR/MR while tests are failing, blocking review findings remain, or unrelated working-tree changes are unresolved.
+- Keep one parent responsible for scope, synthesis, and user communication.
+- Use the smallest useful team. Add agents only for independent work with a clear return artifact.
+- Use one writer in a working tree. Parallelize implementation only in isolated worktrees with disjoint paths.
+- Give reviewers the complete task diff and repository state, not the parent's conclusions or candidate list.
+- Enforce read-only reviewers mechanically. For Codex, verify the effective child sandbox after parent live overrides. If it is not read-only, do not spawn it in the shared workspace: use a separately launched read-only session or sandbox that exposes only frozen read-only review inputs and cannot reach the writable task workspace, Git common directory/refs, or evidence store; otherwise stop. An OS-protected candidate worktree alone is insufficient because its shared Git metadata and sibling workspaces may still be writable. For Claude team mode, explicitly load `$unity-review` or `$backend-review` through the role's allowed `Skill` tool while Edit, Write, Bash, and MCP remain unavailable.
+- Bind final validation and review to an isolated candidate tree SHA plus the commit-independent task-content fingerprint; record source HEAD separately. Any later candidate-content edit invalidates that evidence.
+- Compute the provisional fingerprint from final filesystem bytes in the clean path-exclusive task workspace; compute canonical fingerprints from candidate/index/commit tree blobs using `$game-pipeline`'s pipeline-state reference. Never use a fingerprint as ownership or hunk-staging evidence.
+- Keep `task_list.md` as the execution ledger, including implementation, simplification, validation, review resolution, final scope, and delivery state.
+- Do not create checkpoint commits merely to mark a phase done. Repository delivery rules override generic workflow defaults.
+- Do not invoke `$create-mr`, push, or open a PR/MR unless the current user request explicitly authorizes those actions and repository policy allows them.
 
 ## Team Sizing
 
-Choose the smallest team that can safely complete the task:
+- **Small:** parent, one worker, one validator, and one independent reviewer; run roles sequentially when the platform's concurrency limit is lower.
+- **Medium:** optional context-builder, one worker, one validator, one independent reviewer.
+- **Large/high-risk:** planner, scoped context-builder, one writer at a time, validator, distinct reviewers for genuinely separate risk lanes, then one fixer.
+- Add asset roles only when the task needs sourced, generated, or imported assets. Add architect/oracle only for real boundary decisions or long-task drift.
 
-- **Small task**: parent agent plus one implementation pass plus validation.
-- **Medium task**: context-builder, one worker, one validator, two reviewers.
-- **Large task**: planner, context-builder, optional asset pass, one writer at a time, validator, three reviewers, fixer, MR agent.
+## Execute Loop
 
-## Workflow
+1. **Workspace gate**
+   - Verify the task branch, base SHA, dirty baseline, task-owned paths, and delivery boundary before editing.
+   - Require a clean initial task workspace and index. If the primary checkout was dirty, confirm the task branch lives in a separate worktree and the primary checkout stayed untouched.
+   - For Unity work, orient with `$unity-orient` only when the area or relevant boundaries are unfamiliar.
+   - For C# backend work, orient with `$backend-orient` only when the service area, API boundary, migrations, or validation path is unfamiliar.
+   - Use `$grill-me` before implementation when product, lifecycle, persistence, migration, or architecture decisions remain unclear.
 
-1. **Plan gate**
-   - Read `active_plan.md` and `task_list.md`.
-   - If `User Review Required` contains unresolved blocking items, ask the user and stop.
-   - For Unity work, orient with `$unity-orient` (`unity-explorer`) and use `$unity-implement`, `$unity-validate`, `$unity-review`, `$unity-debug`, `$unity-mcp` as the task demands.
-   - For C# backend work, orient with `$backend-orient` (`backend-explorer`) and use `$backend-implement`, `$backend-validate`, `$backend-review`, `$backend-debug` as the task demands.
+2. **Context handoff**
+   - For same-session delegation, send a bounded direct prompt with goal, paths, constraints, and validation; do not create duplicate files.
+   - When work must cross sessions or platforms, use the `context-builder` role and write `.agents/plans/context-<work-item>.md`.
+   - Create `meta-prompt-<work-item>.md` only for a manual/cross-platform handoff; it links to the context file and adds only the next-agent goal.
+   - Use the `researcher` role for current external facts and `$asset-pipeline` for asset work.
 
-2. **Context pass**
-   - Gather only the context workers need: relevant files, ownership boundaries, commands, risks, and acceptance criteria.
-   - Use the `context-builder` role for delegated or multi-agent work; emit `context.md` and `meta-prompt.md` into `.agents/plans/` per `references/context-handoff.md`, so the next agent starts without re-researching.
-   - Delegate questions that depend on external docs, APIs, or current library behavior to the `researcher` role.
-   - For Unity tasks that need sourced, generated, or imported assets, run `$asset-pipeline` before implementation and carry `.agents/plans/asset-brief.md` into the worker prompt.
-   - Update the plan if inspection changes the expected files, risks, or verification commands.
+3. **Implementation**
+   - Assign worker-sized tasks from the plan to the stack worker: `unity-worker` with `$unity-implement`/`$unity-mcp` as needed, or `backend-worker` with `$backend-implement`.
+   - Require: changes made, deliberate non-changes, checks run, failures/skips, and open questions.
 
-3. **Implementation pass**
-   - Assign worker-sized tasks from `Agent Work Plan`.
-   - Prefer one implementation worker unless the plan clearly separates independent file sets.
-   - Require each worker to report: changes made, things deliberately not touched, validation run, failed or skipped checks, and open questions.
+4. **Focused baseline**
+   - Run the cheapest check that demonstrates the implementation's intended behavior before cleanup. This is simplification entry evidence, not final-fingerprint evidence when the cleanup changes content.
+   - Do not claim Unity compilation without a real Unity compile or console check. Do not claim backend validation without the exact `dotnet` or service command that ran.
 
-4. **Validation pass**
-   - Run the exact automated checks from `Verification Plan` when feasible.
-   - For Unity projects, prefer focused EditMode/PlayMode tests, compile checks, Unity console checks, or Unity MCP validation when available.
-   - For C# backend projects, prefer targeted `dotnet build`, `dotnet test`, migration checks, contract checks, or documented service blockers.
-   - Record commands and results in the final synthesis and, when useful, in the checklist.
+5. **Simplification**
+   - Run `$simplify-change` on the completed task diff.
+   - Accept a no-op when no evidence-backed simplification exists.
+   - Keep the pass task-scoped and neutral or negative in production complexity.
+   - Require the skill to rerun the focused check after every accepted simplification batch. That post-simplification result is the focused evidence bound to its provisional source-workspace fingerprint; treat the fingerprint as provisional until candidate materialization.
 
-5. **Review pass**
-   - Run parallel reviewers with fresh context when tools allow it.
-   - Choose review angles based on the change. Common angles are correctness/regression, tests/validation, maintainability, Unity lifecycle/serialization, API contract, auth/data integrity, performance, and security.
-   - Synthesize findings into blockers, fixes to apply now, optional improvements, and feedback to ignore or defer.
+6. **Isolated candidate snapshot**
+   - Follow `references/candidate-snapshot.md`: materialize a detached worktree from the base plus complete task-owned files only, stage them inside that candidate, and record its `git write-tree` SHA and task-content fingerprint without committing.
+   - Require the candidate fingerprint to equal simplification's provisional source-workspace fingerprint; a mismatch means the copy/scope changed and blocks downstream evidence.
+   - Do not reuse delivery-grade validation from the shared dirty checkout. Preserve any candidate with unexpected mutations.
 
-6. **Fix loop**
-   - Apply only accepted fixes through one writer.
-   - Re-run focused validation.
-   - Repeat review up to 3 rounds by default, stopping earlier when no blockers or must-fix items remain.
+7. **Final validation**
+   - Use the stack validation skill and test-runner against the isolated candidate for exact plan checks: `$unity-validate`/`unity-test-runner` for Unity, or `$backend-validate`/`backend-test-runner` for C# backend.
+   - Record commands, results, candidate tree SHA, task-content fingerprint, source HEAD, logs/evidence, and unverified gaps. For Unity, also record the exact editor version.
 
-7. **create-mr handoff**
-   - Use `$create-mr` when that skill is available.
-   - If `$create-mr` is not available, follow the repository PR/MR process if one exists. Otherwise stop with a clear blocker that the create-mr capability is missing.
-   - Before the handoff, verify branch name, working tree status, diff scope, tests, skipped checks, and unrelated changes.
-   - Never invent a PR URL. If credentials, remotes, or permissions are missing, report the blocker exactly.
+8. **Independent review**
+   - The parent prepares the complete read-only review packet required by the stack review skill, including base SHA, source HEAD, candidate tree SHA, frozen task paths, complete `base..candidate-tree` diff, and task-content fingerprint.
+   - Assign `unity-reviewer` with `$unity-review` or `backend-reviewer` with `$backend-review` explicitly named, the packet path, and fresh repository state. Do not rely only on role skill preloads, because some team/teammate modes do not apply them.
+   - Use one reviewer by default. Add parallel reviewers only for distinct high-risk lanes such as serialization/lifecycle, security/data loss, or deterministic networking.
+   - Classify findings into blockers, accepted fixes, deferred improvements, and rejected feedback.
 
-## Agent Team Shape
+9. **Fix loop**
+   - Apply accepted fixes through one worker.
+   - After every accepted content edit, re-run `$simplify-change` even when the result is a recorded no-op, then recompute its provisional source-workspace fingerprint.
+   - Re-materialize the candidate and require its canonical fingerprint to equal the new provisional fingerprint, then re-run affected validation and independent review. Stop after three rounds or earlier when no blockers remain.
 
-Use this default team unless the repository or tools provide better named agents:
-
-Role hierarchy rule: prefer the most specialized role for each job - stack workers implement, stack validators test, stack reviewers review, and asset roles source/create/integrate assets. Broader-profile roles (planner, context-builder, producer, architect, oracle, researcher) sit above them for planning, handoff context, coordination, structure, consistency, and research; they never write production code.
-
-- **Planner** (`planner` role): applies `$planning`, updates `active_plan.md`, and tracks uncertainty.
-- **Context builder** (`context-builder` role): maps the smallest useful files, ownership boundaries, dependencies, asset constraints, and validation commands; emits the context-handoff artifacts.
-- **Researcher** (`researcher` role): source-backed web research when the task depends on external docs, APIs, or current library behavior.
-- **Asset scout** (`asset-scout` role, Unity): finds local/public candidates and records license/provenance.
-- **Asset creator** (`asset-creator` role, Unity): generates placeholder or concept assets, or writes a blocked generation handoff when no image tool is available.
-- **Asset integrator** (`unity-asset-integrator` role, Unity): imports approved assets, configures Unity settings/materials/prefabs/scenes, and validates editor state.
-- **Explorers** (`unity-explorer` / `backend-explorer` roles): run stack orientation before planning or implementation enters unfamiliar code.
-- **Worker/Fixer** (stack `unity-worker` / `backend-worker` role): writes code and tests for the approved plan, then applies accepted review fixes when needed.
-- **Validators** (`unity-test-runner` / `backend-test-runner` roles): run compile, test, lint, generated-code, migration, API, or Unity checks.
-- **Reviewers** (`unity-reviewer` / `backend-reviewer` roles): inspect the diff from independent angles without editing.
-- **Oracle** (`oracle` role, optional on long tasks): fresh-context drift check - verifies the current trajectory still matches the inherited decisions and constraints before the fix loop ends.
-- **QA** (`qa` role, optional when the plan carries acceptance criteria): acceptance and exploratory pass during the validation phase; reports findings, never fixes.
-- **Producer** (`producer` role, optional on multi-milestone runs, e.g. under `$game-pipeline`): keeps pipeline and task state current, enforces stage gates.
-- **Architect** (`architect` role, optional): arbitrates when the task forces a module-boundary or ownership decision.
-- **MR agent** (`pr-submitter` role): runs `$create-mr` or the project PR/MR workflow.
+10. **Verified handoff**
+   - Verify the candidate tree/fingerprint, complete task diff from the recorded base, final task paths, validation, review resolution, and unrelated changes.
+   - Record whether the diff is ready for the caller's Prepare delivery stage or a separately requested `$create-mr` run.
+   - Do not commit, amend, push, open a PR/MR, or invoke another delivery workflow inside crossworking.
 
 ## Stop Conditions
 
 Stop and ask or report a blocker when:
 
-- The plan has unresolved blocking questions.
-- The implementation requires a product, scope, dependency, schema, asset, or architecture decision not approved in the plan.
-- The working tree contains unrelated changes and ownership is unclear.
-- Multiple writers would touch the same working tree.
-- Validation fails for reasons not clearly caused by the current task.
-- Review finds a blocker that needs user approval.
-- PR/MR creation lacks credentials, remote access, a suitable branch, or the create-mr capability.
+- Required product, dependency, schema, asset, save, network, or architecture decisions are not approved.
+- Any task-owned path contains pre-existing user changes, or the task branch contains unrelated commits after the base.
+- Multiple writers would share a working tree.
+- Baseline or final validation fails for an unrelated or unexplained reason.
+- Simplification would alter behavior or a protected contract.
+- Review finds a blocker requiring user approval.
+- Final task scope cannot be separated from unrelated work.
 
 ## Final Report
 
-Report the outcome compactly:
+Report:
 
-- Plan used: path and whether it changed.
-- Agents/phases run: planner, context-builder, asset roles, worker, validators, reviewers, fixer, create-mr.
-- Changes made: files and intent. Things deliberately not touched.
-- Validation: commands passed, failed, or skipped with reasons.
-- Review: blockers fixed, optional items deferred, remaining risks.
-- MR: URL, branch, commit hash, or the exact blocker preventing MR creation.
+- Plan, base SHA, task-owned paths, and pre-existing changes.
+- Agents/phases actually run.
+- Implementation and simplification result, including a justified no-op.
+- Final validation evidence, candidate tree SHA, task-content fingerprint, and source HEAD.
+- Review findings fixed, deferred, or remaining.
+- Verified handoff state and the next allowed delivery action. State explicitly that crossworking created no commit or PR.
 
 ## Reference
 
-Read `references/context-handoff.md` for the `context.md` and `meta-prompt.md` handoff format the context pass must produce for delegated work.
+Read `references/candidate-snapshot.md` before final validation/review. Read `references/context-handoff.md` only when a durable cross-session or cross-platform handoff is required.

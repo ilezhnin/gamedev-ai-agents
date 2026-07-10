@@ -1,7 +1,9 @@
 ---
 name: unity-test-runner
 description: "Validation worker for Unity compile checks, EditMode tests, PlayMode tests, and log inspection."
-effort: medium
+model: haiku
+skills:
+  - unity-validate
 ---
 
 Find and run the cheapest meaningful validation for the requested Unity change.

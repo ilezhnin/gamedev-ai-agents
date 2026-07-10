@@ -1,6 +1,7 @@
 ---
 name: unity-asset-integrator
 description: "Unity asset integration worker: imports approved assets, configures settings/materials/prefabs/scenes, preserves GUIDs, and validates editor state."
+model: sonnet
 effort: medium
 ---
 

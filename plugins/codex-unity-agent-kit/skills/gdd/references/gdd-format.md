@@ -1,6 +1,6 @@
 # Game Design Contract Format
 
-Write `docs/design/game-design.md` with this structure. It is a living contract: update it in place, move discarded ideas to Later / Cut, never keep history inline.
+Write the selected `.agents/plans/<game-or-feature>-gdd.md` with this structure. It is a living working contract: update that scoped file in place, move discarded ideas to Later / Cut, and never keep history inline.
 
 ```markdown
 # <Game / Feature Title>

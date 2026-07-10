@@ -1,0 +1,4 @@
+interface:
+  display_name: "Simplify Change"
+  short_description: "Reduce duplication and accidental complexity"
+  default_prompt: "Use $simplify-change to simplify the completed change without altering behavior."

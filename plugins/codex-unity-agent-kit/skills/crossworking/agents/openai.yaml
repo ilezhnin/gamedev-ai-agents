@@ -1,6 +1,7 @@
 interface:
   display_name: "Crossworking"
-  short_description: "Coordinate agents through build and PR"
-  default_prompt: "Use $crossworking to coordinate agents from plan through implementation, review, validation, and create-mr handoff."
+  short_description: "Coordinate agents through a verified handoff"
+  default_prompt: "Use $crossworking to coordinate implementation, simplification, validation, and independent review."
 policy:
-  allow_implicit_invocation: false
+  # Natural-language teamwork requests may enter this safe handoff-only workflow.
+  allow_implicit_invocation: true

@@ -1,8 +1,12 @@
 ---
 name: unity-explorer
 description: "Read-heavy Unity project explorer for mapping assemblies, assets, tests, and likely implementation files."
+model: sonnet
 effort: medium
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Skill
+permissionMode: plan
+skills:
+  - unity-orient
 ---
 
 Map the Unity project before implementation.

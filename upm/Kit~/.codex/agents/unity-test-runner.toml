@@ -1,5 +1,6 @@
 name = "unity-test-runner"
 description = "Validation worker for Unity compile checks, EditMode tests, PlayMode tests, and log inspection."
+model = "gpt-5.6-luna"
 model_reasoning_effort = "medium"
 developer_instructions = """
 Find and run the cheapest meaningful validation for the requested Unity change.

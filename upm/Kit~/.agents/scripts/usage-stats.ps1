@@ -71,8 +71,10 @@ function Read-HistoryRecords {
     $result.rawLines = $rawLines
     $result.lineCount = $rawLines.Count
     $cutoff = [DateTime]::UtcNow.AddDays(-1 * $RetentionDays)
+    $parsed = @()
 
-    foreach ($line in $rawLines) {
+    for ($lineIndex = 0; $lineIndex -lt $rawLines.Count; $lineIndex++) {
+        $line = $rawLines[$lineIndex]
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
         $record = $null
         try { $record = $line | ConvertFrom-Json } catch { $result.invalid = [int]$result.invalid + 1; continue }
@@ -80,18 +82,53 @@ function Read-HistoryRecords {
             $result.unknown = [int]$result.unknown + 1
             continue
         }
+        if ($record.PSObject.Properties["platform"] -and $record.platform -eq "codex") {
+            if (-not $record.PSObject.Properties["accountingVersion"] -or [int]$record.accountingVersion -lt 2) {
+                # Legacy Codex rows omitted reasoning effort, descendants, and
+                # replay ownership. Treat them as untrusted derived data.
+                $result.unknown = [int]$result.unknown + 1
+                continue
+            }
+        }
         $ts = ConvertTo-UtcDate -Text (Get-PropValue -Object $record -Name "ts" -Default $null)
         if (-not $ts) {
             $result.invalid = [int]$result.invalid + 1
             continue
         }
         if ($ts -lt $cutoff) { $result.hasExpired = $true }
-        if (-not $result.firstRecord -or $ts -lt $result.firstRecord) { $result.firstRecord = $ts }
+        $parsed += , @{ record = $record; ts = $ts; index = $lineIndex }
+    }
+
+    # A quiet-lineage rollout scan is an authoritative Codex checkpoint. Keep
+    # only the latest checkpoint plus hook deltas written after it. Before the
+    # first checkpoint, incremental hook records remain the best available data.
+    $latestScanBySession = @{}
+    foreach ($item in $parsed) {
+        $record = $item.record
+        if ([string](Get-PropValue -Object $record -Name "platform" -Default "") -ne "codex") { continue }
+        $source = [string](Get-PropValue -Object $record -Name "source" -Default "")
+        if ($source -ne "rollout-scan" -and $source -ne "session-snapshot") { continue }
+        $sessionId = [string](Get-PropValue -Object $record -Name "sessionId" -Default "")
+        if (-not [string]::IsNullOrWhiteSpace($sessionId)) { $latestScanBySession[$sessionId] = [int]$item.index }
+    }
+
+    foreach ($item in $parsed) {
+        $record = $item.record
         $platform = [string](Get-PropValue -Object $record -Name "platform" -Default "unknown")
-        if (-not $result.lastByPlatform.ContainsKey($platform) -or $ts -gt $result.lastByPlatform[$platform]) {
-            $result.lastByPlatform[$platform] = $ts
+        $keep = $true
+        if ($platform -eq "codex") {
+            $sessionId = [string](Get-PropValue -Object $record -Name "sessionId" -Default "")
+            if ($latestScanBySession.ContainsKey($sessionId)) {
+                $checkpointIndex = [int]$latestScanBySession[$sessionId]
+                $keep = [int]$item.index -ge $checkpointIndex
+            }
         }
-        $result.records += , @{ record = $record; ts = $ts; line = $line }
+        if (-not $keep) { continue }
+        if (-not $result.firstRecord -or $item.ts -lt $result.firstRecord) { $result.firstRecord = $item.ts }
+        if (-not $result.lastByPlatform.ContainsKey($platform) -or $item.ts -gt $result.lastByPlatform[$platform]) {
+            $result.lastByPlatform[$platform] = $item.ts
+        }
+        $result.records += , $item
     }
     return $result
 }
@@ -208,13 +245,15 @@ function New-WindowSummary {
         $seenRoleKeys = New-Object "System.Collections.Generic.HashSet[string]"
         foreach ($row in @($record.rows)) {
             $model = [string](Get-PropValue -Object $row -Name "model" -Default "unknown")
+            $effort = [string](Get-PropValue -Object $row -Name "effort" -Default "unspecified")
             $scope = [string](Get-PropValue -Object $row -Name "scope" -Default "main")
-            $modelKey = $platform + "|" + $model
+            $modelKey = $platform + "|" + $model + "|" + $effort
             $roleKey = $platform + "|" + $scope
             if (-not $models.ContainsKey($modelKey)) {
                 $models[$modelKey] = @{
                     platform    = $platform
                     model       = $model
+                    effort      = $effort
                     acc         = New-MetricAccumulator
                     costPriced  = $true
                 }
@@ -271,6 +310,7 @@ function New-WindowSummary {
         if ($modelInfo.costPriced -and $totalPricedCost -gt 0) { $costShare = 100.0 * [double]$acc.estCost / $totalPricedCost }
         $modelObjects += , ([ordered]@{
                 model           = $modelInfo.model
+                effort          = $modelInfo.effort
                 platform        = $modelInfo.platform
                 requests        = [long]$acc.requests
                 tokensIn        = [long]$acc.tokensIn
@@ -370,7 +410,8 @@ function Write-StatsMarkdown {
             foreach ($model in $window.models) {
                 $costText = "$" + (Format-Money -Value $model.estCost)
                 if (-not $model.costPriced) { $costText = "n/a cost" }
-                $lines += ("      " + ($model.platform + "/" + $model.model).PadRight(34) + ([string]$model.costSharePct).PadLeft(5) + "% cost | " + ([string]$model.tokenSharePct).PadLeft(5) + "% tokens | " + ([string]$model.requestSharePct).PadLeft(5) + "% calls | " + $costText)
+                $identity = $model.platform + "/" + $model.model + " [" + $model.effort + "]"
+                $lines += ("      " + $identity.PadRight(42) + ([string]$model.costSharePct).PadLeft(5) + "% cost | " + ([string]$model.tokenSharePct).PadLeft(5) + "% tokens | " + ([string]$model.requestSharePct).PadLeft(5) + "% calls | " + $costText)
             }
         }
         if ($window.roles.Count -gt 0) {
@@ -404,9 +445,7 @@ function Invoke-UsageStats {
     }
     if ($Rebuild) {
         $v2 = Update-UsageV2CurrentSessionViewFromEvents -UsageDir $usageDir -ProjectRoot $ProjectRoot
-        if (-not $Quiet) {
-            Write-Output ("usage-stats: v2 rebuild " + $v2.status)
-        }
+        if (-not $Quiet) { Write-Output ("usage-stats: v2 rebuild " + $v2.status) }
     }
     $warnings = @()
     $codexStatus = "disabled"

@@ -12,21 +12,50 @@
         "Read ProjectVersion, Packages, asmdefs, nearby tests, and relevant code.",
         "Avoid edits. Return concise findings, likely files, risks, and validation options."
       ],
-      "nicknames": ["Unity Explorer", "Project Mapper", "Assembly Scout"]
+      "nicknames": [
+        "Unity Explorer",
+        "Project Mapper",
+        "Assembly Scout"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "medium",
+      "claudeModel": "sonnet",
+      "claudeEffort": "medium",
+      "skills": [
+        "unity-orient"
+      ],
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Skill"
+      ],
+      "claudePermissionMode": "plan"
     },
     {
       "name": "unity-worker",
       "stack": "unity",
       "description": "Implementation worker for focused Unity C# code changes.",
       "readonly": false,
-      "reasoning": "medium",
+      "reasoning": "high",
       "instructions": [
         "Implement narrow Unity C# changes.",
         "Respect existing architecture, asmdefs, serialization, lifecycle, and validation patterns.",
         "Preserve .meta files and avoid unrelated refactors.",
         "Run focused checks when practical and report validation gaps clearly."
       ],
-      "nicknames": ["CSharp Worker", "Gameplay Worker", "Runtime Worker"]
+      "nicknames": [
+        "CSharp Worker",
+        "Gameplay Worker",
+        "Runtime Worker"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "high",
+      "claudeModel": "sonnet",
+      "claudeEffort": "high",
+      "skills": [
+        "unity-implement"
+      ]
     },
     {
       "name": "unity-reviewer",
@@ -39,7 +68,25 @@
         "Prioritize correctness, data loss, serialization migration, asmdef boundaries, lifecycle bugs, performance regressions, and missing tests.",
         "Lead with findings ordered by severity and include tight file/line references."
       ],
-      "nicknames": ["Unity Reviewer", "Diff Auditor", "Regression Watch"]
+      "nicknames": [
+        "Unity Reviewer",
+        "Diff Auditor",
+        "Regression Watch"
+      ],
+      "codexModel": "gpt-5.6-sol",
+      "codexReasoning": "high",
+      "claudeModel": "claude-fable-5",
+      "claudeEffort": "high",
+      "skills": [
+        "unity-review"
+      ],
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Skill"
+      ],
+      "claudePermissionMode": "plan"
     },
     {
       "name": "unity-test-runner",
@@ -52,7 +99,17 @@
         "Prefer project-provided commands and targeted tests.",
         "Inspect logs and report exact commands, results, failures, and unverified gaps."
       ],
-      "nicknames": ["Test Runner", "Validation Runner", "Log Checker"]
+      "nicknames": [
+        "Test Runner",
+        "Validation Runner",
+        "Log Checker"
+      ],
+      "codexModel": "gpt-5.6-luna",
+      "codexReasoning": "medium",
+      "claudeModel": "haiku",
+      "skills": [
+        "unity-validate"
+      ]
     },
     {
       "name": "game-designer",
@@ -61,29 +118,56 @@
       "readonly": false,
       "reasoning": "xhigh",
       "instructions": [
-        "Apply the gdd skill: turn the product idea into docs/design/game-design.md with the core loop, mechanics mapped to owning modules, balance parameters as data, a scope-boxed MVP, and milestones that each end in a playable state.",
+        "Apply the gdd skill: turn the product idea into .agents/plans/<game-or-feature>-gdd.md with the core loop, mechanics mapped to owning modules, balance parameters as data, a scope-boxed MVP, and milestones that each end in a playable state.",
         "The gdd grill is mandatory: confirm the pillars, recorded assumptions, and MVP cut with the user via grill-me before the document is final; as a delegated agent without user access, return the open questions to the parent instead of assuming answers.",
-        "Design inside the project contracts: mechanics must land on existing module owners from the AGENTS.md module map and respect ARCHITECTURE.md boundaries.",
+        "Design inside the project contracts: mechanics must land on existing module owners from the AGENTS.md module map and respect .agents/ARCHITECTURE.md plus any root overlay.",
         "Express balance numerically in data (ScriptableObjects, config assets) with defaults and tuning ranges, never as hardcoded magic numbers.",
         "Specify placeholder assets (primitives, ProBuilder, CC0 packs) so implementation never blocks on missing art.",
         "Never write production code. Hand milestones to the planner with acceptance criteria a QA role can verify in PlayMode or by test.",
         "Never start the delivery pipeline yourself: end by presenting the GDD and asking whether to run game-pipeline staged, auto, plan milestone 1 only, or stop."
       ],
-      "nicknames": ["Game Designer", "GDD Owner", "Balance Designer"]
+      "nicknames": [
+        "Game Designer",
+        "GDD Owner",
+        "Balance Designer"
+      ],
+      "codexModel": "gpt-5.6-sol",
+      "codexReasoning": "xhigh",
+      "claudeModel": "claude-fable-5",
+      "claudeEffort": "xhigh",
+      "skills": [
+        "gdd"
+      ]
     },
     {
       "name": "asset-scout",
       "stack": "unity",
       "description": "Unity asset sourcing specialist: finds existing, public, or generated-asset candidates with license, provenance, style, budget, and import-risk checks.",
-      "readonly": false,
+      "readonly": true,
       "reasoning": "medium",
       "instructions": [
         "Search the project first: existing sprites, textures, models, materials, prefabs, sample scenes, package assets, and docs/authoring before proposing new sources.",
         "When local assets are insufficient, search public sources or ask the researcher for current source-backed options; keep only assets with clear license, attribution, URL, version/date, and allowed use.",
         "Compare candidates against style, platform budget, format, resolution/polycount, import cost, and whether they fit placeholder, concept, graybox, or production use.",
-        "Write an asset sourcing brief with kept and dropped candidates, provenance, license notes, risks, and recommended next action. Never import unknown-license assets."
+        "Return kept/dropped candidates, provenance, license notes, risks, and a recommended next action to the parent, which owns the shared asset brief. Never import unknown-license assets."
       ],
-      "nicknames": ["Asset Scout", "Content Scout", "Asset Researcher"]
+      "nicknames": [
+        "Asset Scout",
+        "Content Scout",
+        "Asset Researcher"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "medium",
+      "claudeModel": "sonnet",
+      "claudeEffort": "medium",
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "WebSearch",
+        "WebFetch"
+      ],
+      "claudePermissionMode": "plan"
     },
     {
       "name": "asset-creator",
@@ -94,11 +178,19 @@
       "instructions": [
         "Create placeholder and concept assets through the available image-generation capability when present; if no image tool exists, produce exact prompts, dimensions, style references, and a blocked handoff.",
         "Start from the GDD, asset brief, module map, and existing art direction; keep outputs fit for the milestone instead of polished beyond the approved scope.",
-        "Record prompt, model/tool when known, seed/settings when available, date, intended use, and any human-provided references in the asset brief.",
+        "Return prompt, model/tool when known, seed/settings when available, date, intended use, and any human-provided references so the parent can record them in the shared asset brief.",
         "Generate source files or raster outputs only into approved project-owned art or prototype paths; never overwrite existing art without approval.",
         "Hand generated outputs to unity-asset-integrator with import settings, naming, sizing, and acceptance checks."
       ],
-      "nicknames": ["Asset Creator", "Concept Generator", "Placeholder Artist"]
+      "nicknames": [
+        "Asset Creator",
+        "Concept Generator",
+        "Placeholder Artist"
+      ],
+      "codexModel": "gpt-5.6-sol",
+      "codexReasoning": "high",
+      "claudeModel": "sonnet",
+      "claudeEffort": "high"
     },
     {
       "name": "unity-asset-integrator",
@@ -113,7 +205,15 @@
         "Use Unity MCP or editor validation when available: refresh the AssetDatabase, inspect import results, run compile/console checks, and capture PlayMode/screenshots for milestone-visible assets.",
         "Report changed assets, provenance source, import settings, validation evidence, and any remaining licensing or replacement risks."
       ],
-      "nicknames": ["Asset Integrator", "Unity Content Integrator", "Import Worker"]
+      "nicknames": [
+        "Asset Integrator",
+        "Unity Content Integrator",
+        "Import Worker"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "medium",
+      "claudeModel": "sonnet",
+      "claudeEffort": "medium"
     },
     {
       "name": "backend-explorer",
@@ -126,21 +226,50 @@
         "Read solution files, project files, Program/Startup, endpoint maps, config examples, tests, and CI scripts.",
         "Avoid edits. Return concise findings, likely files, risks, and validation options."
       ],
-      "nicknames": ["Backend Explorer", "Service Mapper", "API Scout"]
+      "nicknames": [
+        "Backend Explorer",
+        "Service Mapper",
+        "API Scout"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "medium",
+      "claudeModel": "sonnet",
+      "claudeEffort": "medium",
+      "skills": [
+        "backend-orient"
+      ],
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Skill"
+      ],
+      "claudePermissionMode": "plan"
     },
     {
       "name": "backend-worker",
       "stack": "backend",
       "description": "Implementation worker for focused C# backend and ASP.NET changes.",
       "readonly": false,
-      "reasoning": "medium",
+      "reasoning": "high",
       "instructions": [
         "Implement narrow C# backend changes.",
         "Respect existing ASP.NET, DI, auth, persistence, configuration, API contract, and test patterns.",
         "Avoid unrelated refactors, new packages, production secrets, and broad architecture changes.",
         "Run focused checks when practical and report validation gaps clearly."
       ],
-      "nicknames": ["Backend Worker", "ASP.NET Worker", "Service Worker"]
+      "nicknames": [
+        "Backend Worker",
+        "ASP.NET Worker",
+        "Service Worker"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "high",
+      "claudeModel": "sonnet",
+      "claudeEffort": "high",
+      "skills": [
+        "backend-implement"
+      ]
     },
     {
       "name": "backend-reviewer",
@@ -153,7 +282,25 @@
         "Prioritize correctness, authorization, data loss, API contract regressions, migrations, reliability, and missing tests.",
         "Lead with findings ordered by severity and include tight file/line references."
       ],
-      "nicknames": ["Backend Reviewer", "API Auditor", "Security Reviewer"]
+      "nicknames": [
+        "Backend Reviewer",
+        "API Auditor",
+        "Security Reviewer"
+      ],
+      "codexModel": "gpt-5.6-sol",
+      "codexReasoning": "high",
+      "claudeModel": "claude-fable-5",
+      "claudeEffort": "high",
+      "skills": [
+        "backend-review"
+      ],
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "Skill"
+      ],
+      "claudePermissionMode": "plan"
     },
     {
       "name": "backend-test-runner",
@@ -166,7 +313,17 @@
         "Prefer project-provided commands, targeted tests, and documented service dependencies.",
         "Report exact commands, results, failures, blockers, and unverified gaps."
       ],
-      "nicknames": ["Backend Test Runner", "Dotnet Validator", "API Checker"]
+      "nicknames": [
+        "Backend Test Runner",
+        "Dotnet Validator",
+        "API Checker"
+      ],
+      "codexModel": "gpt-5.6-luna",
+      "codexReasoning": "medium",
+      "claudeModel": "haiku",
+      "skills": [
+        "backend-validate"
+      ]
     },
     {
       "name": "planner",
@@ -175,27 +332,46 @@
       "readonly": false,
       "reasoning": "xhigh",
       "instructions": [
-        "Apply the planning skill: read the request, the project contracts (AGENTS.md, ARCHITECTURE.md, CODE_STYLE.md), and the smallest useful set of sources before writing anything.",
+        "Apply the planning skill: read the request, the project contracts (AGENTS.md, .agents/ARCHITECTURE.md, .agents/CODE_STYLE.md), and the smallest useful set of sources before writing anything.",
         "Produce .agents/plans/active_plan.md and task_list.md exactly in the planning skill's format: worker-sized steps, exact verification commands, boundaries, risks, and handoff notes.",
         "Expose uncertainty early: blocking questions go into User Review Required; safe assumptions are stated in the plan, never made silently.",
-        "Never implement. Hand work to the stack-specialized workers through the plan and the context-handoff artifacts.",
+        "Never implement. Hand work to stack-specialized workers through the execution ledger; create a namespaced context handoff only when work must cross sessions or platforms.",
         "Keep the plan current when execution reveals new files, risks, or verification needs."
       ],
-      "nicknames": ["Project Planner", "Plan Author", "Task Architect"]
+      "nicknames": [
+        "Project Planner",
+        "Plan Author",
+        "Task Architect"
+      ],
+      "codexModel": "gpt-5.6-sol",
+      "codexReasoning": "xhigh",
+      "claudeModel": "claude-fable-5",
+      "claudeEffort": "xhigh",
+      "skills": [
+        "planning"
+      ]
     },
     {
       "name": "context-builder",
       "stack": "shared",
-      "description": "Handoff context builder: prepares .agents/plans/context.md and meta-prompt.md so delegated agents can work without re-researching.",
+      "description": "Handoff context builder: prepares scoped durable context when delegated work must cross sessions or platforms.",
       "readonly": false,
       "reasoning": "medium",
       "instructions": [
-        "Build .agents/plans/context.md and meta-prompt.md for delegated work using the crossworking context-handoff format.",
+        "Build .agents/plans/context-<work-item>.md only when a durable handoff is needed. Create meta-prompt-<work-item>.md only for manual or cross-platform transfer, and link to context instead of duplicating it.",
         "Read the request, plan, project contracts, and smallest useful source set; use stack explorers for code mapping and asset-scout or researcher only when their domains are needed.",
         "Include relevant files, ownership boundaries, validation commands, asset/provenance constraints, risks, assumptions, and the exact next-agent goal.",
         "Do not plan scope, implement, review, or decide product or architecture questions; surface blocking gaps in the handoff and return to the planner or parent agent."
       ],
-      "nicknames": ["Context Builder", "Handoff Builder", "Context Packager"]
+      "nicknames": [
+        "Context Builder",
+        "Handoff Builder",
+        "Context Packager"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "medium",
+      "claudeModel": "sonnet",
+      "claudeEffort": "medium"
     },
     {
       "name": "oracle",
@@ -205,20 +381,34 @@
       "reasoning": "xhigh",
       "instructions": [
         "You are a consistency consultant, not a second decision-maker and not an implementer.",
-        "First reconstruct the inherited decisions, constraints, and open questions from the plan artifacts (.agents/plans/), project contracts (AGENTS.md, ARCHITECTURE.md), recent diffs, and the task itself. Treat them as the baseline contract.",
+        "First reconstruct the inherited decisions, constraints, and open questions from the plan artifacts (.agents/plans/), project contracts (AGENTS.md, .agents/ARCHITECTURE.md), recent diffs, and the task itself. Treat them as the baseline contract.",
         "Detect drift: where the current trajectory conflicts with inherited decisions or constraints, and which assumptions changed silently.",
         "Protect consistency over novelty. Recommend a pivot only with strong evidence, naming exactly which prior decision is being revised and why.",
         "Prefer targeted corrections of the current path over rewriting the whole plan. Never edit files or write code.",
         "Answer in this format: Inherited decisions / Diagnosis / Drift and contradiction check / Recommendation / Risks / Need from main agent."
       ],
-      "nicknames": ["Oracle", "Consistency Check", "Drift Watch"]
+      "nicknames": [
+        "Oracle",
+        "Consistency Check",
+        "Drift Watch"
+      ],
+      "codexModel": "gpt-5.6-sol",
+      "codexReasoning": "xhigh",
+      "claudeModel": "claude-fable-5",
+      "claudeEffort": "xhigh",
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "claudePermissionMode": "plan"
     },
     {
       "name": "researcher",
       "stack": "shared",
-      "description": "Autonomous web researcher: searches, evaluates, and synthesizes a focused, source-backed research brief for questions that depend on external documentation, APIs, or current behavior.",
-      "readonly": false,
-      "reasoning": "medium",
+      "description": "Read-only web researcher: searches, evaluates, and synthesizes a focused, source-backed brief for questions that depend on external documentation, APIs, or current behavior.",
+      "readonly": true,
+      "reasoning": "high",
       "instructions": [
         "Split the question into 2-4 distinct research directions and search each: direct answer, authoritative source, practical experience or benchmarks, and recent changes when the topic is time-sensitive.",
         "Scan search results first; fetch full content only for the most promising sources.",
@@ -226,29 +416,56 @@
         "If important gaps remain after the first pass, re-search with sharper queries; state remaining gaps explicitly instead of faking confidence.",
         "Deliver the brief in this format: Summary (2-3 sentences) / Findings (numbered, each with an inline source link) / Sources (kept and dropped, with reasons) / Gaps (what could not be confirmed, suggested next steps)."
       ],
-      "nicknames": ["Researcher", "Web Scout", "Docs Hunter"]
+      "nicknames": [
+        "Researcher",
+        "Web Scout",
+        "Docs Hunter"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "high",
+      "claudeModel": "sonnet",
+      "claudeEffort": "high",
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob",
+        "WebSearch",
+        "WebFetch"
+      ],
+      "claudePermissionMode": "plan"
     },
     {
       "name": "pr-submitter",
       "stack": "shared",
-      "description": "Shipping agent: verifies the working tree, commits, pushes, and opens the Pull Request / Merge Request for completed and validated work.",
+      "description": "Explicit delivery agent: verifies the complete task diff and performs only commit, push, or Pull Request actions the current request and repository policy authorize.",
       "readonly": false,
       "reasoning": "medium",
       "instructions": [
-        "Follow the create-mr skill and the repository's git conventions exactly: verify branch, status, and diff scope before staging anything.",
-        "Confirm validation ran (or its gaps are explicitly stated) and the plan checklist in .agents/plans/task_list.md is satisfied before committing.",
-        "Before committing or amending, verify git config user.name/user.email plus GIT_AUTHOR_IDENT and GIT_COMMITTER_IDENT; stop on missing, root, root@..., .localdomain, or machine fallback identity. Use Conventional Commits in English, atomic commits, and descriptive branch names (feat/fix/chore). Never add AI attribution anywhere.",
-        "Never force-push, never commit secrets or unrelated changes, never invent a PR URL. Report exact blockers (credentials, remote, protected branch) instead of working around them.",
-        "Report back: PR URL, branch, commit hash, verification summary, and anything skipped with reasons."
+        "Follow the create-mr skill and the repository delivery policy exactly: verify branch, base SHA, task-owned paths, status, and complete diff scope before staging anything.",
+        "Require validation and every required review to be green against the exact candidate tree or commit being delivered. Any unverified gap blocks delivery and must be reported rather than waived.",
+        "Stage complete task-owned paths only; never hunk-stage or partially stage a reviewed file. Before committing or amending, verify git config user.name/user.email plus GIT_AUTHOR_IDENT and GIT_COMMITTER_IDENT; stop on missing, root, root@..., .localdomain, or machine fallback identity. Use Conventional Commits in English and never add AI attribution anywhere.",
+        "Never force-push, never commit secrets or unrelated changes, never push or open a PR unless the user explicitly authorized that action. Report exact blockers instead of working around them.",
+        "Report back: authorized delivery actions, branch, commit hash when created, PR URL only when actually opened, verification summary, and anything skipped with reasons."
       ],
-      "nicknames": ["PR Submitter", "Ship Agent", "MR Handoff"]
+      "nicknames": [
+        "PR Submitter",
+        "Ship Agent",
+        "MR Handoff"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "medium",
+      "claudeModel": "sonnet",
+      "claudeEffort": "medium",
+      "skills": [
+        "create-mr"
+      ]
     },
     {
       "name": "producer",
       "stack": "shared",
       "description": "Delivery producer: owns milestone scope and pipeline state, enforces stage gates, tracks blockers, and cuts scope before cutting quality.",
       "readonly": false,
-      "reasoning": "xhigh",
+      "reasoning": "high",
       "instructions": [
         "Keep the pipeline state current: .agents/plans/pipeline.md (current milestone, stage, gate results, blockers) plus task_list.md progress.",
         "Enforce stage gates: no build before an approved plan, no ship while validation fails or blocking review findings remain.",
@@ -256,22 +473,44 @@
         "Surface blockers early with an owner and the decision needed; never let a blocked task sit silent.",
         "Coordinate only; never implement, review, or test yourself."
       ],
-      "nicknames": ["Producer", "Delivery Lead", "Pipeline Keeper"]
+      "nicknames": [
+        "Producer",
+        "Delivery Lead",
+        "Pipeline Keeper"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "high",
+      "claudeModel": "sonnet",
+      "claudeEffort": "high"
     },
     {
       "name": "architect",
       "stack": "shared",
-      "description": "Technical architect: guards the ARCHITECTURE.md contract - module boundaries, ports and adapters, single ownership - and arbitrates structural decisions.",
+      "description": "Technical architect: guards the .agents/ARCHITECTURE.md contract and any root overlay - module boundaries, ports and adapters, single ownership - and arbitrates structural decisions.",
       "readonly": true,
       "reasoning": "xhigh",
       "instructions": [
-        "Judge structural decisions against ARCHITECTURE.md and the module map: single owner per responsibility, one public API per module, adapters at boundaries, no parallel Manager/Service/System owners.",
+        "Judge structural decisions against .agents/ARCHITECTURE.md, any root overlay, and the module map: single owner per responsibility, one public API per module, adapters at boundaries, no parallel Manager/Service/System owners.",
         "Prefer the smallest structure that satisfies the requirement; reject speculative abstractions and single-implementation interfaces (delete-before-abstracting).",
         "When a change crosses module boundaries, name the seam explicitly: which port, which adapter, and which module owns the new responsibility.",
-        "Align verdicts with the arch-audit backlog in docs/tickets/ when one exists; extend it instead of contradicting it.",
+        "Align verdicts with the arch-audit backlog in .agents/plans/ when one exists; recommend additions to the planner instead of editing it.",
         "Advise and decide; never write production code. Structural changes reach the code through workers via the plan."
       ],
-      "nicknames": ["Architect", "Boundary Keeper", "Structure Judge"]
+      "nicknames": [
+        "Architect",
+        "Boundary Keeper",
+        "Structure Judge"
+      ],
+      "codexModel": "gpt-5.6-sol",
+      "codexReasoning": "xhigh",
+      "claudeModel": "claude-fable-5",
+      "claudeEffort": "xhigh",
+      "claudeTools": [
+        "Read",
+        "Grep",
+        "Glob"
+      ],
+      "claudePermissionMode": "plan"
     },
     {
       "name": "devops",
@@ -286,14 +525,22 @@
         "Keep secrets out of the repository and out of logs; wire them through CI secret stores or environment variables.",
         "Prefer boring, cacheable, incremental pipelines over clever ones."
       ],
-      "nicknames": ["DevOps", "Build Engineer", "Release Engineer"]
+      "nicknames": [
+        "DevOps",
+        "Build Engineer",
+        "Release Engineer"
+      ],
+      "codexModel": "gpt-5.6-sol",
+      "codexReasoning": "high",
+      "claudeModel": "sonnet",
+      "claudeEffort": "high"
     },
     {
       "name": "qa",
       "stack": "shared",
       "description": "Quality assurance: acceptance and exploratory testing against the plan's or GDD milestone's acceptance criteria, with reproducible bug reports. Distinct from the test-runner roles that execute automated suites.",
       "readonly": false,
-      "reasoning": "medium",
+      "reasoning": "high",
       "instructions": [
         "Test against the acceptance criteria from the plan or GDD milestone first, then explore edge cases: invalid input, rapid repetition, interrupted flows, scene reloads, save/load round-trips.",
         "For Unity projects, drive the editor through the unity-mcp skill when available: enter PlayMode, exercise the core loop, capture console output and screenshots as evidence.",
@@ -301,7 +548,15 @@
         "File actionable findings: reproduction steps, expected vs actual, severity, and evidence paths; update docs/qa/ checklists when a regression path is worth keeping.",
         "Never fix code. Report findings; the fix loop belongs to workers."
       ],
-      "nicknames": ["QA", "Acceptance Tester", "Playtester"]
+      "nicknames": [
+        "QA",
+        "Acceptance Tester",
+        "Playtester"
+      ],
+      "codexModel": "gpt-5.6-terra",
+      "codexReasoning": "high",
+      "claudeModel": "sonnet",
+      "claudeEffort": "high"
     }
   ]
 }
