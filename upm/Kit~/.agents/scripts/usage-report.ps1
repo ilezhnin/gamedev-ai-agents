@@ -151,8 +151,8 @@ function Get-FirstStringProp {
 function Convert-AgentPathForHost {
     param([string] $Path)
     if ([string]::IsNullOrWhiteSpace($Path)) { return $Path }
-    $isWindows = [System.IO.Path]::DirectorySeparatorChar -eq "\"
-    if (-not $isWindows) { return $Path }
+    $runningOnWindows = [System.IO.Path]::DirectorySeparatorChar -eq "\"
+    if (-not $runningOnWindows) { return $Path }
 
     if ($Path -match "^/mnt/([A-Za-z])/(.*)$") {
         $drive = $matches[1].ToUpperInvariant()

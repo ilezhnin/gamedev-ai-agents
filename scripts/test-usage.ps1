@@ -153,6 +153,8 @@ function New-LegacyToolEnd {
 
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("agent-kit-usage-test-" + [Guid]::NewGuid().ToString("N"))
 New-Item -ItemType Directory -Force -Path $tempRoot | Out-Null
+$savedNoPriceRefresh = $env:AGENT_KIT_USAGE_NO_PRICE_REFRESH
+$env:AGENT_KIT_USAGE_NO_PRICE_REFRESH = "1"
 try {
     $genericModels = @{
         "gpt-5" = [pscustomobject]@{ in = 1.25; out = 10.0; cache_read = 0.125 }
@@ -425,6 +427,7 @@ try {
         [System.IO.File]::SetLastWriteTimeUtc($scannerOrphanPath, $oldWrite)
         $partialScan = Get-CodexRolloutRecords -ProjectRoot $tempRoot -UsageDir $scannerUsage -ScriptDir $scriptDir -RetentionDays 90
         Assert-Usage -Condition ($partialScan.records -eq 0) -Message "partial Codex lineage was written as an authoritative checkpoint"
+        [System.IO.File]::SetLastWriteTimeUtc($scannerOrphanPath, [DateTime]::UtcNow)
 
         $partialUsage = Join-Path $tempRoot ".agents\usage"
         New-Item -ItemType Directory -Force -Path $partialUsage | Out-Null
@@ -467,5 +470,6 @@ try {
     Write-Output "usage regression tests: PASS"
 }
 finally {
+    $env:AGENT_KIT_USAGE_NO_PRICE_REFRESH = $savedNoPriceRefresh
     if (Test-Path -LiteralPath $tempRoot) { Remove-Item -LiteralPath $tempRoot -Recurse -Force }
 }

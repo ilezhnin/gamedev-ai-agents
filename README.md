@@ -5,7 +5,7 @@
 <p align="center">
   <a href="https://img.shields.io"><img alt="Unity" src="https://img.shields.io/badge/Unity-2020.3%2B-black?logo=unity"></a>
   <img alt="Platforms" src="https://img.shields.io/badge/agents-Codex%20%C2%B7%20Claude%20Code%20%C2%B7%20Gemini%20CLI%20%C2%B7%20Antigravity-blueviolet">
-  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.18-blue">
+  <img alt="Kit" src="https://img.shields.io/badge/kit-0.4.19-blue">
   <a href="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml"><img alt="validate" src="https://github.com/ilezhnin/gamedev-ai-agents/actions/workflows/validate.yml/badge.svg"></a>
   <img alt="License" src="https://img.shields.io/badge/license-MIT-green">
 </p>

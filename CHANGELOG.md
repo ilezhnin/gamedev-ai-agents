@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.19 - 2026-07-10
+
+### Fixed
+- Fixed PowerShell 7 usage validation by avoiding the built-in `$IsWindows` variable name in Claude path conversion.
+- Fixed Codex hook rollout discovery when no explicit rollout path list is supplied, and disabled background price refresh during usage regression tests.
+
 ## 0.4.18 - 2026-07-10
 
 ### Added

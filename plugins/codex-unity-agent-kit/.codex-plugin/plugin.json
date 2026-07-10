@@ -1,6 +1,6 @@
 {
   "name": "codex-unity-agent-kit",
-  "version": "0.4.18",
+  "version": "0.4.19",
   "description": "Unity, C#, and ASP.NET backend workflows for Codex: orientation, planning, game design contracts, behavior-preserving simplification, asset sourcing/generation/import, read-only codebase audits, the staged game delivery pipeline, verified cross-agent handoff, implementation, testing, debugging, merge-conflict recovery, builds, upgrades, profiling, review, validation, learning capture, authorized PR/MR delivery, plan grilling, and Unity MCP editor work.",
   "author": {
     "name": "ilezhnin"

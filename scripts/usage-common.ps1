@@ -408,6 +408,7 @@ function Update-PriceCache {
 
 function Start-PriceRefreshIfDue {
     param([hashtable] $Prices, [string] $UsageDir, [string] $Root, [string] $ReporterScript)
+    if ($env:AGENT_KIT_USAGE_NO_PRICE_REFRESH -eq "1") { return }
     $now = [DateTime]::UtcNow
     $needRefresh = $true
     if ($Prices.cacheDate -and ($now - $Prices.cacheDate).TotalDays -le $script:RefreshAfterDays) { $needRefresh = $false }
@@ -1312,8 +1313,11 @@ function Find-CodexSessionRollouts {
     $candidates = New-Object "System.Collections.Generic.List[string]"
     $seenPaths = New-Object "System.Collections.Generic.HashSet[string]" ([System.StringComparer]::OrdinalIgnoreCase)
 
+    $explicitRolloutPathCount = 0
     foreach ($path in @($RolloutPaths)) {
-        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path) -and $seenPaths.Add($path)) { [void]$candidates.Add($path) }
+        if ([string]::IsNullOrWhiteSpace($path)) { continue }
+        $explicitRolloutPathCount++
+        if ((Test-Path -LiteralPath $path) -and $seenPaths.Add($path)) { [void]$candidates.Add($path) }
     }
 
     $mainPath = $null
@@ -1341,7 +1345,7 @@ function Find-CodexSessionRollouts {
         }
     }
 
-    if ($mainPath -and @($RolloutPaths).Count -eq 0) {
+    if ($mainPath -and $explicitRolloutPathCount -eq 0) {
         $mainMeta = Get-CodexRolloutMetadata -Path $mainPath
         $cutoff = [DateTime]::MinValue
         if ($mainMeta -and $mainMeta.startedUtc) { $cutoff = $mainMeta.startedUtc.AddMinutes(-5) }
