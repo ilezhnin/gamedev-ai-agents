@@ -737,6 +737,7 @@ export class Game {
         if (occ && occ !== u && !occ.moving) continue;
         let d = Math.hypot(x - sx, y - sy) + Math.hypot(x - u.cellX, y - u.cellY) * 0.3;
         if (ref) d += Math.hypot(x - ref.cx - 1, y - ref.cy - 1) * 0.5;
+        if (m.gem[i]) d *= 0.75;   // gems are worth the detour
         if (d < bestD) { best = [x, y]; bestD = d; }
       }
     }
@@ -769,11 +770,17 @@ export class Game {
       u.harvestTicker += dt;
       if (u.harvestTicker >= ECONOMY.harvestTick) {
         u.harvestTicker = 0;
-        const take = Math.min(ECONOMY.harvestPerTrip, this.map.ore[i], ECONOMY.harvesterCapacity - u.cargo);
+        // gem cells pay double per scoop
+        const mult = this.map.gem[i] ? 2 : 1;
+        const room = Math.ceil((ECONOMY.harvesterCapacity - u.cargo) / mult);
+        const take = Math.min(ECONOMY.harvestPerTrip, this.map.ore[i], room);
         this.map.ore[i] -= take;
-        u.cargo += take;
+        u.cargo += take * mult;
         this.oreDirty = true;
-        if (this.map.ore[i] <= 0) this.visionDirty = true;
+        if (this.map.ore[i] <= 0) {
+          this.map.gem[i] = 0;   // mined-out gems stay gone
+          this.visionDirty = true;
+        }
       }
       return;
     }

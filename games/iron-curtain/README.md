@@ -35,6 +35,8 @@ runs fully offline.
   ore regrows and spreads so fields sustain mining. Every base gets two
   ore fields plus neutral fields scattered around the map; trucks prefer
   fields near their own refinery. Credits drain *while* things build.
+- **Gems**: rare blue crystal patches pay double per scoop and never grow
+  back — worth fighting over.
 - **Crushing**: tracked vehicles (tanks, ore trucks, MCV) flatten enemy
   infantry that stands in their path, classic style.
 - **Return fire on the march**: units with a plain move order engage

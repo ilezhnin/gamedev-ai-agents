@@ -224,7 +224,10 @@ function redrawOre() {
   for (let y = 0; y < s; y++) {
     for (let x = 0; x < s; x++) {
       const d = map.oreDensity(x, y);
-      if (d > 0) oreG.drawImage(sprites.ore[d - 1], x * TILE, y * TILE);
+      if (d > 0) {
+        const set = map.gem[map.idx(x, y)] ? sprites.gem : sprites.ore;
+        oreG.drawImage(set[d - 1], x * TILE, y * TILE);
+      }
     }
   }
   if (oreQuad) oreQuad.setCanvas(oreCanvas);
@@ -893,6 +896,21 @@ window.__game_test = {
     }
   },
   moveOrder: (unit, x, y) => game.orderMove(unit, x, y),
+  harvestOrder: (unit, cell) => game.orderHarvest(unit, cell),
+  findCells: () => {
+    // first free gem cell and non-gem ore cell, for balance tests
+    const m = game.map;
+    let gem = null, ore = null;
+    for (let y = 1; y < m.size - 1 && (!gem || !ore); y++) {
+      for (let x = 1; x < m.size - 1 && (!gem || !ore); x++) {
+        const i = m.idx(x, y);
+        if (m.ore[i] <= 0 || m.blocked[i] || m.occupant[i]) continue;
+        if (m.gem[i] && !gem) gem = [x, y];
+        if (!m.gem[i] && !ore && m.ore[i] > 150) ore = [x, y];
+      }
+    }
+    return gem && ore ? { gem, ore } : null;
+  },
   wipe: (house) => {
     for (const u of game.units) if (u.house === house) u.hp = -1;
     for (const b of game.buildings) if (b.house === house) { b.hp = 0; game.destroyBuilding(b); }
@@ -912,5 +930,6 @@ window.__game_debug = () => (state !== 'play' ? { state } : {
   mapSize: game.map.size,
   biome: game.map.biome,
   oreTotal: game.map.ore.reduce((a, v) => a + v, 0),
+  gemCells: game.map.gem.reduce((a, v) => a + v, 0),
   over: game.over,
 });

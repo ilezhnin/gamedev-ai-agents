@@ -18,6 +18,7 @@ export class GameMap {
     this.terrain = new Uint8Array(size * size);     // T.*
     this.variant = new Uint8Array(size * size);     // art variant per cell
     this.ore = new Uint16Array(size * size);        // remaining ore value
+    this.gem = new Uint8Array(size * size);         // 1 = gem cell (pays double, no regrowth)
     this.oreMax = 280;
     this.blocked = new Uint8Array(size * size);     // 1 = building/static blocker
     this.occupant = new Array(size * size).fill(null); // moving unit reservation
@@ -132,6 +133,17 @@ export class GameMap {
         }
       }
     }
+    // precious gem patches: small, rich (2x value), never regrow
+    const gemPatches = Math.max(1, Math.round(1.5 * area));
+    for (let n = 0; n < gemPatches; n++) {
+      for (let tries = 0; tries < 24; tries++) {
+        const x = 8 + rng() * (s - 16), y = 8 + rng() * (s - 16);
+        if (this.starts.every((st) => Math.hypot(st.x - x, st.y - y) > 14)) {
+          this.gemField(x | 0, y | 0, 2 + ((rng() * 2) | 0), rng);
+          break;
+        }
+      }
+    }
 
     // map edges: rocks to frame the world
     for (let x = 0; x < s; x++) {
@@ -174,6 +186,21 @@ export class GameMap {
     }
   }
 
+  gemField(cx, cy, r, rng) {
+    for (let y = cy - r; y <= cy + r; y++) {
+      for (let x = cx - r; x <= cx + r; x++) {
+        if (!this.inBounds(x, y)) continue;
+        const d = Math.hypot(x - cx, y - cy);
+        if (d > r) continue;
+        const i = this.idx(x, y);
+        if (this.terrain[i] !== T.GRASS && this.terrain[i] !== T.DIRT) continue;
+        const richness = 1 - d / (r + 1);
+        this.ore[i] = Math.round(this.oreMax * (0.6 + 0.4 * richness));
+        this.gem[i] = 1;
+      }
+    }
+  }
+
   oreDensity(x, y) { // 0..3 for art
     const v = this.ore[this.idx(x, y)];
     if (v <= 0) return 0;
@@ -189,7 +216,7 @@ export class GameMap {
     const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (let i = 0; i < s * s; i++) {
       const v = this.ore[i];
-      if (v <= 0) continue;
+      if (v <= 0 || this.gem[i]) continue;   // gems never grow back
       if (v < this.oreMax && rng() < 0.35) {
         this.ore[i] = Math.min(this.oreMax, v + 10);
       }

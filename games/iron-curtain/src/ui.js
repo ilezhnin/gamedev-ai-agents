@@ -234,7 +234,10 @@ export class UI {
         else if (t === T.ROCK) { r = 90; gg = 86; b = 80; }
         else if (t === T.TREE) { r = 30; gg = 62; b = 26; }
         else if (t === T.DIRT) { r = 110; gg = 88; b = 52; }
-        if (m.ore[i] > 0) { r = 190; gg = 150; b = 40; }
+        if (m.ore[i] > 0) {
+          if (m.gem[i]) { r = 90; gg = 200; b = 220; }
+          else { r = 190; gg = 150; b = 40; }
+        }
         if (!g.visible[i]) { r *= 0.55; gg *= 0.55; b *= 0.55; }
         d[o] = r; d[o + 1] = gg; d[o + 2] = b; d[o + 3] = 255;
       }

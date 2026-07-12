@@ -200,6 +200,31 @@ function oreOverlay(density) { // density 1..3
   return c;
 }
 
+function gemOverlay(density) { // density 1..3
+  const [c, g] = makeCanvas(TILE, TILE);
+  const rng = makeRng(3000 + density * 131);
+  const L = { k: '#0d3644', d: '#176a86', m: '#2e98b8', l: '#6fe0e8', w: '#e8fbff' };
+  const big = [
+    '..k..',
+    '.kmk.',
+    'kmlwk',
+    '.kmk.',
+    '..k..'];
+  const small = [
+    '.k.',
+    'klk',
+    '.k.'];
+  const n = 2 + density * 2;
+  for (let i = 0; i < n; i++) {
+    const useBig = rng() < 0.5 + density * 0.15;
+    const rows = useBig ? big : small;
+    const x = 1 + (rng() * (TILE - 6)) | 0, y = 1 + (rng() * (TILE - 6)) | 0;
+    drawMap(g, rows, L, x, y);
+    if (useBig && rng() < 0.6) px(g, x + 1, y + 1, L.d);
+  }
+  return c;
+}
+
 function scorchDecal() {
   const [c, g] = makeCanvas(TILE, TILE);
   const rng = makeRng(4242);
@@ -887,6 +912,7 @@ export function buildSprites() {
     };
   }
   S.ore = [oreOverlay(1), oreOverlay(2), oreOverlay(3)];
+  S.gem = [gemOverlay(1), gemOverlay(2), gemOverlay(3)];
   S.scorch = scorchDecal();
   S.shore = (base, mask, biome) => shoreTile(base, mask, biome);
 
