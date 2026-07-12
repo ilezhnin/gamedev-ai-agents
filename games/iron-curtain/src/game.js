@@ -611,6 +611,23 @@ export class Game {
         u.stuckT += dt;
         if (u.stuckT > 0.5) {
           u.stuckT = 0;
+          u.blockedRepaths = (u.blockedRepaths || 0) + 1;
+          if (u.blockedRepaths > 4) {
+            // hopelessly wedged: give up on this path instead of looping
+            u.blockedRepaths = 0;
+            u.path = [];
+            if (u.order.type === 'harvest') {
+              // blacklist the contested ore cell and pick a different one
+              if (u.oreGoal) {
+                if (!u.oreBan) u.oreBan = new Set();
+                u.oreBan.add(u.oreGoal[0] + ',' + u.oreGoal[1]);
+                u.oreGoal = null;
+              }
+            } else if (u.order.type === 'move') {
+              u.order = { type: 'idle' };
+            }
+            return;
+          }
           // re-path around the blockage toward the final goal
           const goal = u.path[u.path.length - 1];
           this.setPath(u, goal[0], goal[1]);
@@ -619,6 +636,7 @@ export class Game {
       }
       u.path.shift();
       u.stuckT = 0;
+      u.blockedRepaths = 0;
       u.moving = true;
       u.moveT = 0;
       u.fromX = u.x; u.fromY = u.y;
@@ -655,18 +673,35 @@ export class Game {
   // ------------------------------------------------------------ harvesting --
 
   findOreCell(u) {
-    // nearest ore cell (crude ring scan around preferred spot)
+    // nearest ore cell, skipping cells parked on by others, cells already
+    // claimed by friendly harvesters, and cells this truck failed to reach
     const sx = u.oreGoal ? u.oreGoal[0] : u.cellX;
     const sy = u.oreGoal ? u.oreGoal[1] : u.cellY;
+    const taken = new Set();
+    for (const o of this.units) {
+      if (o === u || o.dead || o.owner !== u.owner || !o.def.harvester) continue;
+      if (o.oreGoal) taken.add(o.oreGoal[0] + ',' + o.oreGoal[1]);
+      taken.add(o.cellX + ',' + o.cellY);
+    }
     let best = null, bestD = 1e9;
     const m = this.map;
     for (let y = 0; y < m.size; y++) {
       for (let x = 0; x < m.size; x++) {
-        if (m.ore[m.idx(x, y)] > 0 && !m.blocked[m.idx(x, y)]) {
-          const d = Math.hypot(x - sx, y - sy) + Math.hypot(x - u.cellX, y - u.cellY) * 0.3;
-          if (d < bestD) { best = [x, y]; bestD = d; }
-        }
+        const i = m.idx(x, y);
+        if (m.ore[i] <= 0 || m.blocked[i]) continue;
+        const key = x + ',' + y;
+        if (taken.has(key)) continue;
+        if (u.oreBan && u.oreBan.has(key)) continue;
+        const occ = m.occupant[i];
+        if (occ && occ !== u && !occ.moving) continue;
+        const d = Math.hypot(x - sx, y - sy) + Math.hypot(x - u.cellX, y - u.cellY) * 0.3;
+        if (d < bestD) { best = [x, y]; bestD = d; }
       }
+    }
+    if (!best && u.oreBan && u.oreBan.size) {
+      // everything reachable is banned: forget the bans and retry once
+      u.oreBan.clear();
+      return this.findOreCell(u);
     }
     return best;
   }
@@ -687,6 +722,8 @@ export class Game {
     const i = this.map.idx(u.cellX, u.cellY);
     if (!u.moving && this.map.ore[i] > 0) {
       // chew ore where we stand
+      if (u.oreBan) u.oreBan.clear();
+      u.harvestFrom = null;
       u.harvestTicker += dt;
       if (u.harvestTicker >= ECONOMY.harvestTick) {
         u.harvestTicker = 0;
@@ -705,6 +742,16 @@ export class Game {
         else u.order = { type: 'idle' };
         return;
       }
+      // going for the same cell from the same spot again means the last
+      // attempt went nowhere — blacklist the cell so we try another field
+      const key = cell[0] + ',' + cell[1];
+      const from = u.cellX + ',' + u.cellY;
+      if (u.harvestFrom === from && u.oreGoal && u.oreGoal[0] === cell[0] && u.oreGoal[1] === cell[1]) {
+        if (!u.oreBan) u.oreBan = new Set();
+        u.oreBan.add(key);
+        return; // re-pick next tick with the ban applied
+      }
+      u.harvestFrom = from;
       u.oreGoal = cell;
       this.setPath(u, cell[0], cell[1]);
     }
@@ -731,8 +778,14 @@ export class Game {
       return;
     }
     if (!u.moving && u.path.length === 0) {
+      // shoo idle friendly units off the dock so the truck can unload
+      const occ = this.map.occupant[this.map.idx(dockX, dockY)];
+      if (occ && occ !== u && occ.owner === u.owner && !occ.def.harvester &&
+          (occ.order.type === 'idle' || occ.order.type === 'move')) {
+        const spot = nearestFree(this.map, dockX + 2, dockY + 1, occ);
+        if (spot) this.orderMove(occ, spot[0], spot[1]);
+      }
       this.setPath(u, dockX, dockY);
-      // dock might be occupied: nearestFree fallback handled by pathing softness
     }
   }
 

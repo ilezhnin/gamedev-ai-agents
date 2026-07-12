@@ -110,7 +110,7 @@ export const UNIT_STRIP = ['rifle', 'rocket', 'lightTank', 'heavyTank', 'harvest
 
 export const ECONOMY = {
   startCredits: 5000,
-  aiStartCredits: 6000,
+  aiStartCredits: 5000,
   baseStorage: 2000,        // storage without silos (conyard+refinery hold a bit)
   orePerCell: 220,          // credits worth of ore in a fresh cell (density 3)
   harvesterCapacity: 700,   // credits per full load

@@ -55,7 +55,10 @@ runs fully offline.
 | `Ctrl+1..9` / `1..9` | set / recall control group |
 | WASD, arrows, wheel | scroll & zoom camera |
 | `H` `P` `M` | help · pause · music |
-| `Esc` | cancel mode / clear selection |
+| `Esc` | cancel mode / clear selection, then pause menu (resume · settings · main menu) |
+
+Settings (audio volumes, advisor voice, camera speed, edge scroll) persist
+in `localStorage`.
 
 ## Code map
 

@@ -38,7 +38,7 @@ export class UI {
       'F+click attack-move &nbsp; B deploy MCV &nbsp; X stop<br>' +
       'WASD / arrows scroll &nbsp; wheel zoom<br>' +
       'CTRL+1..9 group &nbsp; 1..9 recall &nbsp; H help &nbsp; P pause<br>' +
-      'Click cameo to build; click again when READY to place';
+      'ESC menu &amp; settings &nbsp; Click cameo to build, again to place';
   }
 
   reset(game) {

@@ -12,6 +12,8 @@ export class Input {
     this.view = viewEl;
     this.selection = [];
     this.groups = {};               // digit -> array of unit ids
+    this.settings = null;           // shared settings object, set by main
+    this.blocked = false;           // true while the pause menu is open
     this.mouse = { x: -1, y: -1, seen: false, down: false, downX: 0, downY: 0, dragging: false };
     this.keys = {};
     this.placeCursor = null;        // [cx, cy] while in place mode
@@ -79,7 +81,7 @@ export class Input {
   }
 
   onDown(e) {
-    if (this.game.over) return;
+    if (this.game.over || this.blocked) return;
     this.audio.ensure(); this.audio.resume();
     const [wx, wy] = this.toWorld(e);
     const cx = Math.floor(wx), cy = Math.floor(wy);
@@ -278,17 +280,26 @@ export class Input {
 
   // ------------------------------------------------------------ keyboard --
 
-  onKey(e, down) {
-    this.keys[e.code] = down;
-    if (!down) return;
-    if (e.code === 'KeyF') this.attackMoveArmed = this.selectedUnits().length > 0;
-    if (e.code === 'Escape') {
-      const p = this.game.players.player;
-      if (p.readyBuilding) { /* keep it queued, just leave place mode */ }
+  // Escape backs out of one thing at a time; returns false when there was
+  // nothing to cancel (main.js then opens the pause menu instead)
+  consumeEscape() {
+    if (this.ui.mode !== 'normal' || this.attackMoveArmed) {
+      // a queued ready building stays queued, we only leave the mode
       this.ui.setMode('normal');
       this.attackMoveArmed = false;
-      this.selection = [];
+      return true;
     }
+    if (this.selection.length > 0) {
+      this.selection = [];
+      return true;
+    }
+    return false;
+  }
+
+  onKey(e, down) {
+    this.keys[e.code] = down;
+    if (!down || this.blocked) return;
+    if (e.code === 'KeyF') this.attackMoveArmed = this.selectedUnits().length > 0;
     if (e.code === 'KeyX') {
       for (const u of this.selectedUnits()) {
         u.order = { type: 'idle' }; u.path = []; u.target = null;
@@ -320,14 +331,25 @@ export class Input {
     }
   }
 
-  // keyboard scrolling (WASD / arrows), called each frame from main
+  // camera scrolling (WASD / arrows, optional screen-edge), from main loop
   tickScroll(dt) {
-    const speed = 22 * dt; // cells per second
+    if (this.blocked) return;
+    const speed = (this.settings ? this.settings.camSpeed : 22) * dt;
     let dx = 0, dy = 0;
     if (this.keys.ArrowLeft || this.keys.KeyA) dx -= 1;
     if (this.keys.ArrowRight || this.keys.KeyD) dx += 1;
     if (this.keys.ArrowUp || this.keys.KeyW) dy -= 1;
     if (this.keys.ArrowDown || this.keys.KeyS) dy += 1;
+    if (this.settings && this.settings.edgeScroll && this.mouse.seen) {
+      const r = this.view.getBoundingClientRect();
+      const mx = this.mouse.x, my = this.mouse.y, edge = 24;
+      if (mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom) {
+        if (mx - r.left < edge) dx -= 1;
+        if (r.right - mx < edge) dx += 1;
+        if (my - r.top < edge) dy -= 1;
+        if (r.bottom - my < edge) dy += 1;
+      }
+    }
     this.cam.x += dx * speed;
     this.cam.y += dy * speed;
     const s = this.game.map.size;

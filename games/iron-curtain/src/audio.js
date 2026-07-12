@@ -9,6 +9,8 @@ export class AudioSys {
     this.musicGain = null;
     this.musicOn = true;
     this.voiceOn = true;
+    this.masterVol = 0.5;
+    this.musicVol = 0.32;
     this.musicTimer = null;
     this.lastVoice = 0;
     this.lastSfx = {};
@@ -19,13 +21,23 @@ export class AudioSys {
     try {
       this.ctx = new (window.AudioContext || window.webkitAudioContext)();
       this.master = this.ctx.createGain();
-      this.master.gain.value = 0.5;
+      this.master.gain.value = this.masterVol;
       this.master.connect(this.ctx.destination);
       this.musicGain = this.ctx.createGain();
-      this.musicGain.gain.value = 0.32;
+      this.musicGain.gain.value = this.musicVol;
       this.musicGain.connect(this.master);
       return true;
     } catch { return false; }
+  }
+
+  setMaster(v) {
+    this.masterVol = v;
+    if (this.master) this.master.gain.value = v;
+  }
+
+  setMusicVol(v) {
+    this.musicVol = v;
+    if (this.musicGain) this.musicGain.gain.value = v;
   }
 
   resume() { if (this.ctx && this.ctx.state === 'suspended') this.ctx.resume(); }

@@ -13,7 +13,7 @@ export class AI {
     this.p = player;
     this.buildIx = 0;
     this.thinkT = 0;
-    this.waveT = 55;              // first attack lands ~1 min in
+    this.waveT = 95;              // first attack lands ~2 min in
     this.waveSize = 3;
     this.attackers = new Set();
     this.trainPattern = ['rifle', 'rifle', 'lightTank', 'rocket', 'heavyTank', 'rifle', 'lightTank'];
@@ -168,7 +168,8 @@ export class AI {
     const idle = g.units.filter((u) =>
       !u.dead && u.owner === p && u.def.weapon &&
       (u.order.type === 'idle' || (u.order.type === 'move')));
-    if (idle.length < this.waveSize) return;    // not enough yet, try later
+    // don't strip the base bare: attack only once there's a real squad
+    if (idle.length < this.waveSize + 2) return;
     this.waveSize = Math.min(10, this.waveSize + 1);
     // target: prefer player harvesters/refinery, else any building, else units
     const targets = [];

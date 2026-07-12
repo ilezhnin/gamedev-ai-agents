@@ -10,6 +10,7 @@ import { AI } from './ai.js';
 import { UI } from './ui.js';
 import { Input } from './input.js';
 import { AudioSys } from './audio.js';
+import { loadSettings, saveSettings } from './settings.js';
 import { BUILDINGS, ECONOMY } from './rules.js';
 
 const MAP_SIZE = 64;
@@ -50,6 +51,10 @@ class SpriteQuad {
 // ------------------------------------------------------------------- boot --
 
 const audio = new AudioSys();
+const settings = loadSettings();
+audio.setMaster(settings.master);
+audio.setMusicVol(settings.musicVol);
+audio.voiceOn = settings.voice;
 const sprites = buildSprites();
 drawTitleLogo(document.getElementById('title-logo'));
 
@@ -94,6 +99,7 @@ function newGame() {
   if (!ui) {
     ui = new UI(game, sprites, audio);
     input = new Input(game, cam, ui, audio, viewEl);
+    input.settings = settings;
   } else {
     ui.reset(game);
     input.reset(game);
@@ -515,6 +521,94 @@ const elPaused = document.getElementById('paused');
 let paused = false;
 let endShown = false;
 
+// ------------------------------------------------------------ pause menu --
+
+const elMenu = document.getElementById('menu');
+const elMenuMain = document.getElementById('menu-main');
+const elMenuSettings = document.getElementById('menu-settings');
+let menuOpen = false;
+
+function showMenuPane(pane) {
+  elMenuMain.style.display = pane === 'main' ? 'flex' : 'none';
+  elMenuSettings.style.display = pane === 'settings' ? 'flex' : 'none';
+}
+
+function openMenu() {
+  menuOpen = true;
+  input.blocked = true;
+  showMenuPane('main');
+  elMenu.classList.add('open');
+  audio.sfx('select');
+}
+
+function closeMenu() {
+  menuOpen = false;
+  if (input) input.blocked = false;
+  elMenu.classList.remove('open');
+}
+
+function quitToTitle() {
+  closeMenu();
+  paused = false;
+  elPaused.style.display = 'none';
+  audio.stopMusic();
+  document.getElementById('btn-music').classList.remove('on');
+  state = 'title';
+  elTitle.classList.remove('hidden');
+}
+
+function syncSettingsWidgets() {
+  document.getElementById('set-master').value = settings.master;
+  document.getElementById('set-music').value = settings.musicVol;
+  document.getElementById('set-camspeed').value = settings.camSpeed;
+  const v = document.getElementById('set-voice');
+  v.textContent = settings.voice ? 'ON' : 'OFF';
+  v.classList.toggle('on', settings.voice);
+  const eg = document.getElementById('set-edge');
+  eg.textContent = settings.edgeScroll ? 'ON' : 'OFF';
+  eg.classList.toggle('on', settings.edgeScroll);
+}
+
+{
+  document.getElementById('mb-resume').addEventListener('click', closeMenu);
+  document.getElementById('mb-quit').addEventListener('click', quitToTitle);
+  document.getElementById('mb-settings').addEventListener('click', () => {
+    syncSettingsWidgets();
+    showMenuPane('settings');
+  });
+  document.getElementById('mb-back').addEventListener('click', () => showMenuPane('main'));
+  // clicking the dark backdrop resumes; clicks inside the box stay put
+  elMenu.addEventListener('click', (e) => { if (e.target === elMenu) closeMenu(); });
+
+  document.getElementById('set-master').addEventListener('input', (e) => {
+    settings.master = parseFloat(e.target.value);
+    audio.ensure(); audio.setMaster(settings.master);
+    audio.sfx('tick');
+    saveSettings(settings);
+  });
+  document.getElementById('set-music').addEventListener('input', (e) => {
+    settings.musicVol = parseFloat(e.target.value);
+    audio.ensure(); audio.setMusicVol(settings.musicVol);
+    saveSettings(settings);
+  });
+  document.getElementById('set-voice').addEventListener('click', () => {
+    settings.voice = !settings.voice;
+    audio.voiceOn = settings.voice;
+    if (settings.voice) audio.say('Voice online', true);
+    syncSettingsWidgets();
+    saveSettings(settings);
+  });
+  document.getElementById('set-camspeed').addEventListener('input', (e) => {
+    settings.camSpeed = parseFloat(e.target.value);
+    saveSettings(settings);
+  });
+  document.getElementById('set-edge').addEventListener('click', () => {
+    settings.edgeScroll = !settings.edgeScroll;
+    syncSettingsWidgets();
+    saveSettings(settings);
+  });
+}
+
 function typeBriefing() {
   const el = document.getElementById('briefing-text');
   el.textContent = '';
@@ -556,7 +650,11 @@ for (const el of [elTitle, elBrief, elEnd]) el.addEventListener('click', advance
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter') advanceScreen();
-  if (e.code === 'KeyP' && state === 'play') {
+  if (e.code === 'Escape' && state === 'play') {
+    if (menuOpen) closeMenu();
+    else if (!input.consumeEscape()) openMenu();
+  }
+  if (e.code === 'KeyP' && state === 'play' && !menuOpen) {
     paused = !paused;
     elPaused.style.display = paused ? 'flex' : 'none';
   }
@@ -588,7 +686,8 @@ function frame(now) {
 
   if (state !== 'play') { renderer.clear(); return; }
 
-  if (!paused && !game.over) {
+  const halted = paused || menuOpen;
+  if (!halted && !game.over) {
     game.tick(dt * speedFactor);
     ai.tick(dt * speedFactor);
   }
@@ -601,7 +700,7 @@ function frame(now) {
   if (fogT <= 0) { fogT = 0.2; redrawFog(); }
 
   syncEntities(dt);
-  syncFx(paused ? 0 : dt);
+  syncFx(halted ? 0 : dt);
   syncPlacementGhost();
 
   // camera: scene lives at y' = -mapY, camera looks down -z
@@ -621,6 +720,7 @@ function frame(now) {
   if (game.over && !endShown) {
     endShown = true;
     setTimeout(() => {
+      closeMenu();
       state = 'end';
       ui.showEnd(game.won, game.players.player.stats);
       audio.stopMusic();

@@ -82,6 +82,33 @@
   #vignette{position:absolute;inset:0;pointer-events:none;z-index:29;
     background:radial-gradient(ellipse at center,transparent 62%,rgba(0,0,0,.35) 100%)}
 
+  /* ---------- pause menu ---------- */
+  #menu{position:absolute;inset:0;z-index:38;display:none;align-items:center;justify-content:center;
+    background:rgba(6,6,9,.72)}
+  #menu.open{display:flex}
+  #menu-box{width:min(88vw,340px);padding:14px;display:flex;flex-direction:column;gap:8px}
+  .menu-title{font-size:14px;letter-spacing:3px;text-align:center;color:var(--ui-gold);
+    text-shadow:1px 1px 0 #000;padding:4px 0 8px}
+  .menu-btn{height:36px;font-family:inherit;font-size:13px;letter-spacing:2px;color:var(--ui-text);
+    cursor:pointer;text-shadow:1px 1px 0 #000;
+    border-top:2px solid var(--ui-edge-l);border-left:2px solid var(--ui-edge-l);
+    border-bottom:2px solid var(--ui-edge-d);border-right:2px solid var(--ui-edge-d);
+    background:var(--ui-panel)}
+  .menu-btn:hover{color:var(--ui-gold)}
+  .menu-btn:active{border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
+    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l);background:var(--ui-dark)}
+  .set-group{font-size:10px;letter-spacing:2px;color:#a99a7c;padding:6px 2px 0}
+  .set-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+    font-size:11px;letter-spacing:1px;padding:3px 2px}
+  .set-row label{flex:none;width:120px;text-shadow:1px 1px 0 #000}
+  .set-row input[type=range]{flex:1;accent-color:var(--ui-gold);height:18px;cursor:pointer}
+  .tgl{width:64px;height:24px;font-family:inherit;font-size:11px;letter-spacing:1px;cursor:pointer;
+    color:var(--ui-text);background:var(--ui-dark);text-shadow:1px 1px 0 #000;
+    border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
+    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l)}
+  .tgl.on{color:#7fe08a;background:#22301f}
+  .hidden2{display:none}
+
   #banner{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:20;font-size:13px;
     letter-spacing:2px;color:#fff;background:rgba(90,10,10,.8);padding:4px 14px;display:none;
     border:1px solid #d33;text-shadow:1px 1px 0 #000}
@@ -101,6 +128,33 @@
     <div id="vignette"></div>
     <div id="crt"></div>
     <div id="paused">PAUSED</div>
+
+    <div id="menu">
+      <div id="menu-box" class="bevel">
+        <div class="menu-title">OPERATION PAUSED</div>
+        <div id="menu-main" style="display:flex;flex-direction:column;gap:8px">
+          <button class="menu-btn" id="mb-resume">RESUME</button>
+          <button class="menu-btn" id="mb-settings">SETTINGS</button>
+          <button class="menu-btn" id="mb-quit">MAIN MENU</button>
+        </div>
+        <div id="menu-settings" class="hidden2" style="flex-direction:column;gap:6px">
+          <div class="set-group">AUDIO</div>
+          <div class="set-row"><label for="set-master">MASTER VOLUME</label>
+            <input type="range" id="set-master" min="0" max="1" step="0.05"></div>
+          <div class="set-row"><label for="set-music">MUSIC VOLUME</label>
+            <input type="range" id="set-music" min="0" max="0.6" step="0.03"></div>
+          <div class="set-row"><label>ADVISOR VOICE</label>
+            <button class="tgl" id="set-voice">ON</button></div>
+          <div class="set-group">CONTROLS</div>
+          <div class="set-row"><label for="set-camspeed">CAMERA SPEED</label>
+            <input type="range" id="set-camspeed" min="8" max="44" step="2"></div>
+          <div class="set-row"><label>EDGE SCROLL</label>
+            <button class="tgl" id="set-edge">OFF</button></div>
+          <button class="menu-btn" id="mb-back" style="margin-top:6px">BACK</button>
+        </div>
+      </div>
+    </div>
+
     <div id="help"></div>
     <div id="fps"></div>
 
