@@ -24,7 +24,6 @@ export class UI {
       eva: document.getElementById('eva-line'),
       btnRepair: document.getElementById('btn-repair'),
       btnSell: document.getElementById('btn-sell'),
-      btnMusic: document.getElementById('btn-music'),
       help: document.getElementById('help'),
     };
     this.cameos = {};              // key -> {root, clockCanvas, tag, badge, shade}
@@ -56,10 +55,6 @@ export class UI {
     this.el.btnRepair.addEventListener('click', () => {
       this.setMode(this.mode === 'repair' ? 'normal' : 'repair');
       this.audio.sfx('select');
-    });
-    this.el.btnMusic.addEventListener('click', () => {
-      const on = this.audio.toggleMusic();
-      this.el.btnMusic.classList.toggle('on', on);
     });
   }
 

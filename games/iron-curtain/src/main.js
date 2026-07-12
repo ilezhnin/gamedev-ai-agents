@@ -552,7 +552,7 @@ function quitToTitle() {
   paused = false;
   elPaused.style.display = 'none';
   audio.stopMusic();
-  document.getElementById('btn-music').classList.remove('on');
+  audio.musicOn = true; // arm music for the next match
   state = 'title';
   elTitle.classList.remove('hidden');
 }
@@ -561,6 +561,9 @@ function syncSettingsWidgets() {
   document.getElementById('set-master').value = settings.master;
   document.getElementById('set-music').value = settings.musicVol;
   document.getElementById('set-camspeed').value = settings.camSpeed;
+  const m = document.getElementById('set-musicon');
+  m.textContent = audio.musicOn ? 'ON' : 'OFF';
+  m.classList.toggle('on', audio.musicOn);
   const v = document.getElementById('set-voice');
   v.textContent = settings.voice ? 'ON' : 'OFF';
   v.classList.toggle('on', settings.voice);
@@ -590,6 +593,11 @@ function syncSettingsWidgets() {
     settings.musicVol = parseFloat(e.target.value);
     audio.ensure(); audio.setMusicVol(settings.musicVol);
     saveSettings(settings);
+  });
+  document.getElementById('set-musicon').addEventListener('click', () => {
+    audio.ensure();
+    audio.toggleMusic();
+    syncSettingsWidgets();
   });
   document.getElementById('set-voice').addEventListener('click', () => {
     settings.voice = !settings.voice;
@@ -636,7 +644,6 @@ function advanceScreen() {
     newGame();
     endShown = false;
     if (audio.musicOn) audio.startMusic();
-    document.getElementById('btn-music').classList.add('on');
     audio.say('Battle control online', true);
   } else if (state === 'end') {
     state = 'brief';
@@ -660,8 +667,7 @@ window.addEventListener('keydown', (e) => {
   }
   if (e.code === 'KeyM') {
     audio.ensure();
-    const on = audio.toggleMusic();
-    document.getElementById('btn-music').classList.toggle('on', on);
+    audio.toggleMusic();
   }
 });
 
