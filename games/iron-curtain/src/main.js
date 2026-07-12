@@ -569,9 +569,16 @@ function hideScreens() {
   for (const el of [elTitle, elSetup, elBrief, elEnd]) el.classList.add('hidden');
 }
 
+// the command sidebar exists only inside a running match
+function setSidebar(visible) {
+  document.getElementById('sidebar').classList.toggle('hidden', !visible);
+  resize(); // viewport width changed — rescale the render buffer
+}
+
 function showTitle() {
   hideScreens();
   state = 'title';
+  setSidebar(false);
   const canContinue = !!(game && !game.over && !endShown);
   document.getElementById('tb-continue').classList.toggle('disabled', !canContinue);
   elTitle.classList.remove('hidden');
@@ -597,6 +604,7 @@ function showBrief() {
 function startMatch() {
   hideScreens();
   state = 'play';
+  setSidebar(true);
   newGame();
   endShown = false;
   if (audio.musicOn) audio.startMusic();
@@ -607,6 +615,7 @@ function continueMatch() {
   if (!game || game.over) return;
   hideScreens();
   state = 'play';
+  setSidebar(true);
   if (audio.musicOn) audio.startMusic();
 }
 
@@ -860,6 +869,7 @@ function frame(now) {
     setTimeout(() => {
       closeMenu();
       state = 'end';
+      setSidebar(false);
       ui.showEnd(game.won, game.players.player.stats);
       audio.stopMusic();
       audio.sfx(game.won ? 'ready' : 'zapdown');
