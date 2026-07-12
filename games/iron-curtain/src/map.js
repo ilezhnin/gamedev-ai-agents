@@ -1,0 +1,173 @@
+// Tile map: procedural skirmish terrain (grass plains, a river, rock
+// outcrops, forests and two ore fields near the start locations).
+
+import { makeRng } from './palette.js';
+
+export const T = { GRASS: 0, DIRT: 1, WATER: 2, ROCK: 3, TREE: 4 };
+
+export class GameMap {
+  constructor(size = 64, seed = 7) {
+    this.size = size;
+    this.seed = seed;
+    this.terrain = new Uint8Array(size * size);     // T.*
+    this.variant = new Uint8Array(size * size);     // art variant per cell
+    this.ore = new Uint16Array(size * size);        // remaining ore value
+    this.oreMax = 220;
+    this.blocked = new Uint8Array(size * size);     // 1 = building/static blocker
+    this.occupant = new Array(size * size).fill(null); // moving unit reservation
+    this.generate();
+  }
+
+  idx(x, y) { return y * this.size + x; }
+  inBounds(x, y) { return x >= 0 && y >= 0 && x < this.size && y < this.size; }
+
+  terrainAt(x, y) { return this.inBounds(x, y) ? this.terrain[this.idx(x, y)] : T.WATER; }
+
+  isPassableTerrain(x, y) {
+    const t = this.terrainAt(x, y);
+    return t === T.GRASS || t === T.DIRT;
+  }
+
+  isFree(x, y, ignoreUnit = null) {
+    if (!this.inBounds(x, y) || !this.isPassableTerrain(x, y)) return false;
+    const i = this.idx(x, y);
+    if (this.blocked[i]) return false;
+    const occ = this.occupant[i];
+    return !occ || occ === ignoreUnit;
+  }
+
+  isBuildable(x, y) {
+    if (!this.inBounds(x, y) || !this.isPassableTerrain(x, y)) return false;
+    const i = this.idx(x, y);
+    return !this.blocked[i] && !this.occupant[i] && this.ore[i] === 0;
+  }
+
+  generate() {
+    const s = this.size;
+    const rng = makeRng(this.seed);
+    this.terrain.fill(T.GRASS);
+    for (let i = 0; i < s * s; i++) this.variant[i] = (rng() * 4) | 0;
+
+    // winding river across the middle with two fords
+    let rx = 6 + rng() * 6;
+    for (let y = 0; y < s; y++) {
+      rx += (rng() - 0.5) * 2.2;
+      rx = Math.max(10, Math.min(s - 10, rx));
+      const w = 2 + ((rng() * 2) | 0);
+      const cx = (s * 0.52 + (rx - s * 0.5) * 0.6) | 0;
+      for (let dx = -w; dx <= w; dx++) {
+        const x = cx + dx + ((y * 0.35) | 0) - ((s * 0.17) | 0);
+        if (this.inBounds(x, y)) this.terrain[this.idx(x, y)] = T.WATER;
+      }
+    }
+    // fords (bridge-less crossings): carve dirt through the river
+    for (const fy of [Math.floor(s * 0.22), Math.floor(s * 0.74)]) {
+      for (let y = fy - 2; y <= fy + 2; y++) {
+        for (let x = 0; x < s; x++) {
+          const i = this.idx(x, y);
+          if (this.terrain[i] === T.WATER) this.terrain[i] = T.DIRT;
+        }
+      }
+    }
+
+    // dirt patches
+    for (let n = 0; n < 10; n++) {
+      const cx = rng() * s, cy = rng() * s, r = 2 + rng() * 4;
+      this.blob(cx, cy, r, (i) => {
+        if (this.terrain[i] === T.GRASS) this.terrain[i] = T.DIRT;
+      }, rng);
+    }
+
+    // rock outcrops
+    for (let n = 0; n < 12; n++) {
+      const cx = rng() * s, cy = rng() * s, r = 1 + rng() * 2.2;
+      this.blob(cx, cy, r, (i) => {
+        if (this.terrain[i] === T.GRASS || this.terrain[i] === T.DIRT) this.terrain[i] = T.ROCK;
+      }, rng);
+    }
+
+    // forests
+    for (let n = 0; n < 14; n++) {
+      const cx = rng() * s, cy = rng() * s, r = 1.5 + rng() * 3;
+      this.blob(cx, cy, r, (i) => {
+        if (this.terrain[i] === T.GRASS && rng() < 0.8) this.terrain[i] = T.TREE;
+      }, rng);
+    }
+
+    // keep start zones clear: player SW corner, enemy NE corner
+    this.clearZone(4, s - 16, 14, 13);
+    this.clearZone(s - 18, 3, 14, 13);
+
+    // ore fields: near each base plus a contested middle field
+    this.oreField(16, s - 20, 5, rng);
+    this.oreField(s - 22, 14, 5, rng);
+    this.oreField(Math.floor(s * 0.5) - 3, Math.floor(s * 0.5), 4, rng);
+
+    // map edges: rocks to frame the world
+    for (let x = 0; x < s; x++) {
+      for (const y of [0, s - 1]) if (rng() < 0.5) this.terrain[this.idx(x, y)] = T.ROCK;
+    }
+    for (let y = 0; y < s; y++) {
+      for (const x of [0, s - 1]) if (rng() < 0.5) this.terrain[this.idx(x, y)] = T.ROCK;
+    }
+  }
+
+  blob(cx, cy, r, fn, rng) {
+    for (let y = Math.floor(cy - r - 1); y <= cy + r + 1; y++) {
+      for (let x = Math.floor(cx - r - 1); x <= cx + r + 1; x++) {
+        if (!this.inBounds(x, y)) continue;
+        const d = Math.hypot(x - cx, y - cy);
+        if (d < r * (0.75 + rng() * 0.5)) fn(this.idx(x, y));
+      }
+    }
+  }
+
+  clearZone(x0, y0, w, h) {
+    for (let y = y0; y < y0 + h; y++) {
+      for (let x = x0; x < x0 + w; x++) {
+        if (this.inBounds(x, y)) this.terrain[this.idx(x, y)] = T.GRASS;
+      }
+    }
+  }
+
+  oreField(cx, cy, r, rng) {
+    for (let y = cy - r; y <= cy + r; y++) {
+      for (let x = cx - r; x <= cx + r; x++) {
+        if (!this.inBounds(x, y)) continue;
+        const d = Math.hypot(x - cx, y - cy);
+        if (d > r) continue;
+        const i = this.idx(x, y);
+        if (this.terrain[i] !== T.GRASS && this.terrain[i] !== T.DIRT) continue;
+        const richness = 1 - d / (r + 1);
+        this.ore[i] = Math.round(this.oreMax * (0.4 + 0.6 * richness) * (0.7 + rng() * 0.3));
+      }
+    }
+  }
+
+  oreDensity(x, y) { // 0..3 for art
+    const v = this.ore[this.idx(x, y)];
+    if (v <= 0) return 0;
+    if (v < this.oreMax * 0.34) return 1;
+    if (v < this.oreMax * 0.67) return 2;
+    return 3;
+  }
+
+  // slow global ore regrowth: cells with ore spread a little into neighbours
+  growOre(rng) {
+    const s = this.size;
+    for (let tries = 0; tries < 30; tries++) {
+      const x = 1 + (rng() * (s - 2)) | 0, y = 1 + (rng() * (s - 2)) | 0;
+      const i = this.idx(x, y);
+      if (this.ore[i] > 40 && this.ore[i] < this.oreMax) {
+        this.ore[i] = Math.min(this.oreMax, this.ore[i] + 25);
+      } else if (this.ore[i] > 120) {
+        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        const [dx, dy] = dirs[(rng() * 4) | 0];
+        const j = this.idx(x + dx, y + dy);
+        if (this.ore[j] === 0 && this.isPassableTerrain(x + dx, y + dy) && !this.blocked[j]) {
+          this.ore[j] = 45;
+        }
+      }
+    }
+  }
+}
