@@ -882,6 +882,7 @@ window.__game_test = {
       game.orderAttackMove(u, game.map.size - 14, 10);
     }
   },
+  moveOrder: (unit, x, y) => game.orderMove(unit, x, y),
   wipe: (house) => {
     for (const u of game.units) if (u.house === house) u.hp = -1;
     for (const b of game.buildings) if (b.house === house) { b.hp = 0; game.destroyBuilding(b); }
@@ -900,5 +901,6 @@ window.__game_debug = () => (state !== 'play' ? { state } : {
   opponents: Object.values(game.players).filter((p) => !p.isHuman).length,
   mapSize: game.map.size,
   biome: game.map.biome,
+  oreTotal: game.map.ore.reduce((a, v) => a + v, 0),
   over: game.over,
 });

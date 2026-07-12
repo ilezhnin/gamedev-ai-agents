@@ -37,22 +37,22 @@ export const UNITS = {
   lightTank: {
     name: 'LIGHT TANK', kind: 'vehicle', cost: 700, buildTime: 13,
     hp: 230, armor: ARMOR.HEAVY, speed: 3.0, turn: 6, sight: 5, weapon: 'cannon75',
-    producedAt: 'factory', size: 20, hasTurret: true,
+    producedAt: 'factory', size: 20, hasTurret: true, crusher: true,
   },
   heavyTank: {
     name: 'HEAVY TANK', kind: 'vehicle', cost: 950, buildTime: 17,
     hp: 400, armor: ARMOR.HEAVY, speed: 2.2, turn: 5, sight: 5, weapon: 'cannon105',
-    producedAt: 'factory', size: 22, hasTurret: true, requires: ['radar'],
+    producedAt: 'factory', size: 22, hasTurret: true, crusher: true, requires: ['radar'],
   },
   harvester: {
     name: 'ORE TRUCK', kind: 'vehicle', cost: 1100, buildTime: 15,
     hp: 600, armor: ARMOR.HEAVY, speed: 2.0, turn: 5, sight: 3, weapon: null,
-    producedAt: 'factory', size: 22, harvester: true,
+    producedAt: 'factory', size: 22, harvester: true, crusher: true,
   },
   mcv: {
     name: 'MCV', kind: 'vehicle', cost: 2000, buildTime: 25,
     hp: 600, armor: ARMOR.LIGHT, speed: 1.6, turn: 4, sight: 3, weapon: null,
-    producedAt: 'factory', size: 22, deploysTo: 'conyard', requires: ['radar'],
+    producedAt: 'factory', size: 22, deploysTo: 'conyard', crusher: true, requires: ['radar'],
   },
 };
 

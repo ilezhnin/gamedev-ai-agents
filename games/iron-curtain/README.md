@@ -32,7 +32,13 @@ runs fully offline.
   build clock on the cameo, `READY` → click the map to place (adjacency
   rules apply), free ore truck with every refinery.
 - **Ore economy**: harvesters chew ore cells, haul it to the refinery dock,
-  ore slowly regrows and spreads. Credits drain *while* things build.
+  ore regrows and spreads so fields sustain mining. Every base gets two
+  ore fields plus neutral fields scattered around the map; trucks prefer
+  fields near their own refinery. Credits drain *while* things build.
+- **Crushing**: tracked vehicles (tanks, ore trucks, MCV) flatten enemy
+  infantry that stands in their path, classic style.
+- **Return fire on the march**: units with a plain move order engage
+  enemies they meet (and shooters that hit them), then resume the trip.
 - **Power**: low power halves production speed, kills the radar minimap and
   switches tesla coils off.
 - **Units**: riflemen, rocket troopers, light/heavy tanks (rotating

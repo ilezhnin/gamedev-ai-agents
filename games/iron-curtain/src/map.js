@@ -18,7 +18,7 @@ export class GameMap {
     this.terrain = new Uint8Array(size * size);     // T.*
     this.variant = new Uint8Array(size * size);     // art variant per cell
     this.ore = new Uint16Array(size * size);        // remaining ore value
-    this.oreMax = 220;
+    this.oreMax = 280;
     this.blocked = new Uint8Array(size * size);     // 1 = building/static blocker
     this.occupant = new Array(size * size).fill(null); // moving unit reservation
     this.generate();
@@ -108,20 +108,30 @@ export class GameMap {
       }, rng);
     }
 
-    // keep every start zone clear and give each base its own ore field
+    // keep every start zone clear; each base gets a main field toward the
+    // centre plus a second patch off to the side
     const cx0 = s / 2, cy0 = s / 2;
     for (const st of this.starts) {
       this.clearZone(st.x - 7, st.y - 6, 15, 13);
       const dx = cx0 - st.x, dy = cy0 - st.y;
       const len = Math.hypot(dx, dy) || 1;
-      this.oreField(
-        Math.round(st.x + (dx / len) * 9),
-        Math.round(st.y + (dy / len) * 9),
-        5, rng,
-      );
+      const ux = dx / len, uy = dy / len;
+      this.oreField(Math.round(st.x + ux * 9), Math.round(st.y + uy * 9), 6, rng);
+      this.oreField(Math.round(st.x - uy * 8 + ux * 3), Math.round(st.y + ux * 8 + uy * 3), 4, rng);
     }
     // contested middle field
-    this.oreField(Math.floor(s * 0.5) - 3, Math.floor(s * 0.5), 4, rng);
+    this.oreField(Math.floor(s * 0.5) - 3, Math.floor(s * 0.5), 5, rng);
+    // neutral fields scattered around the map, away from the bases
+    const extraFields = Math.max(1, Math.round(2 * area));
+    for (let n = 0; n < extraFields; n++) {
+      for (let tries = 0; tries < 24; tries++) {
+        const x = 8 + rng() * (s - 16), y = 8 + rng() * (s - 16);
+        if (this.starts.every((st) => Math.hypot(st.x - x, st.y - y) > 18)) {
+          this.oreField(x | 0, y | 0, 4 + ((rng() * 2) | 0), rng);
+          break;
+        }
+      }
+    }
 
     // map edges: rocks to frame the world
     for (let x = 0; x < s; x++) {
@@ -159,7 +169,7 @@ export class GameMap {
         const i = this.idx(x, y);
         if (this.terrain[i] !== T.GRASS && this.terrain[i] !== T.DIRT) continue;
         const richness = 1 - d / (r + 1);
-        this.ore[i] = Math.round(this.oreMax * (0.4 + 0.6 * richness) * (0.7 + rng() * 0.3));
+        this.ore[i] = Math.round(this.oreMax * (0.5 + 0.5 * richness) * (0.7 + rng() * 0.3));
       }
     }
   }
@@ -172,20 +182,25 @@ export class GameMap {
     return 3;
   }
 
-  // slow global ore regrowth: cells with ore spread a little into neighbours
+  // ore regrows like in the classics: existing cells thicken and rich
+  // cells occasionally seed a fresh neighbour, so fields sustain mining
   growOre(rng) {
     const s = this.size;
-    for (let tries = 0; tries < 30; tries++) {
-      const x = 1 + (rng() * (s - 2)) | 0, y = 1 + (rng() * (s - 2)) | 0;
-      const i = this.idx(x, y);
-      if (this.ore[i] > 40 && this.ore[i] < this.oreMax) {
-        this.ore[i] = Math.min(this.oreMax, this.ore[i] + 25);
-      } else if (this.ore[i] > 120) {
-        const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+    for (let i = 0; i < s * s; i++) {
+      const v = this.ore[i];
+      if (v <= 0) continue;
+      if (v < this.oreMax && rng() < 0.35) {
+        this.ore[i] = Math.min(this.oreMax, v + 10);
+      }
+      if (v > this.oreMax * 0.5 && rng() < 0.03) {
         const [dx, dy] = dirs[(rng() * 4) | 0];
-        const j = this.idx(x + dx, y + dy);
-        if (this.ore[j] === 0 && this.isPassableTerrain(x + dx, y + dy) && !this.blocked[j]) {
-          this.ore[j] = 45;
+        const x = (i % s) + dx, y = ((i / s) | 0) + dy;
+        if (!this.inBounds(x, y)) continue;
+        const j = this.idx(x, y);
+        if (this.ore[j] === 0 && this.isPassableTerrain(x, y) &&
+            !this.blocked[j] && !this.occupant[j]) {
+          this.ore[j] = 40;
         }
       }
     }

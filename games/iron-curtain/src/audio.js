@@ -168,6 +168,10 @@ export class AudioSys {
       case 'zapdown':
         this.osc('sawtooth', 400, now, 0.3, 0.1, null, 60);
         break;
+      case 'crush':
+        this.noise(now, 0.16, 0.26, 350, null, 90);
+        this.osc('triangle', 110, now, 0.12, 0.16, null, 45);
+        break;
     }
   }
 

@@ -50,7 +50,12 @@ export function findPath(map, sx, sy, tx, ty, unit, maxExpand = 2600) {
       }
       let stepCost = cost;
       const occ = map.occupant[ni];
-      if (occ && occ !== unit) stepCost += occ.moving ? 1.5 : 6; // squeeze around traffic
+      if (occ && occ !== unit) {
+        const crushable = unit && unit.def && unit.def.crusher &&
+          occ.isUnit && occ.def.kind === 'infantry' && occ.owner !== unit.owner;
+        if (crushable) stepCost += 0.4;            // roll right over them
+        else stepCost += occ.moving ? 1.5 : 6;     // squeeze around traffic
+      }
       const ng = gScore[cur] + stepCost;
       if (ng < gScore[ni]) {
         gScore[ni] = ng;

@@ -431,6 +431,16 @@ export class Game {
         break;
       }
       case 'move':
+        // armed units on the march return fire the moment they spot a foe:
+        // switch to attack-move so they resume the trip once it's dealt with
+        if (u.def.weapon) {
+          u.scanT = (u.scanT || 0) - dt;
+          if (u.scanT <= 0) {
+            u.scanT = 0.3;
+            const t = this.acquireTarget(u);
+            if (t) { u.order = { type: 'attackmove' }; u.target = t; break; }
+          }
+        }
         if (u.path.length === 0 && !u.moving) u.order = { type: 'idle' };
         break;
       case 'idle': {
@@ -552,8 +562,9 @@ export class Game {
       this.audio.say(target.isBuilding ? 'Base under attack' : 'Units under attack', true);
       this.emit('warn', target.isBuilding ? 'BASE UNDER ATTACK' : 'UNITS UNDER ATTACK');
     }
-    // units fight back / flee handled by idle acquire
-    if (target.isUnit && target.order.type === 'idle' && target.def.weapon && src) {
+    // return fire immediately, even mid-march
+    if (target.isUnit && target.def.weapon && src && !src.dead &&
+        (target.order.type === 'idle' || target.order.type === 'move')) {
       this.orderAttack(target, src.isUnit || src.isBuilding ? src : null);
     }
     if (target.hp <= 0) {
@@ -604,10 +615,36 @@ export class Game {
 
   // ------------------------------------------------------------- movement --
 
+  // can this vehicle roll over whoever is standing on the cell?
+  canCrushInto(u, nx, ny) {
+    if (!u.def.crusher) return false;
+    const i = this.map.idx(nx, ny);
+    if (!this.map.isPassableTerrain(nx, ny) || this.map.blocked[i]) return false;
+    const occ = this.map.occupant[i];
+    return !!(occ && occ !== u && occ.isUnit && !occ.dead &&
+      occ.def.kind === 'infantry' && occ.owner !== u.owner);
+  }
+
+  crushUnit(victim, crusher) {
+    victim.dead = true;
+    victim.owner.stats.lost++;
+    crusher.owner.stats.killed++;
+    this.map.occupant[this.map.idx(victim.cellX, victim.cellY)] = null;
+    if (victim.reserved) this.map.occupant[this.map.idx(victim.reserved[0], victim.reserved[1])] = null;
+    this.effects.push({ kind: 'puff', x: victim.x, y: victim.y, t: 0, frame: 0 });
+    this.effects.push({ kind: 'scorch', x: victim.cellX, y: victim.cellY, t: 15 });
+    this.audio.sfx('crush');
+    this.visionDirty = true;
+  }
+
   tickMovement(u, dt) {
     if (!u.moving) {
       if (u.path.length === 0) return;
       const [nx, ny] = u.path[0];
+      // tracked vehicles flatten enemy infantry in their way
+      if (this.canCrushInto(u, nx, ny)) {
+        this.crushUnit(this.map.occupant[this.map.idx(nx, ny)], u);
+      }
       if (!this.map.isFree(nx, ny, u)) {
         u.stuckT += dt;
         if (u.stuckT > 0.5) {
@@ -684,6 +721,9 @@ export class Game {
       if (o.oreGoal) taken.add(o.oreGoal[0] + ',' + o.oreGoal[1]);
       taken.add(o.cellX + ',' + o.cellY);
     }
+    // prefer fields close to home: distance to our refinery weighs in, so
+    // trucks don't wander into enemy territory while home ore regrows
+    const ref = this.findRefinery(u);
     let best = null, bestD = 1e9;
     const m = this.map;
     for (let y = 0; y < m.size; y++) {
@@ -695,7 +735,8 @@ export class Game {
         if (u.oreBan && u.oreBan.has(key)) continue;
         const occ = m.occupant[i];
         if (occ && occ !== u && !occ.moving) continue;
-        const d = Math.hypot(x - sx, y - sy) + Math.hypot(x - u.cellX, y - u.cellY) * 0.3;
+        let d = Math.hypot(x - sx, y - sy) + Math.hypot(x - u.cellX, y - u.cellY) * 0.3;
+        if (ref) d += Math.hypot(x - ref.cx - 1, y - ref.cy - 1) * 0.5;
         if (d < bestD) { best = [x, y]; bestD = d; }
       }
     }
