@@ -82,8 +82,24 @@
   #vignette{position:absolute;inset:0;pointer-events:none;z-index:29;
     background:radial-gradient(ellipse at center,transparent 62%,rgba(0,0,0,.35) 100%)}
 
+  /* ---------- title menu & operation setup ---------- */
+  #title-menu{margin-top:26px;display:flex;flex-direction:column;gap:9px;width:min(80vw,270px)}
+  .menu-btn.disabled{opacity:.4;pointer-events:none}
+  #setup-box{width:min(90vw,420px);padding:16px;display:flex;flex-direction:column;gap:7px}
+  .su-row{display:flex;align-items:center;gap:8px;font-size:11px;letter-spacing:1px;padding:2px 0}
+  .su-row label{flex:none;width:118px;text-shadow:1px 1px 0 #000;text-align:left}
+  .seg{display:flex;flex:1;gap:4px}
+  .seg .tgl{flex:1;width:auto}
+  .cycle{flex:1;height:26px;font-family:inherit;font-size:11px;letter-spacing:1px;cursor:pointer;
+    color:var(--ui-gold);background:var(--ui-dark);text-shadow:1px 1px 0 #000;
+    border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
+    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l)}
+  .cycle:hover{color:#fff}
+  .chip{flex:none;width:12px;height:12px;border:1px solid #000;outline:1px solid var(--ui-edge-l)}
+  .su-hidden{display:none}
+
   /* ---------- pause menu ---------- */
-  #menu{position:absolute;inset:0;z-index:38;display:none;align-items:center;justify-content:center;
+  #menu{position:absolute;inset:0;z-index:45;display:none;align-items:center;justify-content:center;
     background:rgba(6,6,9,.72)}
   #menu.open{display:flex}
   #menu-box{width:min(88vw,340px);padding:14px;display:flex;flex-direction:column;gap:8px}
@@ -162,9 +178,34 @@
 
     <div id="screen-title" class="screen">
       <canvas id="title-logo" width="320" height="180"></canvas>
-      <div class="menu-hint blink">PRESS ENTER TO DEPLOY</div>
-      <div class="small">AN ORIGINAL RETRO RTS HOMAGE · ALL ART &amp; AUDIO GENERATED IN CODE<br>
-        M — MUSIC &nbsp; · &nbsp; H — HELP &nbsp; · &nbsp; P — PAUSE</div>
+      <div id="title-menu">
+        <button class="menu-btn" id="tb-new">NEW OPERATION</button>
+        <button class="menu-btn disabled" id="tb-continue">CONTINUE OPERATION</button>
+        <button class="menu-btn" id="tb-settings">SETTINGS</button>
+      </div>
+    </div>
+
+    <div id="screen-setup" class="screen hidden">
+      <div id="setup-box" class="bevel">
+        <div class="menu-title">OPERATION SETUP</div>
+        <div class="su-row"><label>ENEMY ARMIES</label>
+          <div class="seg">
+            <button class="tgl" id="su-n1">1</button>
+            <button class="tgl" id="su-n2">2</button>
+            <button class="tgl" id="su-n3">3</button>
+          </div>
+        </div>
+        <div class="su-row" id="su-cpu1"><span class="chip" style="background:#cf3f3f"></span>
+          <label>CPU 1 · CRIMSON</label><button class="cycle" id="su-diff1">NORMAL</button></div>
+        <div class="su-row" id="su-cpu2"><span class="chip" style="background:#cf853c"></span>
+          <label>CPU 2 · AMBER</label><button class="cycle" id="su-diff2">NORMAL</button></div>
+        <div class="su-row" id="su-cpu3"><span class="chip" style="background:#8a3fcf"></span>
+          <label>CPU 3 · VIOLET</label><button class="cycle" id="su-diff3">NORMAL</button></div>
+        <div class="su-row"><label>MAP SIZE</label><button class="cycle" id="su-size">MEDIUM 64×64</button></div>
+        <div class="su-row"><label>BIOME</label><button class="cycle" id="su-biome">GREEN FOREST</button></div>
+        <button class="menu-btn" id="su-start" style="margin-top:8px">COMMENCE OPERATION</button>
+        <button class="menu-btn" id="su-back">BACK</button>
+      </div>
     </div>
 
     <div id="screen-brief" class="screen hidden">

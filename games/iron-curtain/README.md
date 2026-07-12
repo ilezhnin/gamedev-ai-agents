@@ -22,6 +22,12 @@ runs fully offline.
 
 ## What's in the game
 
+- **Main menu & skirmish setup**: NEW OPERATION opens a setup screen —
+  1–3 CPU opponents (each with its own colour and EASY/NORMAL/HARD
+  brain), map size (48/64/96) and biome (green forest, snow taiga,
+  desert waste). CONTINUE OPERATION returns to a match you left via the
+  pause menu; the last used setup is remembered.
+
 - **Base building**, classic sidebar flow: one structure at a time, radial
   build clock on the cameo, `READY` → click the map to place (adjacency
   rules apply), free ore truck with every refinery.
@@ -37,7 +43,9 @@ runs fully offline.
 - **Repair & sell** buildings; factory rally points (select factory,
   right-click the ground).
 - **Skirmish AI** that expands, rebuilds losses, keeps its power up,
-  replaces harvesters and sends growing attack waves.
+  replaces harvesters and sends growing attack waves; difficulty tunes
+  its thinking speed, army caps and wave pacing (never its prices or
+  income). Multiple CPUs fight each other too — it's a free-for-all.
 - **Synthesized audio**: WebAudio sfx, an original chiptune march (M to
   toggle) and a robotic tactical-advisor voice via the browser speech API.
 - Victory/defeat screens with a score sheet; every match generates a fresh

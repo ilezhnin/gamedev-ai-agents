@@ -70,20 +70,54 @@ const camera = new THREE.OrthographicCamera(-1, 1, 1, -1, -10, 10);
 // camera state in cell units
 const cam = { x: 12, y: MAP_SIZE - 14, zoom: 2.0 };
 
-let map, game, ai, ui, input;
+let map, game, ui, input;
+let ais = [];
 let terrainQuad, oreQuad, fogQuad;
 let oreCanvas, oreG, fogCanvas, fogG;
 const entityViews = new Map();     // entity id -> view objects
 const fxViews = [];
-let state = 'title';               // title | brief | play | end
+let state = 'title';               // title | setup | brief | play | end
 let speedFactor = 1;
 
-const BRIEFING =
-  'COMMANDER. ENEMY FORCES HAVE FORTIFIED THE NORTHEAST RIDGE.\n' +
-  'ESTABLISH A FORWARD BASE, SECURE THE ORE FIELDS AND CRUSH\n' +
-  'ALL HOSTILE STRUCTURES. THE WEATHER IS TURNING - MOVE FAST.\n\n' +
-  'OBJECTIVE: DESTROY ALL ENEMY FORCES AND STRUCTURES.\n' +
-  'SUPPORT: ONE MCV, STARTING PLATOON, 5000 CREDITS.';
+// -------------------------------------------------------- operation setup --
+
+const SIZES = { small: 48, medium: 64, large: 96 };
+const SIZE_LABEL = { small: 'SMALL 48×48', medium: 'MEDIUM 64×64', large: 'LARGE 96×96' };
+const BIOME_LABEL = { forest: 'GREEN FOREST', taiga: 'SNOW TAIGA', desert: 'DESERT WASTE' };
+const DIFF_ORDER = ['easy', 'normal', 'hard'];
+const ENEMY_HOUSES = ['enemy', 'enemy2', 'enemy3'];
+
+function loadSetup() {
+  const def = { opponents: 1, diffs: ['normal', 'normal', 'normal'], size: 'medium', biome: 'forest' };
+  try {
+    const raw = localStorage.getItem('iron-curtain-setup');
+    return raw ? { ...def, ...JSON.parse(raw) } : def;
+  } catch { return def; }
+}
+const setup = loadSetup();
+function saveSetup() {
+  try { localStorage.setItem('iron-curtain-setup', JSON.stringify(setup)); } catch { /* ok */ }
+}
+
+// spawn corners as map fractions: human SW, then NE / NW / SE for CPUs
+const START_SPOTS = [
+  { x: 0.14, y: 0.82 },  // player
+  { x: 0.82, y: 0.10 },  // cpu 1
+  { x: 0.12, y: 0.10 },  // cpu 2
+  { x: 0.84, y: 0.80 },  // cpu 3
+];
+
+function briefingText() {
+  const foes = setup.opponents;
+  return (
+    `COMMANDER. ${foes} HOSTILE ${foes > 1 ? 'ARMIES HAVE' : 'ARMY HAS'} DUG IN ` +
+    `ACROSS THE ${BIOME_LABEL[setup.biome]}.\n` +
+    'ESTABLISH A FORWARD BASE, SECURE THE ORE FIELDS AND CRUSH\n' +
+    'ALL HOSTILE STRUCTURES. THE WEATHER IS TURNING - MOVE FAST.\n\n' +
+    'OBJECTIVE: DESTROY ALL ENEMY FORCES AND STRUCTURES.\n' +
+    'SUPPORT: FORWARD BASE, STARTING PLATOON, 5000 CREDITS.'
+  );
+}
 
 function newGame() {
   // tear down old views
@@ -92,10 +126,15 @@ function newGame() {
   for (const v of fxViews.splice(0)) v.quad.dispose(scene);
   while (scene.children.length) scene.remove(scene.children[0]);
 
+  const size = SIZES[setup.size] || 64;
   const seed = (Math.random() * 1e9) | 0;
-  map = new GameMap(MAP_SIZE, seed);
-  game = new Game(map, audio, seed ^ 0x9e37);
-  ai = new AI(game, game.players.enemy);
+  const starts = START_SPOTS.slice(0, 1 + setup.opponents)
+    .map((f) => ({ x: Math.round(f.x * size), y: Math.round(f.y * size) }));
+  const houses = ENEMY_HOUSES.slice(0, setup.opponents);
+
+  map = new GameMap(size, seed, setup.biome, starts);
+  game = new Game(map, audio, seed ^ 0x9e37, houses);
+  ais = houses.map((h, i) => new AI(game, game.players[h], setup.diffs[i] || 'normal'));
   if (!ui) {
     ui = new UI(game, sprites, audio);
     input = new Input(game, cam, ui, audio, viewEl);
@@ -109,23 +148,26 @@ function newGame() {
   buildOreLayer();
   buildFog();
 
-  // player start: SW corner
+  // player start
+  const [ps, ...es] = starts;
   const p = game.players.player;
-  game.addBuilding(p, 'conyard', 7, MAP_SIZE - 12, { instant: true, noFreeUnit: true });
-  game.addUnit(p, 'rifle', 12, MAP_SIZE - 8);
-  game.addUnit(p, 'rifle', 13, MAP_SIZE - 8);
-  game.addUnit(p, 'rocket', 12, MAP_SIZE - 7);
-  game.addUnit(p, 'lightTank', 14, MAP_SIZE - 10);
+  game.addBuilding(p, 'conyard', ps.x - 4, ps.y - 2, { instant: true, noFreeUnit: true });
+  game.addUnit(p, 'rifle', ps.x + 1, ps.y + 2);
+  game.addUnit(p, 'rifle', ps.x + 2, ps.y + 2);
+  game.addUnit(p, 'rocket', ps.x + 1, ps.y + 3);
+  game.addUnit(p, 'lightTank', ps.x + 3, ps.y);
 
-  // enemy start: NE corner
-  const e = game.players.enemy;
-  game.addBuilding(e, 'conyard', MAP_SIZE - 12, 5, { instant: true, noFreeUnit: true });
-  game.addBuilding(e, 'power', MAP_SIZE - 15, 5, { instant: true });
-  game.addUnit(e, 'rifle', MAP_SIZE - 14, 12);
-  game.addUnit(e, 'rifle', MAP_SIZE - 13, 12);
-  game.addUnit(e, 'heavyTank', MAP_SIZE - 10, 13);
+  // CPU starts
+  es.forEach((st, i) => {
+    const e = game.players[houses[i]];
+    game.addBuilding(e, 'conyard', st.x - 1, st.y - 2, { instant: true, noFreeUnit: true });
+    game.addBuilding(e, 'power', st.x - 4, st.y - 2, { instant: true });
+    game.addUnit(e, 'rifle', st.x - 2, st.y + 3);
+    game.addUnit(e, 'rifle', st.x - 1, st.y + 3);
+    game.addUnit(e, 'heavyTank', st.x + 2, st.y + 4);
+  });
 
-  cam.x = 11; cam.y = MAP_SIZE - 10; cam.zoom = 2.0;
+  cam.x = ps.x; cam.y = ps.y; cam.zoom = 2.0;
   game.recomputeVision();
   ui.setMode('normal');
 }
@@ -138,16 +180,17 @@ function buildTerrain() {
   c.width = s * TILE; c.height = s * TILE;
   const g = c.getContext('2d');
   g.imageSmoothingEnabled = false;
+  const tiles = sprites.tiles[map.biome] || sprites.tiles.forest;
   for (let y = 0; y < s; y++) {
     for (let x = 0; x < s; x++) {
       const i = map.idx(x, y);
       const t = map.terrain[i], v = map.variant[i];
       let tile;
-      if (t === T.GRASS) tile = sprites.grass[v % sprites.grass.length];
-      else if (t === T.DIRT) tile = sprites.dirt[v % sprites.dirt.length];
-      else if (t === T.WATER) tile = sprites.water[v % sprites.water.length];
-      else if (t === T.ROCK) tile = sprites.rock[v % sprites.rock.length];
-      else tile = sprites.tree[v % sprites.tree.length];
+      if (t === T.GRASS) tile = tiles.ground[v % tiles.ground.length];
+      else if (t === T.DIRT) tile = tiles.dirt[v % tiles.dirt.length];
+      else if (t === T.WATER) tile = tiles.water[v % tiles.water.length];
+      else if (t === T.ROCK) tile = tiles.rock[v % tiles.rock.length];
+      else tile = tiles.tree[v % tiles.tree.length];
       g.drawImage(tile, x * TILE, y * TILE);
       // shore fringe on land next to water
       if (t !== T.WATER) {
@@ -156,7 +199,7 @@ function buildTerrain() {
         if (map.terrainAt(x + 1, y) === T.WATER) mask |= 2;
         if (map.terrainAt(x, y + 1) === T.WATER) mask |= 4;
         if (map.terrainAt(x - 1, y) === T.WATER) mask |= 8;
-        if (mask) g.drawImage(sprites.shore(tile, mask), x * TILE, y * TILE);
+        if (mask) g.drawImage(sprites.shore(tile, mask, map.biome), x * TILE, y * TILE);
       }
     }
   }
@@ -515,11 +558,105 @@ function syncPlacementGhost() {
 // ---------------------------------------------------------------- screens --
 
 const elTitle = document.getElementById('screen-title');
+const elSetup = document.getElementById('screen-setup');
 const elBrief = document.getElementById('screen-brief');
 const elEnd = document.getElementById('screen-end');
 const elPaused = document.getElementById('paused');
 let paused = false;
 let endShown = false;
+
+function hideScreens() {
+  for (const el of [elTitle, elSetup, elBrief, elEnd]) el.classList.add('hidden');
+}
+
+function showTitle() {
+  hideScreens();
+  state = 'title';
+  const canContinue = !!(game && !game.over && !endShown);
+  document.getElementById('tb-continue').classList.toggle('disabled', !canContinue);
+  elTitle.classList.remove('hidden');
+}
+
+function showSetup() {
+  hideScreens();
+  state = 'setup';
+  syncSetupWidgets();
+  elSetup.classList.remove('hidden');
+  audio.ensure(); audio.resume();
+  audio.sfx('select');
+}
+
+function showBrief() {
+  hideScreens();
+  state = 'brief';
+  elBrief.classList.remove('hidden');
+  typeBriefing();
+  audio.sfx('ready');
+}
+
+function startMatch() {
+  hideScreens();
+  state = 'play';
+  newGame();
+  endShown = false;
+  if (audio.musicOn) audio.startMusic();
+  audio.say('Battle control online', true);
+}
+
+function continueMatch() {
+  if (!game || game.over) return;
+  hideScreens();
+  state = 'play';
+  if (audio.musicOn) audio.startMusic();
+}
+
+// --- setup screen wiring ---
+
+function syncSetupWidgets() {
+  for (let n = 1; n <= 3; n++) {
+    document.getElementById(`su-n${n}`).classList.toggle('on', setup.opponents === n);
+    document.getElementById(`su-cpu${n}`).classList.toggle('su-hidden', n > setup.opponents);
+    document.getElementById(`su-diff${n}`).textContent = (setup.diffs[n - 1] || 'normal').toUpperCase();
+  }
+  document.getElementById('su-size').textContent = SIZE_LABEL[setup.size];
+  document.getElementById('su-biome').textContent = BIOME_LABEL[setup.biome];
+}
+
+{
+  for (let n = 1; n <= 3; n++) {
+    document.getElementById(`su-n${n}`).addEventListener('click', () => {
+      setup.opponents = n;
+      saveSetup(); syncSetupWidgets(); audio.sfx('select');
+    });
+    document.getElementById(`su-diff${n}`).addEventListener('click', () => {
+      const cur = DIFF_ORDER.indexOf(setup.diffs[n - 1] || 'normal');
+      setup.diffs[n - 1] = DIFF_ORDER[(cur + 1) % DIFF_ORDER.length];
+      saveSetup(); syncSetupWidgets(); audio.sfx('select');
+    });
+  }
+  document.getElementById('su-size').addEventListener('click', () => {
+    const keys = Object.keys(SIZES);
+    setup.size = keys[(keys.indexOf(setup.size) + 1) % keys.length];
+    saveSetup(); syncSetupWidgets(); audio.sfx('select');
+  });
+  document.getElementById('su-biome').addEventListener('click', () => {
+    const keys = Object.keys(BIOME_LABEL);
+    setup.biome = keys[(keys.indexOf(setup.biome) + 1) % keys.length];
+    saveSetup(); syncSetupWidgets(); audio.sfx('select');
+  });
+  document.getElementById('su-start').addEventListener('click', () => { audio.sfx('ack'); showBrief(); });
+  document.getElementById('su-back').addEventListener('click', () => { audio.sfx('select'); showTitle(); });
+
+  document.getElementById('tb-new').addEventListener('click', showSetup);
+  document.getElementById('tb-continue').addEventListener('click', () => {
+    audio.ensure(); audio.resume();
+    continueMatch();
+  });
+  document.getElementById('tb-settings').addEventListener('click', () => {
+    audio.ensure(); audio.resume();
+    openMenu('title');
+  });
+}
 
 // ------------------------------------------------------------ pause menu --
 
@@ -527,16 +664,21 @@ const elMenu = document.getElementById('menu');
 const elMenuMain = document.getElementById('menu-main');
 const elMenuSettings = document.getElementById('menu-settings');
 let menuOpen = false;
+let menuContext = 'pause';         // 'pause' (in-game) | 'title' (settings only)
 
 function showMenuPane(pane) {
   elMenuMain.style.display = pane === 'main' ? 'flex' : 'none';
   elMenuSettings.style.display = pane === 'settings' ? 'flex' : 'none';
+  document.querySelector('#menu-box .menu-title').textContent =
+    menuContext === 'title' ? 'SETTINGS' : 'OPERATION PAUSED';
 }
 
-function openMenu() {
+function openMenu(context = 'pause') {
   menuOpen = true;
-  input.blocked = true;
-  showMenuPane('main');
+  menuContext = context;
+  if (input) input.blocked = true;
+  if (context === 'title') { syncSettingsWidgets(); showMenuPane('settings'); }
+  else showMenuPane('main');
   elMenu.classList.add('open');
   audio.sfx('select');
 }
@@ -553,8 +695,7 @@ function quitToTitle() {
   elPaused.style.display = 'none';
   audio.stopMusic();
   audio.musicOn = true; // arm music for the next match
-  state = 'title';
-  elTitle.classList.remove('hidden');
+  showTitle();          // the running match stays warm for CONTINUE
 }
 
 function syncSettingsWidgets() {
@@ -579,7 +720,10 @@ function syncSettingsWidgets() {
     syncSettingsWidgets();
     showMenuPane('settings');
   });
-  document.getElementById('mb-back').addEventListener('click', () => showMenuPane('main'));
+  document.getElementById('mb-back').addEventListener('click', () => {
+    if (menuContext === 'title') closeMenu();
+    else showMenuPane('main');
+  });
   // clicking the dark backdrop resumes; clicks inside the box stay put
   elMenu.addEventListener('click', (e) => { if (e.target === elMenu) closeMenu(); });
 
@@ -619,47 +763,35 @@ function syncSettingsWidgets() {
 
 function typeBriefing() {
   const el = document.getElementById('briefing-text');
+  const text = briefingText();
   el.textContent = '';
   let i = 0;
   const tick = () => {
     if (state !== 'brief') return;
     i += 2;
-    el.textContent = BRIEFING.slice(0, i);
-    if (i < BRIEFING.length) setTimeout(tick, 16);
+    el.textContent = text.slice(0, i);
+    if (i < text.length) setTimeout(tick, 16);
   };
   tick();
 }
 
 function advanceScreen() {
   audio.ensure(); audio.resume();
-  if (state === 'title') {
-    state = 'brief';
-    elTitle.classList.add('hidden');
-    elBrief.classList.remove('hidden');
-    typeBriefing();
-    audio.sfx('ready');
-  } else if (state === 'brief') {
-    state = 'play';
-    elBrief.classList.add('hidden');
-    newGame();
-    endShown = false;
-    if (audio.musicOn) audio.startMusic();
-    audio.say('Battle control online', true);
-  } else if (state === 'end') {
-    state = 'brief';
-    elEnd.classList.add('hidden');
-    elBrief.classList.remove('hidden');
-    typeBriefing();
-  }
+  if (state === 'title') showSetup();
+  else if (state === 'setup') { audio.sfx('ack'); showBrief(); }
+  else if (state === 'brief') startMatch();
+  else if (state === 'end') showTitle();
 }
-// screens also advance on click/tap (touchscreens, embedded iframes)
-for (const el of [elTitle, elBrief, elEnd]) el.addEventListener('click', advanceScreen);
+// briefing/end screens also advance on click/tap (touch, embedded iframes)
+for (const el of [elBrief, elEnd]) el.addEventListener('click', advanceScreen);
 
 window.addEventListener('keydown', (e) => {
-  if (e.code === 'Enter') advanceScreen();
-  if (e.code === 'Escape' && state === 'play') {
-    if (menuOpen) closeMenu();
-    else if (!input.consumeEscape()) openMenu();
+  if (e.code === 'Enter' && !menuOpen) advanceScreen();
+  if (e.code === 'Escape') {
+    if (menuOpen) { closeMenu(); return; }
+    if (state === 'play') {
+      if (!input.consumeEscape()) openMenu('pause');
+    } else if (state === 'setup') showTitle();
   }
   if (e.code === 'KeyP' && state === 'play' && !menuOpen) {
     paused = !paused;
@@ -695,7 +827,7 @@ function frame(now) {
   const halted = paused || menuOpen;
   if (!halted && !game.over) {
     game.tick(dt * speedFactor);
-    ai.tick(dt * speedFactor);
+    for (const a of ais) a.tick(dt * speedFactor);
   }
 
   input.tickScroll(dt);
@@ -747,7 +879,7 @@ window.__game_test = {
   attack: () => {
     for (const u of game.units) {
       if (u.house !== 'player' || !u.def.weapon) continue;
-      game.orderAttackMove(u, MAP_SIZE - 14, 10);
+      game.orderAttackMove(u, game.map.size - 14, 10);
     }
   },
   wipe: (house) => {
@@ -762,8 +894,11 @@ window.__game_debug = () => (state !== 'play' ? { state } : {
   units: game.units.length,
   buildings: game.buildings.length,
   playerCredits: Math.round(game.players.player.credits),
-  enemyCredits: Math.round(game.players.enemy.credits),
-  enemyProdB: game.players.enemy.prod.building?.key || null,
-  enemyProdU: game.players.enemy.prod.unit?.key || null,
+  enemyCredits: Math.round(game.players.enemy?.credits ?? 0),
+  enemyProdB: game.players.enemy?.prod.building?.key || null,
+  enemyProdU: game.players.enemy?.prod.unit?.key || null,
+  opponents: Object.values(game.players).filter((p) => !p.isHuman).length,
+  mapSize: game.map.size,
+  biome: game.map.biome,
   over: game.over,
 });

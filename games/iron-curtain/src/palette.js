@@ -40,8 +40,18 @@ export const PAL = {
 
 export const HOUSE = {
   player:['#1e3f7c','#2d5aa8','#3f78cf','#7fb0ef'],   // allied blue
-  enemy: ['#7c1e1e','#a82d2d','#cf3f3f','#ef7f7f'],   // soviet red
+  enemy: ['#7c1e1e','#a82d2d','#cf3f3f','#ef7f7f'],   // crimson army
+  enemy2:['#7c4a12','#a8662a','#cf853c','#efb77c'],   // amber legion
+  enemy3:['#4a1e7c','#6b2da8','#8a3fcf','#b77fef'],   // violet pact
   neutral:['#5a5f52','#767b6e','#94998b','#b8bdaf'],
+};
+
+// flat UI colours per house (radar blips, minimap footprints)
+export const HOUSE_UI = {
+  player: { building: '#4f86e8', unit: '#8fc2ff' },
+  enemy:  { building: '#e04a3a', unit: '#ff7a66' },
+  enemy2: { building: '#e0923a', unit: '#ffbf66' },
+  enemy3: { building: '#9a4ae0', unit: '#c98fff' },
 };
 
 // ---------------------------------------------------------------------------

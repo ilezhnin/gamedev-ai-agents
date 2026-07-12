@@ -11,40 +11,81 @@ export const TILE = 24;          // world pixels per map cell
 export const FACINGS = 16;       // rotation steps for vehicles/turrets
 
 // ---------------------------------------------------------------- terrain --
+// Three biomes share the same tile grammar with different dressing:
+//   forest — temperate greens · taiga — snowfields and pines ·
+//   desert — sun-baked wasteland with acacias
 
-function grassTile(seed) {
+export const BIOMES = {
+  forest: {
+    ground: ['#4e7a34', '#46702e', '#568540', '#679a4b'],
+    dirt: ['#8a6f42', '#7c6339', '#98804f'],
+    fringe: ['#c2a366', '#b3945a'],
+    rock: ['#6f6a62', '#5a564f', '#87817a', '#a09a90'],
+    waterTint: null,
+  },
+  taiga: {
+    ground: ['#cfdce4', '#c0cfd9', '#dde8ee', '#f0f7fb'],
+    dirt: ['#7d8790', '#6d7680', '#8f99a2'],
+    fringe: ['#eef5f9', '#d7e4ec'],
+    rock: ['#5e6670', '#4c545e', '#788089', '#eef5f9'],
+    waterTint: '#2a5f8e',
+  },
+  desert: {
+    ground: ['#d3b878', '#c4a768', '#e0c78c', '#b99b5e'],
+    dirt: ['#a98e58', '#987e4c', '#b89c66'],
+    fringe: ['#8f7448', '#7d653e'],
+    rock: ['#8a6a52', '#745642', '#a08066', '#bd9b80'],
+    waterTint: null,
+  },
+};
+
+function groundTile(seed, biome) {
+  const B = BIOMES[biome];
   const [c, g] = makeCanvas(TILE, TILE);
   const rng = makeRng(seed);
-  px(g, 0, 0, PAL.grass1, TILE, TILE);
+  px(g, 0, 0, B.ground[0], TILE, TILE);
   for (let i = 0; i < 46; i++) {
     const x = (rng() * TILE) | 0, y = (rng() * TILE) | 0;
     const r = rng();
-    px(g, x, y, r < 0.42 ? PAL.grass2 : r < 0.8 ? PAL.grass3 : PAL.grassHi);
+    px(g, x, y, r < 0.42 ? B.ground[1] : r < 0.8 ? B.ground[2] : B.ground[3]);
   }
-  // sparse blades
+  // sparse blades / tufts / pebbles
   for (let i = 0; i < 5; i++) {
     const x = (rng() * (TILE - 2)) | 0, y = (rng() * (TILE - 3)) | 0;
-    px(g, x, y + 1, PAL.grassHi); px(g, x, y, PAL.grass3);
+    px(g, x, y + 1, B.ground[3]); px(g, x, y, B.ground[2]);
   }
   return c;
 }
 
-function dirtTile(seed) {
+function dirtTile(seed, biome) {
+  const B = BIOMES[biome];
   const [c, g] = makeCanvas(TILE, TILE);
   const rng = makeRng(seed);
-  px(g, 0, 0, PAL.dirt1, TILE, TILE);
+  px(g, 0, 0, B.dirt[0], TILE, TILE);
   for (let i = 0; i < 40; i++) {
     const x = (rng() * TILE) | 0, y = (rng() * TILE) | 0;
     const r = rng();
-    px(g, x, y, r < 0.5 ? PAL.dirt2 : PAL.dirt3, 1 + (r < .2 ? 1 : 0), 1);
+    px(g, x, y, r < 0.5 ? B.dirt[1] : B.dirt[2], 1 + (r < .2 ? 1 : 0), 1);
+  }
+  if (biome === 'desert') {
+    // cracked-earth lines
+    for (let i = 0; i < 4; i++) {
+      let x = (rng() * TILE) | 0, y = (rng() * TILE) | 0;
+      for (let s = 0; s < 6; s++) {
+        px(g, x, y, B.dirt[1]);
+        x += rng() < 0.5 ? 1 : -1; y += 1;
+        if (x < 0 || x >= TILE || y >= TILE) break;
+      }
+    }
   }
   return c;
 }
 
-function waterTile(seed, frame) {
+function waterTile(seed, frame, biome) {
+  const B = BIOMES[biome];
   const [c, g] = makeCanvas(TILE, TILE);
   const rng = makeRng(seed + frame * 977);
-  px(g, 0, 0, PAL.water1, TILE, TILE);
+  px(g, 0, 0, B.waterTint || PAL.water1, TILE, TILE);
   for (let i = 0; i < 26; i++) {
     const x = (rng() * TILE) | 0, y = (rng() * TILE) | 0;
     px(g, x, y, rng() < 0.6 ? PAL.water2 : PAL.water3, 2, 1);
@@ -53,58 +94,95 @@ function waterTile(seed, frame) {
     const x = (rng() * (TILE - 3)) | 0, y = (rng() * TILE) | 0;
     px(g, x + ((frame + i) % 2), y, PAL.waterHi, 2, 1);
   }
+  if (biome === 'taiga') {
+    // drifting ice floes
+    for (let i = 0; i < 4; i++) {
+      const x = (rng() * (TILE - 5)) | 0, y = (rng() * (TILE - 3)) | 0;
+      px(g, x, y, '#dbe8f0', 3 + (rng() * 3 | 0), 2);
+      px(g, x, y, '#f2f9fd', 2, 1);
+    }
+  }
   return c;
 }
 
-function shoreTile(base, mask) {
-  // mask bits: 1=N,2=E,4=S,8=W water neighbour -> sandy fringe on that edge
+function shoreTile(base, mask, biome) {
+  // mask bits: 1=N,2=E,4=S,8=W water neighbour -> fringe on that edge
+  const [f1, f2] = BIOMES[biome].fringe;
   const [c, g] = makeCanvas(TILE, TILE);
   g.drawImage(base, 0, 0);
   const w = TILE;
-  if (mask & 1) { dither(g, 0, 0, w, 2, PAL.sand1, PAL.sand2); px(g, 0, 2, PAL.sand2, w, 1); }
-  if (mask & 4) { dither(g, 0, w - 2, w, 2, PAL.sand1, PAL.sand2); px(g, 0, w - 3, PAL.sand2, w, 1); }
-  if (mask & 8) { dither(g, 0, 0, 2, w, PAL.sand1, PAL.sand2); px(g, 2, 0, PAL.sand2, 1, w); }
-  if (mask & 2) { dither(g, w - 2, 0, 2, w, PAL.sand1, PAL.sand2); px(g, w - 3, 0, PAL.sand2, 1, w); }
+  if (mask & 1) { dither(g, 0, 0, w, 2, f1, f2); px(g, 0, 2, f2, w, 1); }
+  if (mask & 4) { dither(g, 0, w - 2, w, 2, f1, f2); px(g, 0, w - 3, f2, w, 1); }
+  if (mask & 8) { dither(g, 0, 0, 2, w, f1, f2); px(g, 2, 0, f2, 1, w); }
+  if (mask & 2) { dither(g, w - 2, 0, 2, w, f1, f2); px(g, w - 3, 0, f2, 1, w); }
   return c;
 }
 
-function rockTile(seed) {
+function rockTile(seed, biome) {
+  const B = BIOMES[biome];
   const [c, g] = makeCanvas(TILE, TILE);
-  g.drawImage(grassTile(seed ^ 0x5f5), 0, 0);
+  g.drawImage(groundTile(seed ^ 0x5f5, biome), 0, 0);
   const rng = makeRng(seed);
   const n = 2 + (rng() * 2 | 0);
   for (let i = 0; i < n; i++) {
     const cx = 4 + rng() * (TILE - 9), cy = 4 + rng() * (TILE - 9);
     const r = 3 + rng() * 4;
-    g.fillStyle = PAL.rock2;
+    g.fillStyle = B.rock[1];
     g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
-    g.fillStyle = PAL.rock1;
+    g.fillStyle = B.rock[0];
     g.beginPath(); g.arc(cx - 1, cy - 1, r - 1, 0, 7); g.fill();
-    px(g, cx - r * 0.5, cy - r * 0.6, PAL.rockHi, 2, 1);
-    px(g, cx + 1, cy - 1, PAL.rock3, 2, 2);
+    px(g, cx - r * 0.5, cy - r * 0.6, B.rock[3], 2, 1);
+    px(g, cx + 1, cy - 1, B.rock[2], 2, 2);
   }
   return c;
 }
 
-function treeTile(seed) {
+function treeTile(seed, biome) {
   const [c, g] = makeCanvas(TILE, TILE);
-  g.drawImage(grassTile(seed ^ 0xabc), 0, 0);
+  g.drawImage(groundTile(seed ^ 0xabc, biome), 0, 0);
   const rng = makeRng(seed);
   const cx = 11 + (rng() * 3 | 0), cy = 12 + (rng() * 2 | 0);
-  // shadow + trunk
   g.fillStyle = PAL.shadow;
   g.beginPath(); g.ellipse(cx + 1, cy + 6, 7, 3, 0, 0, 7); g.fill();
-  px(g, cx - 1, cy + 3, PAL.trunk, 2, 4);
-  // canopy: stacked blobs
-  const blob = (bx, by, r, col) => {
-    g.fillStyle = col; g.beginPath(); g.arc(bx, by, r, 0, 7); g.fill();
-  };
-  blob(cx, cy, 8, PAL.ink);
-  blob(cx, cy, 7, PAL.tree2);
-  blob(cx - 2, cy - 2, 5, PAL.tree1);
-  blob(cx - 3, cy - 3, 3, PAL.tree3);
-  px(g, cx - 4, cy - 5, PAL.treeHi, 2, 1);
-  px(g, cx + 2, cy - 2, PAL.tree3, 2, 2);
+
+  if (biome === 'taiga') {
+    // snow-dusted pine: stacked triangles
+    px(g, cx - 1, cy + 4, PAL.trunk, 2, 3);
+    const layer = (w, y, col) => {
+      for (let i = 0; i < w; i++) px(g, cx - (w >> 1) + i, y, col);
+    };
+    for (let l = 0; l < 5; l++) {
+      const w = 11 - l * 2, y = cy + 3 - l * 2;
+      layer(w + 2, y + 1, PAL.ink);
+      layer(w, y, l % 2 ? '#1d3b2a' : '#2a523a');
+      layer(Math.max(1, w - 4), y - 1, '#e8f2f8'); // snow line
+    }
+    px(g, cx, cy - 7, '#f4fafd', 1, 2);
+  } else if (biome === 'desert') {
+    // flat-top acacia
+    px(g, cx - 1, cy, PAL.trunk, 1, 7);
+    px(g, cx + 1, cy + 2, PAL.trunk, 1, 5);
+    px(g, cx, cy + 1, '#4a3620', 1, 6);
+    g.fillStyle = PAL.ink;
+    g.beginPath(); g.ellipse(cx, cy - 2, 9, 4, 0, 0, 7); g.fill();
+    g.fillStyle = '#6a7a3a';
+    g.beginPath(); g.ellipse(cx, cy - 2, 8, 3, 0, 0, 7); g.fill();
+    g.fillStyle = '#7e9048';
+    g.beginPath(); g.ellipse(cx - 2, cy - 3, 5, 2, 0, 0, 7); g.fill();
+    px(g, cx - 4, cy - 4, '#93a659', 3, 1);
+  } else {
+    // temperate leafy canopy
+    px(g, cx - 1, cy + 3, PAL.trunk, 2, 4);
+    const blob = (bx, by, r, col) => {
+      g.fillStyle = col; g.beginPath(); g.arc(bx, by, r, 0, 7); g.fill();
+    };
+    blob(cx, cy, 8, PAL.ink);
+    blob(cx, cy, 7, PAL.tree2);
+    blob(cx - 2, cy - 2, 5, PAL.tree1);
+    blob(cx - 3, cy - 3, 3, PAL.tree3);
+    px(g, cx - 4, cy - 5, PAL.treeHi, 2, 1);
+    px(g, cx + 2, cy - 2, PAL.tree3, 2, 2);
+  }
   return c;
 }
 
@@ -797,18 +875,26 @@ export function drawTitleLogo(canvas) {
 export function buildSprites() {
   const S = {};
 
-  // terrain
-  S.grass = [grassTile(1), grassTile(2), grassTile(3), grassTile(4)];
-  S.dirt = [dirtTile(11), dirtTile(12)];
-  S.water = [waterTile(21, 0), waterTile(21, 1)];
-  S.rock = [rockTile(31), rockTile(32)];
-  S.tree = [treeTile(41), treeTile(42), treeTile(43)];
+  // terrain per biome
+  S.tiles = {};
+  for (const biome of Object.keys(BIOMES)) {
+    S.tiles[biome] = {
+      ground: [1, 2, 3, 4].map((s) => groundTile(s, biome)),
+      dirt: [11, 12].map((s) => dirtTile(s, biome)),
+      water: [0, 1].map((f) => waterTile(21, f, biome)),
+      rock: [31, 32].map((s) => rockTile(s, biome)),
+      tree: [41, 42, 43].map((s) => treeTile(s, biome)),
+    };
+  }
   S.ore = [oreOverlay(1), oreOverlay(2), oreOverlay(3)];
   S.scorch = scorchDecal();
-  S.shore = (base, mask) => shoreTile(base, mask);
+  S.shore = (base, mask, biome) => shoreTile(base, mask, biome);
 
   // faction-tinted body sets
-  const factions = { player: HOUSE.player, enemy: HOUSE.enemy };
+  const factions = {
+    player: HOUSE.player, enemy: HOUSE.enemy,
+    enemy2: HOUSE.enemy2, enemy3: HOUSE.enemy3,
+  };
   const facingsOf = (base) => {
     const arr = [];
     for (let f = 0; f < FACINGS; f++) arr.push(rotatedCopy(base, f * Math.PI * 2 / FACINGS));

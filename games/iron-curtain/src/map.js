@@ -6,9 +6,15 @@ import { makeRng } from './palette.js';
 export const T = { GRASS: 0, DIRT: 1, WATER: 2, ROCK: 3, TREE: 4 };
 
 export class GameMap {
-  constructor(size = 64, seed = 7) {
+  constructor(size = 64, seed = 7, biome = 'forest', starts = null) {
     this.size = size;
     this.seed = seed;
+    this.biome = biome;
+    // start locations (cell coords); default: classic SW vs NE duel
+    this.starts = starts || [
+      { x: Math.round(size * 0.14), y: Math.round(size * 0.82) },
+      { x: Math.round(size * 0.82), y: Math.round(size * 0.10) },
+    ];
     this.terrain = new Uint8Array(size * size);     // T.*
     this.variant = new Uint8Array(size * size);     // art variant per cell
     this.ore = new Uint16Array(size * size);        // remaining ore value
@@ -45,6 +51,14 @@ export class GameMap {
   generate() {
     const s = this.size;
     const rng = makeRng(this.seed);
+    const area = (s * s) / (64 * 64);   // density scale vs the classic 64 map
+    // biome dressing densities
+    const density = {
+      forest: { dirt: 10, rocks: 12, woods: 14 },
+      taiga: { dirt: 8, rocks: 16, woods: 9 },
+      desert: { dirt: 16, rocks: 14, woods: 4 },
+    }[this.biome];
+
     this.terrain.fill(T.GRASS);
     for (let i = 0; i < s * s; i++) this.variant[i] = (rng() * 4) | 0;
 
@@ -71,7 +85,7 @@ export class GameMap {
     }
 
     // dirt patches
-    for (let n = 0; n < 10; n++) {
+    for (let n = 0; n < Math.round(density.dirt * area); n++) {
       const cx = rng() * s, cy = rng() * s, r = 2 + rng() * 4;
       this.blob(cx, cy, r, (i) => {
         if (this.terrain[i] === T.GRASS) this.terrain[i] = T.DIRT;
@@ -79,28 +93,34 @@ export class GameMap {
     }
 
     // rock outcrops
-    for (let n = 0; n < 12; n++) {
+    for (let n = 0; n < Math.round(density.rocks * area); n++) {
       const cx = rng() * s, cy = rng() * s, r = 1 + rng() * 2.2;
       this.blob(cx, cy, r, (i) => {
         if (this.terrain[i] === T.GRASS || this.terrain[i] === T.DIRT) this.terrain[i] = T.ROCK;
       }, rng);
     }
 
-    // forests
-    for (let n = 0; n < 14; n++) {
+    // woods
+    for (let n = 0; n < Math.round(density.woods * area); n++) {
       const cx = rng() * s, cy = rng() * s, r = 1.5 + rng() * 3;
       this.blob(cx, cy, r, (i) => {
         if (this.terrain[i] === T.GRASS && rng() < 0.8) this.terrain[i] = T.TREE;
       }, rng);
     }
 
-    // keep start zones clear: player SW corner, enemy NE corner
-    this.clearZone(4, s - 16, 14, 13);
-    this.clearZone(s - 18, 3, 14, 13);
-
-    // ore fields: near each base plus a contested middle field
-    this.oreField(16, s - 20, 5, rng);
-    this.oreField(s - 22, 14, 5, rng);
+    // keep every start zone clear and give each base its own ore field
+    const cx0 = s / 2, cy0 = s / 2;
+    for (const st of this.starts) {
+      this.clearZone(st.x - 7, st.y - 6, 15, 13);
+      const dx = cx0 - st.x, dy = cy0 - st.y;
+      const len = Math.hypot(dx, dy) || 1;
+      this.oreField(
+        Math.round(st.x + (dx / len) * 9),
+        Math.round(st.y + (dy / len) * 9),
+        5, rng,
+      );
+    }
+    // contested middle field
     this.oreField(Math.floor(s * 0.5) - 3, Math.floor(s * 0.5), 4, rng);
 
     // map edges: rocks to frame the world

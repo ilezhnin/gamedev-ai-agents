@@ -95,11 +95,12 @@ export class Unit extends Entity {
 // ---------------------------------------------------------------------------
 
 export class Game {
-  constructor(map, audio, seed = 1234) {
+  constructor(map, audio, seed = 1234, enemyHouses = ['enemy']) {
     this.map = map;
     this.audio = audio;
     this.rng = makeRng(seed);
-    this.players = { player: new Player('player', true), enemy: new Player('enemy', false) };
+    this.players = { player: new Player('player', true) };
+    for (const h of enemyHouses) this.players[h] = new Player(h, false);
     this.units = [];
     this.buildings = [];
     this.projectiles = [];
@@ -902,8 +903,9 @@ export class Game {
       this.buildings.some((b) => !b.dead && b.house === house) ||
       this.units.some((u) => !u.dead && u.house === house);
     const playerAlive = alive('player');
-    const enemyAlive = alive('enemy');
-    if (!enemyAlive) { this.over = true; this.won = true; this.audio.say('Mission accomplished', true); }
+    const anyFoeAlive = Object.values(this.players)
+      .some((p) => !p.isHuman && alive(p.house));
+    if (!anyFoeAlive) { this.over = true; this.won = true; this.audio.say('Mission accomplished', true); }
     else if (!playerAlive) { this.over = true; this.won = false; this.audio.say('Mission failed', true); }
   }
 }

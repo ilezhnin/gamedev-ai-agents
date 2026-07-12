@@ -4,6 +4,7 @@
 
 import { BUILDINGS, UNITS, BUILD_ORDER_STRIP, UNIT_STRIP } from './rules.js';
 import { makeCameo } from './sprites.js';
+import { HOUSE_UI } from './palette.js';
 import { T } from './map.js';
 
 export class UI {
@@ -248,13 +249,13 @@ export class UI {
     for (const b of g.buildings) {
       if (b.dead) continue;
       if (b.house !== 'player' && !b.seen && !g.isVisibleToPlayer(b)) continue;
-      ctx.fillStyle = b.house === 'player' ? '#4f86e8' : '#e04a3a';
+      ctx.fillStyle = (HOUSE_UI[b.house] || HOUSE_UI.enemy).building;
       ctx.fillRect(b.cx * scale, b.cy * scale, Math.max(2, b.def.w * scale), Math.max(2, b.def.h * scale));
     }
     for (const u of g.units) {
       if (u.dead) continue;
       if (u.house !== 'player' && !g.isVisibleToPlayer(u)) continue;
-      ctx.fillStyle = u.house === 'player' ? '#8fc2ff' : '#ff7a66';
+      ctx.fillStyle = (HOUSE_UI[u.house] || HOUSE_UI.enemy).unit;
       ctx.fillRect(u.x * scale - 1, u.y * scale - 1, 2.4, 2.4);
     }
   }

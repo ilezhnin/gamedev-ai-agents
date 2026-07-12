@@ -7,13 +7,23 @@ import { nearestFree } from './pathfind.js';
 
 const BUILD_ORDER = ['power', 'refinery', 'barracks', 'power', 'factory', 'guard', 'radar', 'guard', 'power', 'tesla', 'silo'];
 
+// difficulty knobs — the AI never cheats on prices or income, it just
+// thinks faster/slower, saves harder and fields bigger or smaller waves
+export const AI_LEVELS = {
+  easy:   { think: 2.2, firstWave: 140, waveMin: 90, waveMax: 130, armyCap: 10, waveCap: 6,  save: 0.8 },
+  normal: { think: 1.1, firstWave: 95,  waveMin: 65, waveMax: 90,  armyCap: 18, waveCap: 10, save: 0.55 },
+  hard:   { think: 0.7, firstWave: 70,  waveMin: 45, waveMax: 70,  armyCap: 26, waveCap: 14, save: 0.45 },
+};
+
 export class AI {
-  constructor(game, player) {
+  constructor(game, player, level = 'normal') {
     this.game = game;
     this.p = player;
+    this.level = level;
+    this.d = AI_LEVELS[level] || AI_LEVELS.normal;
     this.buildIx = 0;
     this.thinkT = 0;
-    this.waveT = 95;              // first attack lands ~2 min in
+    this.waveT = this.d.firstWave;
     this.waveSize = 3;
     this.attackers = new Set();
     this.trainPattern = ['rifle', 'rifle', 'lightTank', 'rocket', 'heavyTank', 'rifle', 'lightTank'];
@@ -28,7 +38,7 @@ export class AI {
     this.thinkT -= dt;
     this.waveT -= dt;
     if (this.thinkT > 0) return;
-    this.thinkT = 1.1;
+    this.thinkT = this.d.think;
 
     const g = this.game;
     if (!g.buildings.some((b) => !b.dead && b.owner === this.p)) return; // eliminated
@@ -54,7 +64,7 @@ export class AI {
     const count = (k) => g.buildings.filter((b) => !b.dead && b.owner === p && b.key === k).length;
     for (const key of ['refinery', 'barracks', 'factory']) {
       if (this.builtBefore(key) && count(key) === 0 && g.canProduce(p, 'building', key)
-          && p.credits >= BUILDINGS[key].cost * 0.6) {
+          && p.credits >= BUILDINGS[key].cost * this.d.save) {
         g.startProduction(p, 'building', key);
         return;
       }
@@ -67,7 +77,7 @@ export class AI {
         continue;
       }
       if (!g.canProduce(p, 'building', key)) return; // wait for tech
-      if (p.credits < BUILDINGS[key].cost * 0.55) return; // save up
+      if (p.credits < BUILDINGS[key].cost * this.d.save) return; // save up
       g.startProduction(p, 'building', key);
       this.buildIx++;
       return;
@@ -123,7 +133,7 @@ export class AI {
       return;
     }
     const army = myUnits.filter((u) => u.def.weapon).length;
-    if (army >= 18) return; // cap the horde
+    if (army >= this.d.armyCap) return; // cap the horde
     if (p.credits < 500) return;
     // walk the pattern; skip entries we can't build yet
     for (let tries = 0; tries < this.trainPattern.length; tries++) {
@@ -164,13 +174,13 @@ export class AI {
 
   launchWave() {
     const g = this.game, p = this.p;
-    this.waveT = 65 + g.rng() * 25;
+    this.waveT = this.d.waveMin + g.rng() * (this.d.waveMax - this.d.waveMin);
     const idle = g.units.filter((u) =>
       !u.dead && u.owner === p && u.def.weapon &&
       (u.order.type === 'idle' || (u.order.type === 'move')));
     // don't strip the base bare: attack only once there's a real squad
     if (idle.length < this.waveSize + 2) return;
-    this.waveSize = Math.min(10, this.waveSize + 1);
+    this.waveSize = Math.min(this.d.waveCap, this.waveSize + 1);
     // target: prefer player harvesters/refinery, else any building, else units
     const targets = [];
     for (const b of g.buildings) if (!b.dead && b.owner !== p) targets.push(b);
