@@ -49,11 +49,11 @@ runs fully offline.
 |---|---|
 | LMB / drag | select / marquee select |
 | RMB | move · attack · set rally (factory selected) |
-| `A` + click | attack-move |
-| `S` | stop |
-| `D` | deploy MCV |
+| `F` + click | attack-move |
+| `X` | stop |
+| `B` | deploy MCV |
 | `Ctrl+1..9` / `1..9` | set / recall control group |
-| Arrows, screen edge, wheel | scroll & zoom camera |
+| WASD, arrows, wheel | scroll & zoom camera |
 | `H` `P` `M` | help · pause · music |
 | `Esc` | cancel mode / clear selection |
 

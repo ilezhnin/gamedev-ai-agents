@@ -35,7 +35,8 @@ export class UI {
     this.wireButtons();
     this.el.help.innerHTML =
       'LMB select / drag box &nbsp; RMB move / attack<br>' +
-      'A+click attack-move &nbsp; D deploy MCV &nbsp; S stop<br>' +
+      'F+click attack-move &nbsp; B deploy MCV &nbsp; X stop<br>' +
+      'WASD / arrows scroll &nbsp; wheel zoom<br>' +
       'CTRL+1..9 group &nbsp; 1..9 recall &nbsp; H help &nbsp; P pause<br>' +
       'Click cameo to build; click again when READY to place';
   }

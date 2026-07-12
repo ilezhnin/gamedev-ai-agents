@@ -281,7 +281,7 @@ export class Input {
   onKey(e, down) {
     this.keys[e.code] = down;
     if (!down) return;
-    if (e.code === 'KeyA') this.attackMoveArmed = this.selectedUnits().length > 0;
+    if (e.code === 'KeyF') this.attackMoveArmed = this.selectedUnits().length > 0;
     if (e.code === 'Escape') {
       const p = this.game.players.player;
       if (p.readyBuilding) { /* keep it queued, just leave place mode */ }
@@ -289,12 +289,12 @@ export class Input {
       this.attackMoveArmed = false;
       this.selection = [];
     }
-    if (e.code === 'KeyS') {
+    if (e.code === 'KeyX') {
       for (const u of this.selectedUnits()) {
         u.order = { type: 'idle' }; u.path = []; u.target = null;
       }
     }
-    if (e.code === 'KeyD') {
+    if (e.code === 'KeyB') {
       for (const u of this.selectedUnits()) {
         if (u.def.deploysTo) this.game.orderDeploy(u);
       }
@@ -320,23 +320,14 @@ export class Input {
     }
   }
 
-  // edge + key scrolling, called each frame from main
+  // keyboard scrolling (WASD / arrows), called each frame from main
   tickScroll(dt) {
     const speed = 22 * dt; // cells per second
-    const r = this.view.getBoundingClientRect();
-    const mx = this.mouse.x, my = this.mouse.y;
-    const edge = 24;
     let dx = 0, dy = 0;
-    if (this.keys.ArrowLeft) dx -= 1;
-    if (this.keys.ArrowRight) dx += 1;
-    if (this.keys.ArrowUp) dy -= 1;
-    if (this.keys.ArrowDown) dy += 1;
-    if (this.mouse.seen && mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom) {
-      if (mx - r.left < edge) dx -= 1;
-      if (r.right - mx < edge) dx += 1;
-      if (my - r.top < edge) dy -= 1;
-      if (r.bottom - my < edge) dy += 1;
-    }
+    if (this.keys.ArrowLeft || this.keys.KeyA) dx -= 1;
+    if (this.keys.ArrowRight || this.keys.KeyD) dx += 1;
+    if (this.keys.ArrowUp || this.keys.KeyW) dy -= 1;
+    if (this.keys.ArrowDown || this.keys.KeyS) dy += 1;
     this.cam.x += dx * speed;
     this.cam.y += dy * speed;
     const s = this.game.map.size;
