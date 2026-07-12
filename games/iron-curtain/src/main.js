@@ -528,30 +528,34 @@ function typeBriefing() {
   tick();
 }
 
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'Enter') {
-    audio.ensure(); audio.resume();
-    if (state === 'title') {
-      state = 'brief';
-      elTitle.classList.add('hidden');
-      elBrief.classList.remove('hidden');
-      typeBriefing();
-      audio.sfx('ready');
-    } else if (state === 'brief') {
-      state = 'play';
-      elBrief.classList.add('hidden');
-      newGame();
-      endShown = false;
-      if (audio.musicOn) audio.startMusic();
-      document.getElementById('btn-music').classList.add('on');
-      audio.say('Battle control online', true);
-    } else if (state === 'end') {
-      state = 'brief';
-      elEnd.classList.add('hidden');
-      elBrief.classList.remove('hidden');
-      typeBriefing();
-    }
+function advanceScreen() {
+  audio.ensure(); audio.resume();
+  if (state === 'title') {
+    state = 'brief';
+    elTitle.classList.add('hidden');
+    elBrief.classList.remove('hidden');
+    typeBriefing();
+    audio.sfx('ready');
+  } else if (state === 'brief') {
+    state = 'play';
+    elBrief.classList.add('hidden');
+    newGame();
+    endShown = false;
+    if (audio.musicOn) audio.startMusic();
+    document.getElementById('btn-music').classList.add('on');
+    audio.say('Battle control online', true);
+  } else if (state === 'end') {
+    state = 'brief';
+    elEnd.classList.add('hidden');
+    elBrief.classList.remove('hidden');
+    typeBriefing();
   }
+}
+// screens also advance on click/tap (touchscreens, embedded iframes)
+for (const el of [elTitle, elBrief, elEnd]) el.addEventListener('click', advanceScreen);
+
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Enter') advanceScreen();
   if (e.code === 'KeyP' && state === 'play') {
     paused = !paused;
     elPaused.style.display = paused ? 'flex' : 'none';
