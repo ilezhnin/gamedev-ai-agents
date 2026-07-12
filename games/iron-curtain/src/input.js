@@ -239,7 +239,7 @@ export class Input {
     }
     if (!target) {
       const b = this.buildingAt(cx, cy, null);
-      if (b && b.house !== 'player' && g.isVisibleToPlayer(b)) target = b;
+      if (b && b.house !== 'player' && (b.seen || g.isVisibleToPlayer(b))) target = b;
     }
 
     if (target) {

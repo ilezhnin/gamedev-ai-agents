@@ -55,6 +55,8 @@ export class Building extends Entity {
     this.repairing = false;
     this.rally = null;                // [x,y] for factories
     this.buildRise = 1.0;             // build-up animation 0..1 (starts done)
+    this.seen = false;                // ever spotted by the human player
+    this.smokeT = 0;
   }
   centre() { return [this.cx + this.def.w / 2, this.cy + this.def.h / 2]; }
   containsCell(x, y) {
@@ -485,9 +487,21 @@ export class Game {
   }
 
   spawnProjectile(src, target, w) {
-    const [sx, sy] = src.isUnit ? [src.x, src.y] : src.centre();
-    const [tx, ty] = target.isUnit ? [target.x, target.y] : target.centre();
+    // effect/projectile coords live in "sprite space": renderer adds +0.5,
+    // so unit positions pass through and building centres shift back half a cell
+    const spriteXY = (e) => e.isUnit ? [e.x, e.y] : [e.centre()[0] - 0.5, e.centre()[1] - 0.5];
+    const [sx, sy] = spriteXY(src);
+    const [tx, ty] = spriteXY(target);
     this.audio.sfx(w.sound);
+    // muzzle flash at the barrel tip (cannons and tower guns)
+    if (w.projectile === 'shell' || w.sound === 'mg') {
+      const a = src.turretFacing - Math.PI / 2;
+      this.effects.push({
+        kind: 'muzzle', t: 0,
+        x: sx + Math.cos(a) * 0.55,
+        y: sy + Math.sin(a) * 0.55,
+      });
+    }
     if (w.projectile === 'tracer') {
       // hitscan with a brief tracer line
       this.effects.push({ kind: 'tracer', x0: sx, y0: sy, x1: tx, y1: ty, t: 0.06 });
@@ -726,6 +740,19 @@ export class Game {
 
   tickBuilding(b, dt) {
     if (b.buildRise < 1) b.buildRise = Math.min(1, b.buildRise + dt * 1.6);
+
+    // battle damage smoke
+    if (b.hp < b.maxHp * 0.5) {
+      b.smokeT -= dt;
+      if (b.smokeT <= 0) {
+        b.smokeT = 0.5 + this.rng() * 0.8;
+        this.effects.push({
+          kind: 'smoke', t: 0,
+          x: b.cx + 0.4 + this.rng() * (b.def.w - 0.8),
+          y: b.cy + 0.3 + this.rng() * (b.def.h - 0.8),
+        });
+      }
+    }
 
     // repair
     if (b.repairing && b.hp < b.maxHp) {

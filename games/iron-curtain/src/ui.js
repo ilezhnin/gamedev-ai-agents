@@ -251,7 +251,7 @@ export class UI {
     // entities
     for (const b of g.buildings) {
       if (b.dead) continue;
-      if (b.house !== 'player' && !g.isVisibleToPlayer(b)) continue;
+      if (b.house !== 'player' && !b.seen && !g.isVisibleToPlayer(b)) continue;
       ctx.fillStyle = b.house === 'player' ? '#4f86e8' : '#e04a3a';
       ctx.fillRect(b.cx * scale, b.cy * scale, Math.max(2, b.def.w * scale), Math.max(2, b.def.h * scale));
     }

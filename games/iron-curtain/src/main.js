@@ -284,7 +284,9 @@ function syncEntities(dt) {
     seen.add(b.id);
     const v = ensureBuildingView(b);
     const [cx, cy] = b.centre();
-    const vis = b.house === 'player' || game.isVisibleToPlayer(b) || game.explored[map.idx(Math.floor(cx), Math.floor(cy))];
+    // enemy buildings stay on the map once scouted (classic "last seen" rule)
+    if (b.house !== 'player' && game.isVisibleToPlayer(b)) b.seen = true;
+    const vis = b.house === 'player' || b.seen;
     for (const q of Object.values(v.quads)) q.mesh.visible = false;
     if (!vis) continue;
     v.quads.body.mesh.visible = true;
@@ -402,6 +404,12 @@ function syncFx(dt) {
       const q = new SpriteQuad(scene, sprites.scorch, 1, 1, 0.08);
       q.set(e.x + 0.5, mapY(e.y + 0.5), 0.08);
       fxViews.push({ e, quad: q });
+    } else if (e.kind === 'smoke') {
+      fxViews.push({ e, quad: new SpriteQuad(scene, sprites.smoke[0], 0.7, 0.7, 2.05) });
+    } else if (e.kind === 'muzzle') {
+      const q = new SpriteQuad(scene, sprites.muzzle, 0.42, 0.42, 2.25);
+      q.set(e.x + 0.5, mapY(e.y + 0.5), 2.25);
+      fxViews.push({ e, quad: q });
     }
   }
 
@@ -426,6 +434,14 @@ function syncFx(dt) {
     } else if (e.kind === 'scorch') {
       if (e.t > 20) { v.quad.mat.opacity = Math.max(0, 1 - (e.t - 20) / 5); }
       if (e.t > 25) e.done = true;
+    } else if (e.kind === 'smoke') {
+      const frame = Math.min(sprites.smoke.length - 1, Math.floor(e.t / 0.22));
+      v.quad.setCanvas(sprites.smoke[frame]);
+      v.quad.set(e.x + 0.5, mapY(e.y + 0.5 - e.t * 0.25), 2.05);
+      v.quad.mat.opacity = Math.max(0, 1 - e.t / 0.9);
+      if (e.t > 0.9) e.done = true;
+    } else if (e.kind === 'muzzle') {
+      if (e.t > 0.08) e.done = true;
     }
   }
   // cleanup
