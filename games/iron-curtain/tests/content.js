@@ -47,6 +47,21 @@ const server = http.createServer((req, res) => {
   await page.waitForTimeout(400);
   await page.click('#screen-brief');
   await page.waitForTimeout(1200);
+  // deterministic arena: sparse 'open' layout so findOpen always succeeds
+  // (a rolled maze/ridges map can lack big buildable clearings — flaky)
+  await page.evaluate(() => window.__game_test.startWith({
+    opponents: 1, size: 'medium', biome: 'forest', layout: 'open',
+  }));
+  await page.waitForTimeout(1200);
+  // and fail loudly if an arena still cannot be found (instead of null[0])
+  await page.evaluate(() => {
+    const orig = window.__game_test.findOpen;
+    window.__game_test.findOpen = (r) => {
+      const spot = orig(r);
+      if (!spot) throw new Error(`findOpen(${r}): no clear area on this map`);
+      return spot;
+    };
+  });
 
   // --- D: behemoth requires a tech center (instant, no timing) ---
   const D = await page.evaluate(() => {
