@@ -1590,6 +1590,19 @@ window.addEventListener('beforeunload', () => {
   if (state === 'play' && game && !game.over) autosave();
 });
 
+// a hidden tab must fall silent: rAF already freezes the sim in background,
+// but WebAudio timers keep playing — suspend the whole context until we're
+// visible again (and cut any in-flight advisor speech)
+document.addEventListener('visibilitychange', () => {
+  if (!audio.ctx) return;
+  if (document.hidden) {
+    audio.ctx.suspend();
+    try { speechSynthesis.cancel(); } catch { /* not available */ }
+  } else {
+    audio.ctx.resume();
+  }
+});
+
 requestAnimationFrame(frame);
 showTitle();        // sets the CONTINUE button state (also starts title sky)
 
