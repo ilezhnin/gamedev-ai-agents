@@ -7,7 +7,7 @@ import { buildSprites, drawTitleLogo, TILE, FACINGS } from './sprites.js';
 import { GameMap, T, V_ICE, LAYOUTS } from './map.js';
 import { Game, facingIndex, SAVE_VERSION } from './game.js';
 import { findPath } from './pathfind.js';
-import { AI } from './ai.js';
+import { AI, AI_LEVELS } from './ai.js';
 import { UI } from './ui.js';
 import { Input } from './input.js';
 import { AudioSys } from './audio.js';
@@ -38,9 +38,14 @@ class SpriteQuad {
     scene.add(this.mesh);
   }
   setCanvas(c) {
-    if (this.tex.image !== c) { this.tex.image = c; }
-    this.tex.needsUpdate = true;
+    // re-upload only when the backing canvas actually changes — calling this
+    // every frame with the same canvas must not cost a GPU upload
+    if (this.tex.image !== c) {
+      this.tex.image = c;
+      this.tex.needsUpdate = true;
+    }
   }
+  touch() { this.tex.needsUpdate = true; } // after drawing into the same canvas
   set(x, y, z) { this.mesh.position.set(x, y, z ?? this.mesh.position.z); }
   dispose(scene) {
     scene.remove(this.mesh);
@@ -129,12 +134,54 @@ const cam = { x: 12, y: MAP_SIZE - 14, zoom: 2.0 };
 
 let map, game, ui, input;
 let ais = [];
-let terrainQuad, oreQuad, fogQuad;
-let terrainCanvas, terrainG;       // kept for animated-water region redraws
+// Terrain and ore are split into CHUNK×CHUNK-cell textures so animated water
+// and ore mining re-upload a few small chunks instead of one map-sized texture
+// (a full 96-map texture is ~21 MP — re-uploading it twice a second was the
+// main FPS killer).
+const CHUNK = 16;                  // cells per texture chunk
+let terrainChunks = [], oreChunks = [];
+let chunksX = 0, chunksY = 0;
+let lastOre = null;                // renderer-side copy for cheap dirty diffing
+let fogQuad;
 let waterCells = [];               // {x,y,ice} cells to re-tile each water frame
 let waterFrame = 0, waterT = 0;    // animated-water clock
-let oreCanvas, oreG, fogCanvas, fogG;
+let fogCanvas, fogG;
 const cloudQuads = [];             // drifting cloud-shadow blobs
+
+function makeChunkGrid(z) {
+  const s = map.size;
+  chunksX = Math.ceil(s / CHUNK);
+  chunksY = Math.ceil(s / CHUNK);
+  const grid = [];
+  for (let cy = 0; cy < chunksY; cy++) {
+    for (let cx = 0; cx < chunksX; cx++) {
+      const cw = Math.min(CHUNK, s - cx * CHUNK);
+      const ch = Math.min(CHUNK, s - cy * CHUNK);
+      const canvas = document.createElement('canvas');
+      canvas.width = cw * TILE; canvas.height = ch * TILE;
+      const g = canvas.getContext('2d');
+      g.imageSmoothingEnabled = false;
+      const quad = new SpriteQuad(scene, canvas, cw, ch, z);
+      quad.mesh.position.set(cx * CHUNK + cw / 2, -(cy * CHUNK + ch / 2), z);
+      grid.push({ canvas, g, quad, dirty: false });
+    }
+  }
+  return grid;
+}
+
+function chunkAt(grid, x, y) {
+  return grid[((y / CHUNK) | 0) * chunksX + ((x / CHUNK) | 0)];
+}
+
+function flushChunks(grid) {
+  for (const ch of grid) {
+    if (ch.dirty) { ch.quad.touch(); ch.dirty = false; }
+  }
+}
+
+function disposeChunks(grid) {
+  for (const ch of grid.splice(0)) ch.quad.dispose(scene);
+}
 const debris = [];                 // { quad, x, y, z, vx, vy, vz, t, life }
 let shakeT = 0, shakeMag = 0;      // building-death camera shake
 let knownBuildingIds = new Set();  // for detecting building deaths (shake)
@@ -142,6 +189,7 @@ const entityViews = new Map();     // entity id -> view objects
 const fxViews = [];
 let state = 'title';               // title | setup | brief | play | end
 let speedFactor = settings.gameSpeed || 1;
+let aiHalted = false;              // test hook: freeze AI thinking (duel arenas)
 let previewSeed = (Math.random() * 1e9) | 0;   // seed shared by preview + match
 
 // -------------------------------------------------------- operation setup --
@@ -198,6 +246,9 @@ function newGame() {
   for (const q of rallyFlags.splice(0)) q.dispose(scene);
   for (const q of cloudQuads.splice(0)) q.dispose(scene);
   for (const d of debris.splice(0)) d.quad.dispose(scene);
+  disposeChunks(terrainChunks);
+  disposeChunks(oreChunks);
+  if (fogQuad) { fogQuad.dispose(scene); fogQuad = null; }
   knownBuildingIds = new Set();
   shakeT = 0; shakeMag = 0;
   while (scene.children.length) scene.remove(scene.children[0]);
@@ -304,6 +355,9 @@ function teardownScene() {
   for (const q of rallyFlags.splice(0)) q.dispose(scene);
   for (const q of cloudQuads.splice(0)) q.dispose(scene);
   for (const d of debris.splice(0)) d.quad.dispose(scene);
+  disposeChunks(terrainChunks);
+  disposeChunks(oreChunks);
+  if (fogQuad) { fogQuad.dispose(scene); fogQuad = null; }
   knownBuildingIds = new Set();
   shakeT = 0; shakeMag = 0;
   while (scene.children.length) scene.remove(scene.children[0]);
@@ -368,7 +422,9 @@ function loadSavedGame() {
 // paint a single terrain cell (base tile + shore/edge fringes) at its pixel
 // slot. Shared by the initial bake and the animated-water region redraws.
 function paintTerrainCell(x, y) {
-  const g = terrainG;
+  const ch = chunkAt(terrainChunks, x, y);
+  const g = ch.g;
+  const lx = (x % CHUNK) * TILE, ly = (y % CHUNK) * TILE;
   const tiles = sprites.tiles[map.biome] || sprites.tiles.forest;
   const i = map.idx(x, y);
   const t = map.terrain[i], v = map.variant[i];
@@ -381,8 +437,8 @@ function paintTerrainCell(x, y) {
   } else if (t === T.ROCK) tile = tiles.rock[v % tiles.rock.length];
   else if (t === T.RUIN) tile = tiles.ruin[v % tiles.ruin.length];
   else tile = tiles.tree[v % tiles.tree.length];
-  g.clearRect(x * TILE, y * TILE, TILE, TILE);
-  g.drawImage(tile, x * TILE, y * TILE);
+  g.clearRect(lx, ly, TILE, TILE);
+  g.drawImage(tile, lx, ly);
   if (t !== T.WATER) {
     // shore fringe on land next to water
     let wmask = 0;
@@ -390,7 +446,7 @@ function paintTerrainCell(x, y) {
     if (map.terrainAt(x + 1, y) === T.WATER) wmask |= 2;
     if (map.terrainAt(x, y + 1) === T.WATER) wmask |= 4;
     if (map.terrainAt(x - 1, y) === T.WATER) wmask |= 8;
-    if (wmask) g.drawImage(sprites.shore(tile, wmask, map.biome), x * TILE, y * TILE);
+    if (wmask) g.drawImage(sprites.shore(tile, wmask, map.biome), lx, ly);
     // grass<->dirt auto-edge: scuffed-dirt fringe on grass beside dirt
     if (t === T.GRASS) {
       let dmask = 0;
@@ -398,17 +454,16 @@ function paintTerrainCell(x, y) {
       if (map.terrainAt(x + 1, y) === T.DIRT) dmask |= 2;
       if (map.terrainAt(x, y + 1) === T.DIRT) dmask |= 4;
       if (map.terrainAt(x - 1, y) === T.DIRT) dmask |= 8;
-      if (dmask) g.drawImage(sprites.edge(tile, dmask, map.biome), x * TILE, y * TILE);
+      if (dmask) g.drawImage(sprites.edge(tile, dmask, map.biome), lx, ly);
     }
   }
+  ch.dirty = true;
 }
 
 function buildTerrain() {
   const s = map.size;
-  terrainCanvas = document.createElement('canvas');
-  terrainCanvas.width = s * TILE; terrainCanvas.height = s * TILE;
-  terrainG = terrainCanvas.getContext('2d');
-  terrainG.imageSmoothingEnabled = false;
+  disposeChunks(terrainChunks);
+  terrainChunks = makeChunkGrid(0);
   waterCells = [];
   waterFrame = 0; waterT = 0;
   for (let y = 0; y < s; y++) {
@@ -419,18 +474,17 @@ function buildTerrain() {
       if (map.terrain[i] === T.WATER && map.variant[i] !== V_ICE) waterCells.push([x, y]);
     }
   }
-  terrainQuad = new SpriteQuad(scene, terrainCanvas, s, s, 0);
-  terrainQuad.mesh.position.set(s / 2, -s / 2, 0);
+  flushChunks(terrainChunks);
   buildClouds();
 }
 
-// redraw only the water cells into the terrain canvas for the next frame,
-// then flag the texture — no full-map rebake, no per-frame scan
+// redraw only the water cells for the next frame, then re-upload only the
+// chunks they live in — no full-map rebake, no map-sized texture upload
 function stepWater() {
   if (!waterCells.length) return;
   waterFrame = (waterFrame + 1) % 4;
   for (const [x, y] of waterCells) paintTerrainCell(x, y);
-  terrainQuad.tex.needsUpdate = true;
+  flushChunks(terrainChunks);
 }
 
 // three big soft cloud shadows drifting across the map on their own vectors,
@@ -467,30 +521,41 @@ function stepClouds(dt) {
   }
 }
 
-function buildOreLayer() {
-  const s = map.size;
-  oreCanvas = document.createElement('canvas');
-  oreCanvas.width = s * TILE; oreCanvas.height = s * TILE;
-  oreG = oreCanvas.getContext('2d');
-  oreG.imageSmoothingEnabled = false;
-  redrawOre();
-  oreQuad = new SpriteQuad(scene, oreCanvas, s, s, 0.05);
-  oreQuad.mesh.position.set(s / 2, -s / 2, 0.05);
+function paintOreCell(x, y) {
+  const ch = chunkAt(oreChunks, x, y);
+  const lx = (x % CHUNK) * TILE, ly = (y % CHUNK) * TILE;
+  ch.g.clearRect(lx, ly, TILE, TILE);
+  const d = map.oreDensity(x, y);
+  if (d > 0) {
+    const set = map.gem[map.idx(x, y)] ? sprites.gem : sprites.ore;
+    ch.g.drawImage(set[d - 1], lx, ly);
+  }
+  ch.dirty = true;
 }
 
-function redrawOre() {
+function buildOreLayer() {
   const s = map.size;
-  oreG.clearRect(0, 0, oreCanvas.width, oreCanvas.height);
+  disposeChunks(oreChunks);
+  oreChunks = makeChunkGrid(0.05);
+  lastOre = new Uint16Array(map.ore);
   for (let y = 0; y < s; y++) {
     for (let x = 0; x < s; x++) {
-      const d = map.oreDensity(x, y);
-      if (d > 0) {
-        const set = map.gem[map.idx(x, y)] ? sprites.gem : sprites.ore;
-        oreG.drawImage(set[d - 1], x * TILE, y * TILE);
-      }
+      if (map.ore[map.idx(x, y)] > 0) paintOreCell(x, y);
     }
   }
-  if (oreQuad) oreQuad.setCanvas(oreCanvas);
+  flushChunks(oreChunks);
+}
+
+// repaint only the cells whose ore value changed since the last pass and
+// re-upload only their chunks — mining no longer costs a map-sized upload
+function redrawOre() {
+  const s = map.size;
+  for (let i = 0; i < s * s; i++) {
+    if (map.ore[i] === lastOre[i]) continue;
+    lastOre[i] = map.ore[i];
+    paintOreCell(i % s, (i / s) | 0);
+  }
+  flushChunks(oreChunks);
 }
 
 function buildFog() {
@@ -521,7 +586,7 @@ function redrawFog() {
     }
   }
   fogG.globalAlpha = 1;
-  fogQuad.setCanvas(fogCanvas);
+  fogQuad.touch();
 }
 
 // -------------------------------------------------------------- entities --
@@ -530,14 +595,21 @@ function disposeEntityView(v) {
   for (const q of Object.values(v.quads)) q.dispose(scene);
 }
 
+// health bars are bucketed and cached: one shared canvas per width step, so
+// per-frame updates cost nothing unless the bucket (and thus canvas) changes
+const healthBarCache = [];
 function healthBarCanvas(frac) {
-  const [c, g] = [document.createElement('canvas'), null];
+  const bucket = Math.max(0, Math.min(24, Math.round(frac * 24)));
+  if (healthBarCache[bucket]) return healthBarCache[bucket];
+  const f = bucket / 24;
+  const c = document.createElement('canvas');
   c.width = 26; c.height = 4;
   const ctx = c.getContext('2d');
   ctx.fillStyle = '#111'; ctx.fillRect(0, 0, 26, 4);
-  const w = Math.max(1, Math.round(24 * frac));
-  ctx.fillStyle = frac > 0.6 ? '#3fbf4d' : frac > 0.3 ? '#e0c53a' : '#d64f2a';
+  const w = Math.max(1, Math.round(24 * f));
+  ctx.fillStyle = f > 0.6 ? '#3fbf4d' : f > 0.3 ? '#e0c53a' : '#d64f2a';
   ctx.fillRect(1, 1, w, 2);
+  healthBarCache[bucket] = c;
   return c;
 }
 
@@ -1463,7 +1535,7 @@ function frame(now) {
   const halted = paused || menuOpen;
   if (!halted && !game.over) {
     game.tick(dt * speedFactor);
-    for (const a of ais) a.tick(dt * speedFactor);
+    if (!aiHalted) for (const a of ais) a.tick(dt * speedFactor);
     // periodic autosave (wall-clock, so it's independent of game speed)
     saveT += dt;
     if (saveT >= 30) { saveT = 0; autosave(); }
@@ -1581,6 +1653,8 @@ window.__game_test = {
       const key = Object.keys(SIZES).find((k) => SIZES[k] === p.size);
       if (key) p.size = key; else delete p.size;
     }
+    // optional fixed seed for reproducible balance/economy runs
+    if (typeof p.seed === 'number') { previewSeed = p.seed | 0; delete p.seed; }
     Object.assign(setup, p);
     hideScreens();
     setSidebar(true);
@@ -1596,6 +1670,115 @@ window.__game_test = {
   conyards: () => game.buildings.filter((b) => !b.dead && b.key === 'conyard').length,
   // accelerate the sim clock for headless soak tests (1 = real time)
   setSpeed: (n) => { speedFactor = Math.max(0.25, Math.min(8, n)); return speedFactor; },
+  // freeze/thaw AI thinking so duel arenas run without opponents interfering
+  aiPause: (on = true) => { aiHalted = !!on; return aiHalted; },
+  // advance the sim a fixed number of steps at a fixed dt — deterministic and
+  // decoupled from wall-clock frame pacing, so balance duels are repeatable.
+  // Respects aiPause: AI only thinks when not halted.
+  stepSim: (dt, steps) => {
+    for (let i = 0; i < steps; i++) {
+      if (game.over) break;
+      game.tick(dt);
+      if (!aiHalted) for (const a of ais) a.tick(dt);
+    }
+    return Math.round(game.time * 10) / 10;
+  },
+  // carve a pristine open arena: pick a centre far from both bases, then strip
+  // ore/blockers/occupants and remove any building (incl. neutral depots) in a
+  // W x H rectangle so duel combatants get flat, obstacle-free ground. Returns
+  // the centre. Only touches passable terrain, so water/cliffs stay impassable.
+  clearArena: (w = 28, h = 11) => {
+    const m = game.map;
+    // centre: the map middle nudged away from the nearest conyard
+    const cons = game.buildings.filter((b) => !b.dead && b.key === 'conyard');
+    let cx = Math.floor(m.size / 2), cy = Math.floor(m.size / 2);
+    const hw = Math.floor(w / 2), hh = Math.floor(h / 2);
+    cx = Math.max(hw + 1, Math.min(m.size - hw - 2, cx));
+    cy = Math.max(hh + 1, Math.min(m.size - hh - 2, cy));
+    // remove any building overlapping the rectangle
+    for (const b of [...game.buildings]) {
+      if (b.dead) continue;
+      if (b.cx < cx + hw && b.cx + b.def.w > cx - hw && b.cy < cy + hh && b.cy + b.def.h > cy - hh) {
+        game.destroyBuilding(b, null, true);
+      }
+    }
+    for (let y = cy - hh; y <= cy + hh; y++) {
+      for (let x = cx - hw; x <= cx + hw; x++) {
+        if (!m.inBounds(x, y)) continue;
+        const i = m.idx(x, y);
+        m.ore[i] = 0; m.gem[i] = 0;
+        if (m.isPassableTerrain(x, y)) m.blocked[i] = 0;
+        if (m.occupant[i] && m.occupant[i].isUnit !== true) m.occupant[i] = null;
+      }
+    }
+    game.oreDirty = true; game.visionDirty = true;
+    return [cx, cy];
+  },
+  // remove a single unit from the field (clean up between duel arenas)
+  killUnit: (id) => {
+    const u = game.units.find((x) => x.id === id);
+    if (!u || u.dead) return false;
+    const m = game.map;
+    m.occupant[m.idx(u.cellX, u.cellY)] = null;
+    if (u.reserved) m.occupant[m.idx(u.reserved[0], u.reserved[1])] = null;
+    u.dead = true;
+    game.units = game.units.filter((x) => !x.dead);
+    return true;
+  },
+  // order unit id to attack a specific target unit id (focused duels)
+  attackId: (id, tid) => {
+    const u = game.units.find((x) => !x.dead && x.id === id);
+    const t = game.units.find((x) => !x.dead && x.id === tid);
+    if (!u || !t) return false;
+    game.orderAttack(u, t);
+    return true;
+  },
+  // order unit id to attack a specific building at cell (tx,ty)
+  attackBuildingAt: (id, tx, ty) => {
+    const u = game.units.find((x) => !x.dead && x.id === id);
+    const b = game.buildings.find((x) => !x.dead && tx >= x.cx && ty >= x.cy && tx < x.cx + x.def.w && ty < x.cy + x.def.h);
+    if (!u || !b) return false;
+    game.orderAttack(u, b);
+    return true;
+  },
+  // remove the exact building covering cell (tx,ty) — clean up duel arenas
+  removeBuildingAt: (tx, ty) => {
+    const b = game.buildings.find((x) => !x.dead && tx >= x.cx && ty >= x.cy && tx < x.cx + x.def.w && ty < x.cy + x.def.h);
+    if (!b) return false;
+    game.destroyBuilding(b, null, true);
+    return true;
+  },
+  // is a building at cell (tx,ty) still standing?
+  buildingAliveAt: (tx, ty) =>
+    game.buildings.some((b) => !b.dead && tx >= b.cx && ty >= b.cy && tx < b.cx + b.def.w && ty < b.cy + b.def.h),
+  // combat/economy telemetry for the AI soak + economy-tuning runs
+  stats: (house) => {
+    const p = game.players[house];
+    if (!p) return null;
+    const buildings = game.buildings.filter((b) => !b.dead && b.owner === p);
+    const army = game.units.filter((u) => !u.dead && u.owner === p && u.def.weapon && !u.def.harvester);
+    return {
+      credits: Math.round(p.credits),
+      killed: p.stats.killed, lost: p.stats.lost, built: p.stats.built,
+      armyBuilt: p.stats.armyBuilt || 0,
+      buildings: buildings.length,
+      hasFactory: buildings.some((b) => b.key === 'factory'),
+      army: army.length,
+      harvesters: game.units.filter((u) => !u.dead && u.owner === p && u.def.harvester).length,
+    };
+  },
+  // per-AI live wave/apc snapshot (extends aiInfo for the mechanics test)
+  aiApcInfo: () => ais.map((a) => {
+    const apcs = game.units.filter((u) => !u.dead && u.owner === a.p && u.key === 'apc');
+    return {
+      house: a.p.house, level: a.level, personality: a.personality,
+      apcs: apcs.length,
+      apcCargo: apcs.reduce((n, u) => n + (u.cargoUnits ? u.cargoUnits.length : 0), 0),
+      apcEverLoaded: a.apcEverLoaded || false,
+      apcEverUnloaded: a.apcEverUnloaded || false,
+      retreated: a.retreatedCount || 0,
+    };
+  }),
   attack: () => {
     for (const u of game.units) {
       if (u.house !== 'player' || !u.def.weapon) continue;
@@ -1682,6 +1865,15 @@ window.__game_test = {
     needRefinery: a.needRefinery,
     buildings: game.buildings.filter((b) => !b.dead && b.owner === a.p).map((b) => b.key),
   })),
+  // force a difficulty level on an AI (drives the hard-only retreat test)
+  setAiLevel: (house, level) => {
+    const a = ais.find((x) => x.p.house === house);
+    if (!a) return false;
+    a.level = level;
+    a.baseKnobs = AI_LEVELS[level] || a.baseKnobs;
+    a.applyPersonality(a.personality);
+    return a.level;
+  },
   // force a personality on an AI (isolates difficulty in comparison tests)
   setPersonality: (house, name) => {
     const a = ais.find((a) => a.p.house === house);
