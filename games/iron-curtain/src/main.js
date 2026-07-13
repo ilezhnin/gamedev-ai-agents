@@ -1046,6 +1046,9 @@ function closeMenu() {
   menuOpen = false;
   if (input) input.blocked = false;
   elMenu.classList.remove('open');
+  // RESUME must also lift a P-key pause, else the sim stays frozen
+  paused = false;
+  elPaused.style.display = 'none';
 }
 
 function quitToTitle() {
