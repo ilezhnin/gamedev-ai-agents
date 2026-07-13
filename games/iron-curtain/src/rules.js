@@ -16,7 +16,7 @@ export const WARHEADS = {
 export const WEAPONS = {
   m1rifle:   { damage: 8,  rof: 0.55, range: 4,   warhead: 'bullet', projectile: 'tracer', sound: 'rifle' },
   towerGun:  { damage: 14, rof: 0.7,  range: 5,   warhead: 'bullet', projectile: 'tracer', sound: 'mg' },
-  bazooka:   { damage: 26, rof: 1.5,  range: 5,   warhead: 'rocket', projectile: 'rocket', speed: 6, sound: 'rocket' },
+  bazooka:   { damage: 36, rof: 1.5,  range: 5,   warhead: 'rocket', projectile: 'rocket', speed: 6, sound: 'rocket' },
   cannon75:  { damage: 28, rof: 1.5,  range: 4.75, warhead: 'shell', projectile: 'shell', speed: 9, sound: 'cannon' },
   cannon105: { damage: 42, rof: 2.1,  range: 4.75, warhead: 'shell', projectile: 'shell', speed: 9, sound: 'cannon' },
   teslaZap:  { damage: 110, rof: 3.2, range: 6,   warhead: 'zap', projectile: 'zap', sound: 'tesla' },

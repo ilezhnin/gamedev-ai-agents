@@ -36,7 +36,7 @@ export class Player {
     // production: one active item per strip type
     this.prod = { building: null, unit: null };
     this.readyBuilding = null;        // {key} waiting for placement
-    this.stats = { built: 0, lost: 0, killed: 0, harvested: 0 };
+    this.stats = { built: 0, armyBuilt: 0, lost: 0, killed: 0, harvested: 0 };
   }
 
   lowPower() { return this.powerUsed > this.powerMade; }
@@ -273,6 +273,7 @@ export class Game {
     if (!exit) { owner.credits += def.cost; return; }
     const u = this.addUnit(owner, key, exit[0], exit[1]);
     owner.stats.built++;
+    if (def.weapon && !def.harvester) owner.stats.armyBuilt++;   // army-production tally
     if (owner.isHuman) { this.audio.sfx('ready'); this.audio.say('Unit ready'); }
     if (def.harvester) this.orderHarvest(u);
     else if (fac.rally) this.orderMove(u, fac.rally[0], fac.rally[1]);
@@ -807,13 +808,16 @@ export class Game {
   }
 
   // area-of-effect: full damage at the impact cell, a fraction out to the
-  // splash radius. friendly fire is on, classic-style.
+  // splash radius. Same-owner entities are spared — full classic friendly fire
+  // made siege units (artillery, rocket trucks) shred their own melee escorts,
+  // which wrecked AI pushes; sparing allies keeps AoE a clean anti-blob tool.
   applySplash(x, y, w, src) {
     const rad = w.splash;
     const inner = 0.7;               // "impact cell" gets full damage
     const factor = w.splashFactor ?? 0.4;
     const hit = (e, ex, ey) => {
       if (e.dead || e.boarded) return;
+      if (src && e.owner === src.owner) return;   // no splash on friendlies
       const d = Math.hypot(ex - x, ey - y);
       if (d > rad) return;
       this.dealDamage(e, w, src, d <= inner ? 1 : factor);

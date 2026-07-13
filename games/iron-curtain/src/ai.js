@@ -14,12 +14,17 @@ import { BUILDINGS, UNITS } from './rules.js';
 import { nearestFree } from './pathfind.js';
 
 // balanced base build order — personalities remix this
+// Build orders BEELINE the war factory: power -> refinery -> barracks ->
+// factory, deferring the second power plant until after it. One power plant
+// covers the early base (barracks+refinery+factory), so buying the 2nd power
+// first only drained the starting credits and stalled the factory for ~90s on
+// income-thin seeds. Factory-first pays for it from the 5000 opening bank.
 const BUILD_ORDERS = {
-  balanced: ['power', 'refinery', 'barracks', 'power', 'factory', 'guard', 'radar', 'techcenter', 'guard', 'power', 'tesla', 'silo'],
+  balanced: ['power', 'refinery', 'barracks', 'factory', 'power', 'radar', 'guard', 'techcenter', 'guard', 'power', 'tesla', 'silo'],
   // rusher: barracks + factory fast, almost no static defence
-  rusher:   ['power', 'refinery', 'barracks', 'power', 'factory', 'radar', 'guard', 'techcenter', 'power', 'silo'],
-  // turtle: rings of towers before it ever pushes
-  turtle:   ['power', 'refinery', 'barracks', 'guard', 'power', 'factory', 'flametower', 'guard', 'radar', 'tesla', 'techcenter', 'guard', 'power', 'tesla', 'flametower', 'silo'],
+  rusher:   ['power', 'refinery', 'barracks', 'factory', 'radar', 'power', 'guard', 'techcenter', 'power', 'silo'],
+  // turtle: one early guard, then the factory, then rings of towers
+  turtle:   ['power', 'refinery', 'barracks', 'guard', 'factory', 'power', 'flametower', 'guard', 'radar', 'tesla', 'techcenter', 'guard', 'power', 'tesla', 'flametower', 'silo'],
 };
 
 const TRAIN_PATTERNS = {
@@ -66,6 +71,10 @@ export class AI {
     this.harassCd = 0;              // cooldown between harasser dispatches
     this.econT = 0;                 // throttle for the local-ore map scan
     this.depotCd = 20;              // cooldown between depot-capture pushes
+    this.apcCd = 30;                // cooldown between APC-transport builds
+    this.apcEverLoaded = false;     // telemetry: has an APC ever carried troops
+    this.apcEverUnloaded = false;   // telemetry: has an APC dropped troops on target
+    this.retreatedCount = 0;        // telemetry: low-hp vehicles pulled from a fight
     this.needRefinery = false;
     this.refineryAnchor = null;     // [x,y] richest field to expand toward
     this.wallsBuilt = 0;
@@ -175,6 +184,8 @@ export class AI {
     this.manageHarvesterDefense();
     this.manageDefense();
     this.manageDepotCapture(step);
+    this.manageApc(step);
+    this.manageRetreat();
     this.manageWave(step);
     if (this.waveT <= 0 && !this.wave) this.launchWave();
   }
@@ -206,6 +217,13 @@ export class AI {
       g.startProduction(p, 'building', 'refinery');
       return;
     }
+    // once the factory is up, hold a buffer back from each further structure so
+    // income keeps funding a second ore truck and the army instead of being
+    // swallowed whole by the tech/defence build order — plowing greedily through
+    // radar/techcenter/tesla was leaving modest-income seeds with one harvester
+    // and a single soldier.
+    const hasFactoryC = count('factory') > 0;
+    const luxuryBuffer = hasFactoryC ? 800 : 0;
     // follow the build order
     while (this.buildIx < this.buildOrder.length) {
       const key = this.buildOrder[this.buildIx];
@@ -214,7 +232,7 @@ export class AI {
         continue;
       }
       if (!g.canProduce(p, 'building', key)) return; // wait for tech
-      if (p.credits < BUILDINGS[key].cost * this.d.save) return; // save up
+      if (p.credits < BUILDINGS[key].cost * this.d.save + luxuryBuffer) return; // save up (keep army buffer)
       g.startProduction(p, 'building', key);
       this.buildIx++;
       return;
@@ -297,8 +315,18 @@ export class AI {
       g.startProduction(p, 'unit', 'harvester');
       return;
     }
-    const army = myUnits.filter((u) => u.def.weapon).length;
+    const army = myUnits.filter((u) => u.def.weapon && !u.def.harvester).length;
     if (army >= this.d.armyCap) return; // cap the horde
+    // economy-first: past a small early guard, hold the horde until BOTH the war
+    // factory and a full stable of ore trucks are up — the opening bank should
+    // buy the factory (not a doomed rush of rifles) and income should ramp
+    // before army spend. This is safe from the old deadlock because the build
+    // order only *buffers* credits (see luxuryBuffer above), never fully halts,
+    // so the second truck always gets funded and the army resumes right after.
+    const hasFactory = g.buildings.some((b) => !b.dead && b.owner === p && b.key === 'factory');
+    const earlyGuard = this.personality === 'turtle' ? 3 : 4;
+    if (army >= earlyGuard && !hasFactory) return;   // save the opening bank for the factory
+    if (army >= earlyGuard && refineries > 0 && harvesters < wantHarvesters) return; // stock trucks first
     if (p.credits < 500) return;
     // walk the pattern; skip entries we can't build yet
     for (let tries = 0; tries < this.trainPattern.length; tries++) {
@@ -459,10 +487,82 @@ export class AI {
     if (eng) { g.orderCapture(eng, depot); return; }
     // otherwise train one, throttled, and only if none is already in play
     if (this.depotCd > 0 || p.prod.unit) return;
-    if (!g.canProduce(p, 'unit', 'engineer') || p.credits < UNITS.engineer.cost + 400) return;
+    if (!g.canProduce(p, 'unit', 'engineer') || p.credits < UNITS.engineer.cost + 700) return;
     if (g.units.some((u) => !u.dead && u.owner === p && u.key === 'engineer')) return;
     g.startProduction(p, 'unit', 'engineer');
     this.depotCd = 60;
+  }
+
+  // APC transport (normal/hard): keep one troop carrier around, load it with a
+  // few riflemen, and let it ride along with the next wave to disgorge them on
+  // the objective's doorstep. Wiring is deliberately simple — build one, fill
+  // it near home, and unload when the wave gets within 6 cells of the target.
+  manageApc(step) {
+    if (this.level === 'easy') return;
+    this.apcCd -= step;
+    const g = this.game, p = this.p;
+    const apcs = g.units.filter((u) => !u.dead && u.owner === p && u.key === 'apc');
+
+    // build a single APC once the army has bodies worth ferrying
+    if (apcs.length === 0) {
+      const inf = g.units.filter((u) => !u.dead && u.owner === p &&
+        u.def.kind === 'infantry' && u.def.weapon && u.key !== 'engineer').length;
+      if (this.apcCd <= 0 && !p.prod.unit && inf >= 3 &&
+          g.canProduce(p, 'unit', 'apc') && p.credits >= UNITS.apc.cost + 500 &&
+          g.rng() < 0.5) {
+        g.startProduction(p, 'unit', 'apc');
+        this.apcCd = 100;
+      }
+      return;
+    }
+
+    // fill any spare (uncommitted, on-map) APC from nearby idle infantry
+    for (const apc of apcs) {
+      if (apc.cargoUnits && apc.cargoUnits.length > 0) this.apcEverLoaded = true;
+      if (this.attackers.has(apc.id)) continue;
+      const cap = Math.min(apc.def.capacity || 0, 4);
+      if (!apc.cargoUnits || apc.cargoUnits.length >= cap) continue;
+      if (apc.order.type !== 'idle' && apc.order.type !== 'move') continue;
+      const riders = [];
+      for (const u of g.units) {
+        if (u.dead || u.owner !== p || u.boarded) continue;
+        if (u.def.kind !== 'infantry' || !u.def.weapon || u.key === 'engineer') continue;
+        if (this.attackers.has(u.id) || u.order.type === 'board') continue;
+        if (Math.hypot(u.x - apc.x, u.y - apc.y) > 20) continue;
+        riders.push(u);
+      }
+      riders.sort((a, b) => Math.hypot(a.x - apc.x, a.y - apc.y) - Math.hypot(b.x - apc.x, b.y - apc.y));
+      const want = cap - apc.cargoUnits.length;
+      for (let i = 0; i < want && i < riders.length; i++) g.orderBoard(riders[i], apc);
+    }
+  }
+
+  // hard AI only: a vehicle bled below 25% hp and locally outnumbered breaks
+  // contact and drives home, out of the losing fight (no repair depot needed —
+  // it simply survives to fight another day). Healthy again, it re-enlists.
+  manageRetreat() {
+    if (this.level !== 'hard') return;
+    const g = this.game, p = this.p;
+    const [bx, by] = this.baseCentroid();
+    for (const u of g.units) {
+      if (u.dead || u.owner !== p || u.def.kind !== 'vehicle' || !u.def.weapon || u.def.harvester) continue;
+      if (u.retreating && u.hp > u.maxHp * 0.45) u.retreating = false;   // recovered: rejoin
+      if (u.retreating || u.hp > u.maxHp * 0.25) continue;
+      // locally outnumbered? tally armed units within 8 cells
+      let foes = 0, friends = 0;
+      for (const e of g.units) {
+        if (e.dead || !e.def.weapon || e.boarded) continue;
+        if (Math.hypot(e.x - u.x, e.y - u.y) > 8) continue;
+        if (e.owner === p) friends++; else foes++;
+      }
+      if (foes <= friends) continue;   // holding or winning: stand ground
+      u.retreating = true;
+      this.attackers.delete(u.id);
+      if (this.wave) this.wave.members.delete(u.id);
+      const spot = nearestFree(g.map, Math.round(bx), Math.round(by), u) || [Math.round(bx), Math.round(by)];
+      g.orderMove(u, spot[0], spot[1]);
+      this.retreatedCount++;
+    }
   }
 
   // -------------------------------------------------------------- wave logic --
@@ -470,8 +570,8 @@ export class AI {
   launchWave() {
     const g = this.game, p = this.p;
     const idle = g.units.filter((u) =>
-      !u.dead && u.owner === p && u.def.weapon && !this.attackers.has(u.id) &&
-      (u.order.type === 'idle' || u.order.type === 'move'));
+      !u.dead && u.owner === p && u.def.weapon && !u.boarded && !u.retreating &&
+      !this.attackers.has(u.id) && (u.order.type === 'idle' || u.order.type === 'move'));
     // don't strip the base bare: attack only once there's a real squad
     if (idle.length < this.waveSize + 2) { this.waveT = 8; return; } // retry soon
 
@@ -553,6 +653,13 @@ export class AI {
     const [ox, oy] = obj.isUnit ? [obj.cellX, obj.cellY] : obj.centre();
     w.tx = Math.round(ox); w.ty = Math.round(oy);
     for (const u of alive) {
+      // a laden APC disgorges its troops once it reaches the objective's porch
+      if (u.key === 'apc' && u.cargoUnits && u.cargoUnits.length &&
+          Math.hypot(u.x - w.tx, u.y - w.ty) <= 6) {
+        g.orderUnload(u);
+        this.apcEverUnloaded = true;
+        continue;
+      }
       if (u.order.type === 'idle') g.orderAttackMove(u, w.tx, w.ty);
     }
   }

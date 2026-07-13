@@ -64,15 +64,36 @@ runs fully offline.
     a spotter and a screen of armour.
   - **Rocket Truck** — fast launcher that looses a staggered salvo of four
     splash rockets.
+  - **APC** — a boxy armoured transport with a light MG. Carries up to **4
+    infantry**: right-click it with foot soldiers selected to load them
+    (they climb aboard and leave the map), then `B` — or right-click the
+    ground — to unload them onto the cells around it. The cargo dies with the
+    APC, so escort it.
   - **Behemoth Tank** — super-heavy twin-cannon monster; needs a **Tech
     Center** to build.
+- **Veterancy**: any unit with a weapon banks experience equal to the cost of
+  what it destroys (the killing blow credits the shooter). At 1× and 3× its own
+  cost it earns a rank — one then two gold chevrons over its health bar. Rank 1
+  hits 15% harder; rank 2 hits 30% harder **and** carries 25% more max hp
+  (healed on promotion). The selection panel flags **VETERAN**/**ELITE**.
+- **Neutral supply depots**: 2–4 crate-and-fuel-drum caches sit in the
+  contested middle of every map (white on the radar). Send an **engineer** to
+  capture one and it trickles a modest **+6 credits/sec** while you hold it —
+  and the enemy can storm in and take it back, or level it for good.
+- **Commander powers**: owning a **Tech Center** unlocks two targeted
+  abilities (two buttons above the sidebar strips, each with a radial
+  cooldown): **RECON SWEEP** (90s) lifts the fog over a radius-8 area for 10
+  seconds, and **EMP BLAST** (150s) zaps a radius-4 zone, freezing enemy
+  vehicles and defence towers for 8 seconds.
 - **Defenses & structures**: guard tower, tesla coil, **flame tower**
   (short-range fire jet that melts infantry), **concrete walls** (cheap
   fire-and-forget blockers that stop armour until shelled down) and the
-  **Tech Center** that unlocks the behemoth.
-- **Splash & fire**: area-of-effect shells/rockets hurt everything near the
-  blast (friendly fire included), and a dedicated fire warhead makes flame
-  brutal against troops but feeble against tanks.
+  **Tech Center** that unlocks the behemoth and the commander powers above.
+- **Splash & fire**: area-of-effect shells/rockets shred anything hostile near
+  the blast (your own troops are spared, so artillery stays a clean anti-blob
+  tool instead of mulching its own escort), and a dedicated fire warhead makes
+  flame brutal against troops but feeble against tanks. Rocket troopers are the
+  dedicated tank-hunters — cost-for-cost their bazookas out-trade light armour.
 - **Radar dome** enables the minimap (click it to navigate); its dish
   visibly sweeps while online.
 - **Fog of war** with explored-but-stale dimming.
@@ -93,14 +114,19 @@ runs fully offline.
 - **Skirmish AI** with rolled **personalities** — a *rusher* (cheap early
   swarms, minimal defence), a *turtle* (rings of towers and walls, later but
   bigger waves) or a *balanced* brain — layered on top of the EASY/NORMAL/HARD
-  difficulty knobs. It expands (a second refinery when its home field runs
-  dry), rebuilds losses, **repairs** damaged key structures, keeps 2 ore
-  trucks per refinery, rushes guards to a harvester under fire, and even
-  redeploys a fresh MCV if its construction yard is destroyed. Attacks come
-  as **staged waves**: the squad gathers at a rally point, pushes the enemy
-  economy together, and retreats to rejoin the defence if it's shattered. It
-  never cheats on prices or income. Multiple CPUs fight each other too — it's
-  a free-for-all.
+  difficulty knobs. It **beelines a war factory** off its opening bank (so its
+  economy never stalls before the tanks roll), expands (a second refinery when
+  its home field runs dry), rebuilds losses, **repairs** damaged key
+  structures, keeps 2 ore trucks per refinery, rushes guards to a harvester
+  under fire, and even redeploys a fresh MCV if its construction yard is
+  destroyed. On normal/hard it also **ferries a squad in an APC** — loading
+  riflemen at home and disgorging them on the objective during a push — grabs
+  a neutral **supply depot** with an engineer, and (on hard) **pulls wounded
+  vehicles out of a losing fight** to survive and regroup; turtles work a
+  **flame tower** into their defensive rings. Attacks come as **staged waves**:
+  the squad gathers at a rally point, pushes the enemy economy together, and
+  retreats to rejoin the defence if it's shattered. It never cheats on prices
+  or income. Multiple CPUs fight each other too — it's a free-for-all.
 - **Synthesized audio**: a 16-bit-console-style soundscape built from
   2-operator **FM voices** and PSG-style square/noise blips. Three original
   compositions drive a lookahead pattern sequencer — an ominous minor menu
@@ -121,10 +147,11 @@ runs fully offline.
 | Input | Action |
 |---|---|
 | LMB / drag | select / marquee select |
-| RMB | move · attack · capture (engineer → enemy building) · set rally (factory selected) |
+| RMB | move · attack · capture (engineer → enemy building/depot) · load infantry (→ own APC) · set rally (factory selected) |
 | `F` + click | attack-move |
 | `X` | stop |
-| `B` | deploy MCV |
+| `B` | deploy MCV · unload APC cargo |
+| tech-center power buttons | click, then click the map to aim RECON SWEEP / EMP BLAST |
 | `Ctrl+1..9` / `1..9` | set / recall control group |
 | WASD, arrows, wheel | scroll & zoom camera |
 | `H` `P` `M` | help · pause · music |
