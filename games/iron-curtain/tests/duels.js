@@ -107,7 +107,7 @@ const ECON_SEED = 42;
     window.__ARENA = { cx: c[0], cy: c[1] };
     return window.__ARENA;
   });
-  const CX = ARENA.cx, CY = ARENA.cy;
+  void ARENA;   // combatant coords are read browser-side from window.__ARENA
 
   // run one duel: arm() sets it up and returns ids, then we wait simSecs, then
   // read() reports the outcome. cleanup kills every combatant id afterwards.

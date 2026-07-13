@@ -239,19 +239,8 @@ function briefingText() {
 }
 
 function newGame() {
-  // tear down old views
-  for (const [, v] of entityViews) disposeEntityView(v);
-  entityViews.clear();
-  for (const v of fxViews.splice(0)) v.quad.dispose(scene);
-  for (const q of rallyFlags.splice(0)) q.dispose(scene);
-  for (const q of cloudQuads.splice(0)) q.dispose(scene);
-  for (const d of debris.splice(0)) d.quad.dispose(scene);
-  disposeChunks(terrainChunks);
-  disposeChunks(oreChunks);
-  if (fogQuad) { fogQuad.dispose(scene); fogQuad = null; }
-  knownBuildingIds = new Set();
-  shakeT = 0; shakeMag = 0;
-  while (scene.children.length) scene.remove(scene.children[0]);
+  // tear down old views (guards line-fx without .quad, projectiles, syncFx)
+  teardownScene();
 
   const size = SIZES[setup.size] || 64;
   const seed = previewSeed;   // what the setup preview showed is what we play

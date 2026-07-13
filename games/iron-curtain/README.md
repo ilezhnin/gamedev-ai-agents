@@ -179,8 +179,11 @@ the interface stays real-time.
 
 Headless tests live in `tests/` (playwright-core + chromium):
 `smoke.js` (boots a match, runs the sim), `content.js` (roster/tech checks),
-`layouts.js` (map layout × biome combos) and `saveload.js` (autosave, reload,
-CONTINUE resume). Run e.g. `node tests/saveload.js` — each prints `PASS`.
+`layouts.js` (map layout × biome combos), `saveload.js` (autosave, reload,
+CONTINUE resume), `depth.js` (veterancy / APC / depots / EMP) and `duels.js`
+(a unit-vs-unit balance matrix with role-expectation asserts, plus AI-vs-AI
+soak, idle-player economy and APC/retreat AI-mechanics checks). Run e.g.
+`node tests/duels.js` — each prints `PASS`.
 
 This is an original homage: game rules and art were written for this
 project and no assets, names, or content from any commercial game are used.
