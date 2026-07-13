@@ -28,6 +28,8 @@ export const WEAPONS = {
   twinCannon:{ damage: 40, rof: 3.2,  range: 5.25, warhead: 'shell', projectile: 'shell', speed: 9, salvo: 2, stagger: 0.12, sound: 'cannon' },
   // short-range flame projector: melts infantry, laughs at armour
   flameJet:  { damage: 35, rof: 1.4,  range: 3.5,  warhead: 'fire', projectile: 'flame', speed: 7, sound: 'flame' },
+  // APC pintle machine gun: light suppression fire, hull-mounted
+  apcMg:     { damage: 10, rof: 0.8,  range: 4,    warhead: 'bullet', projectile: 'tracer', sound: 'mg' },
 };
 
 // ---------------------------------------------------------------- units ----
@@ -67,6 +69,11 @@ export const UNITS = {
     name: 'BEHEMOTH TANK', kind: 'vehicle', cost: 1700, buildTime: 24,
     hp: 700, armor: ARMOR.HEAVY, speed: 1.5, turn: 4, sight: 5, weapon: 'twinCannon',
     producedAt: 'factory', size: 28, hasTurret: true, crusher: true, requires: ['techcenter'],
+  },
+  apc: {
+    name: 'APC', kind: 'vehicle', cost: 700, buildTime: 12,
+    hp: 300, armor: ARMOR.HEAVY, speed: 3.2, turn: 6, sight: 5, weapon: 'apcMg',
+    producedAt: 'factory', size: 20, crusher: true, capacity: 4,
   },
   engineer: {
     name: 'ENGINEER', kind: 'infantry', cost: 500, buildTime: 9,
@@ -147,10 +154,17 @@ export const BUILDINGS = {
     hp: 300, armor: ARMOR.CONCRETE, w: 1, h: 1, power: 0, sight: 1,
     isWall: true,
   },
+  // neutral map objective: crates + fuel drums an engineer can seize for a
+  // steady credit trickle. Never producible (placed at map generation).
+  depot: {
+    name: 'SUPPLY DEPOT', cost: 0, buildTime: 0,
+    hp: 600, armor: ARMOR.WOOD, w: 2, h: 2, power: 0, sight: 3,
+    unbuildable: true, isDepot: true, income: 6,
+  },
 };
 
 export const BUILD_ORDER_STRIP = ['power', 'refinery', 'barracks', 'factory', 'radar', 'techcenter', 'silo', 'guard', 'flametower', 'tesla', 'wall'];
-export const UNIT_STRIP = ['rifle', 'engineer', 'rocket', 'lightTank', 'artillery', 'rocketTruck', 'heavyTank', 'behemoth', 'harvester', 'mcv'];
+export const UNIT_STRIP = ['rifle', 'engineer', 'rocket', 'lightTank', 'apc', 'artillery', 'rocketTruck', 'heavyTank', 'behemoth', 'harvester', 'mcv'];
 
 export const ECONOMY = {
   startCredits: 5000,

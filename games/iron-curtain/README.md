@@ -73,8 +73,15 @@ runs fully offline.
 - **Splash & fire**: area-of-effect shells/rockets hurt everything near the
   blast (friendly fire included), and a dedicated fire warhead makes flame
   brutal against troops but feeble against tanks.
-- **Radar dome** enables the minimap (click it to navigate).
+- **Radar dome** enables the minimap (click it to navigate); its dish
+  visibly sweeps while online.
 - **Fog of war** with explored-but-stale dimming.
+- **A living battlefield**: grass/dirt tiles blend at their seams, water
+  animates, faint cloud shadows drift across the map, and every unit casts a
+  small ground shadow. Vehicles show rolling-tread shimmer while moving,
+  turrets recoil when they fire, and harvesters spin their intake while
+  scooping. Damaged buildings crack, blacken and smoke (harder the closer to
+  death), and big explosions fling debris and kick the camera.
 - **Repair & sell** buildings; factory rally points (select factory,
   right-click the ground) — a small flag marks the muster cell.
 - **Selection readout**: a bottom-left panel names a single selection with a
@@ -94,8 +101,14 @@ runs fully offline.
   economy together, and retreats to rejoin the defence if it's shattered. It
   never cheats on prices or income. Multiple CPUs fight each other too — it's
   a free-for-all.
-- **Synthesized audio**: WebAudio sfx, an original chiptune march (M to
-  toggle) and a robotic tactical-advisor voice via the browser speech API.
+- **Synthesized audio**: a 16-bit-console-style soundscape built from
+  2-operator **FM voices** and PSG-style square/noise blips. Three original
+  compositions drive a lookahead pattern sequencer — an ominous minor menu
+  march on the title/setup screens, a driving battle theme in-match, and
+  short victory/defeat stingers on the end screen (M to toggle music). Sound
+  effects are re-synthesized to sit under the music, with distinct
+  acknowledge blips for infantry vs vehicles, plus a robotic tactical-advisor
+  voice via the browser speech API.
 - Victory/defeat screens with a score sheet; every match generates a fresh
   procedural map from one of six layout templates (river/fords, seeded
   lakes, gapped rock ridges, central-lake islands, open steppe or a
@@ -117,8 +130,8 @@ runs fully offline.
 | `H` `P` `M` | help · pause · music |
 | `Esc` | cancel mode / clear selection, then pause menu (resume · settings · main menu) |
 
-Settings (audio volumes, advisor voice, game speed 0.5×–2×, camera speed,
-edge scroll) persist in `localStorage`. Game speed scales the simulation only;
+Settings (master / music / SFX volumes, advisor voice, game speed 0.5×–2×,
+camera speed, edge scroll) persist in `localStorage`. Game speed scales the simulation only;
 the interface stays real-time.
 
 ## Code map

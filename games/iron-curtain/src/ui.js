@@ -6,6 +6,7 @@ import { BUILDINGS, UNITS, BUILD_ORDER_STRIP, UNIT_STRIP } from './rules.js';
 import { makeCameo } from './sprites.js';
 import { HOUSE_UI } from './palette.js';
 import { T } from './map.js';
+import { RECON_CD, EMP_CD } from './game.js';
 
 export class UI {
   constructor(game, sprites, audio) {
@@ -27,11 +28,13 @@ export class UI {
       btnSell: document.getElementById('btn-sell'),
       help: document.getElementById('help'),
       tip: document.getElementById('cameo-tip'),
+      powers: document.getElementById('powers'),
       selPanel: document.getElementById('sel-panel'),
       selSingle: document.getElementById('sel-single'),
       selMulti: document.getElementById('sel-multi'),
       selIcon: document.getElementById('sel-icon'),
       selName: document.getElementById('sel-name'),
+      selExtra: document.getElementById('sel-extra'),
       selHpFill: document.getElementById('sel-hp-fill'),
     };
     this.cameos = {};              // key -> {root, clockCanvas, tag, badge, shade}
@@ -42,6 +45,7 @@ export class UI {
     this.selT = 0;
     this.bannerT = 0;
     this.buildStrips();
+    this.buildPowers();
     this.wireButtons();
     this.el.help.innerHTML =
       'LMB select / drag box &nbsp; RMB move / attack<br>' +
@@ -75,8 +79,70 @@ export class UI {
     this.mode = m;
     this.el.btnSell.classList.toggle('on', m === 'sell');
     this.el.btnRepair.classList.toggle('on', m === 'repair');
+    if (this.pw) {
+      this.pw.recon.root.classList.toggle('on', m === 'power-recon');
+      this.pw.emp.root.classList.toggle('on', m === 'power-emp');
+    }
     document.getElementById('viewport').style.cursor =
       m === 'sell' ? 'not-allowed' : m === 'repair' ? 'help' : 'crosshair';
+  }
+
+  // -------------------------------------------------------- commander powers --
+
+  // two square ability buttons above the strips (RECON SWEEP / EMP BLAST),
+  // shown only while the player owns a tech center, with a radial cooldown.
+  buildPowers() {
+    this.pw = {};
+    const mk = (id, key, iconCanvas, label) => {
+      const root = document.createElement('div');
+      root.className = 'power-btn cooling';
+      root.id = id;
+      this.el.powers.appendChild(root);
+      const icon = document.createElement('canvas');
+      icon.width = 48; icon.height = 36; icon.className = 'pw-icon';
+      icon.getContext('2d').drawImage(iconCanvas, 0, 0);
+      root.appendChild(icon);
+      const clock = document.createElement('canvas');
+      clock.width = 48; clock.height = 36; clock.className = 'pw-clock';
+      root.appendChild(clock);
+      const tag = document.createElement('div'); tag.className = 'pw-tag';
+      tag.textContent = label;
+      root.appendChild(tag);
+      root.addEventListener('click', () => this.onPowerClick(key));
+      this.pw[key] = { root, clock, clockG: clock.getContext('2d'), tag, label };
+    };
+    mk('pw-recon', 'recon', this.sprites.powerIcons.recon, 'RECON');
+    mk('pw-emp', 'emp', this.sprites.powerIcons.emp, 'EMP');
+  }
+
+  onPowerClick(key) {
+    const g = this.game;
+    const cd = key === 'recon' ? g.reconCd : g.empCd;
+    if (cd > 0) { this.audio.sfx('nofunds'); return; }
+    const mode = key === 'recon' ? 'power-recon' : 'power-emp';
+    this.setMode(this.mode === mode ? 'normal' : mode);
+    this.audio.sfx('select');
+  }
+
+  updatePower(key, cd, max) {
+    const c = this.pw[key];
+    const cooling = cd > 0.05;
+    c.root.classList.toggle('cooling', cooling);
+    const gg = c.clockG;
+    gg.clearRect(0, 0, 48, 36);
+    if (cooling) {
+      const frac = 1 - cd / max;
+      gg.fillStyle = 'rgba(0,0,0,0.62)';
+      gg.beginPath();
+      gg.moveTo(24, 18);
+      const a0 = -Math.PI / 2 + frac * Math.PI * 2;
+      gg.arc(24, 18, 40, a0, Math.PI * 1.5);
+      gg.closePath();
+      gg.fill();
+      c.tag.textContent = `${Math.ceil(cd)}s`;
+    } else {
+      c.tag.textContent = c.label;
+    }
   }
 
   // ------------------------------------------------------------- cameos ---
@@ -202,7 +268,7 @@ export class UI {
   // Small bottom-left readout of the current selection: single shows a cameo
   // icon + name + hp bar; multiple shows a per-type tally. Throttled to ~5fps.
   updateSelPanel(selection) {
-    const sel = (selection || []).filter((e) => !e.dead);
+    const sel = (selection || []).filter((e) => !e.dead && !e.boarded);
     if (!sel.length) { this.el.selPanel.style.display = 'none'; return; }
     this.el.selPanel.style.display = 'block';
     if (sel.length === 1) {
@@ -211,6 +277,15 @@ export class UI {
       this.el.selMulti.style.display = 'none';
       this.drawSelIcon(e);
       this.el.selName.textContent = e.def.name;
+      // extra line: veterancy rank and/or APC cargo count
+      let extra = '';
+      if (e.isUnit && e.rank > 0) extra += e.rank >= 2 ? 'ELITE ★★' : 'VETERAN ★';
+      if (e.isUnit && e.def.capacity) {
+        const n = e.cargoUnits ? e.cargoUnits.length : 0;
+        extra += (extra ? '  ' : '') + `CARGO ${n}/${e.def.capacity}`;
+      }
+      this.el.selExtra.textContent = extra;
+      this.el.selExtra.style.display = extra ? 'block' : 'none';
       const frac = Math.max(0, e.hp / e.maxHp);
       this.el.selHpFill.style.width = `${frac * 100}%`;
       this.el.selHpFill.style.background =
@@ -293,6 +368,16 @@ export class UI {
       c.shade.style.display = 'none';
     }
 
+    // commander powers: only while a tech center stands
+    const hasTech = g.buildings.some((b) => !b.dead && b.owner === p && b.key === 'techcenter');
+    this.el.powers.classList.toggle('hidden', !hasTech);
+    if (hasTech) {
+      this.updatePower('recon', g.reconCd, RECON_CD);
+      this.updatePower('emp', g.empCd, EMP_CD);
+    } else if (this.mode === 'power-recon' || this.mode === 'power-emp') {
+      this.setMode('normal');   // tech center lost mid-target
+    }
+
     // radar
     this.radarT -= dt;
     const radarOn = p.hasRadar && !p.lowPower();
@@ -358,7 +443,9 @@ export class UI {
     for (const b of g.buildings) {
       if (b.dead) continue;
       if (b.house !== 'player' && !b.seen && !g.isVisibleToPlayer(b)) continue;
-      ctx.fillStyle = (HOUSE_UI[b.house] || HOUSE_UI.enemy).building;
+      // neutral supply depots blip white; owned ones take the owner's colour
+      ctx.fillStyle = (b.def.isDepot && b.house === 'neutral')
+        ? '#dfe6ea' : (HOUSE_UI[b.house] || HOUSE_UI.enemy).building;
       ctx.fillRect(b.cx * scale, b.cy * scale, Math.max(2, b.def.w * scale), Math.max(2, b.def.h * scale));
     }
     for (const u of g.units) {

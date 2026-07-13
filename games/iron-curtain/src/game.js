@@ -11,12 +11,22 @@ import { FACINGS } from './sprites.js';
 let NEXT_ID = 1;
 
 // bump when the serialized save shape changes; a mismatched save is discarded
-export const SAVE_VERSION = 1;
+export const SAVE_VERSION = 2;
+
+// veterancy: index by rank (0..2). rank1 at 1x own cost, rank2 at 3x.
+export const RANK_DMG = [1, 1.15, 1.30];   // outgoing damage multiplier
+export const RANK_HP = [1, 1, 1.25];       // max-hp multiplier (rank2 only)
+export const MAX_RANK = 2;
+
+// commander-power tuning (human tech-center abilities)
+export const RECON_CD = 90, RECON_RADIUS = 8, RECON_DUR = 10;
+export const EMP_CD = 150, EMP_RADIUS = 4, EMP_DUR = 8;
 
 export class Player {
   constructor(house, isHuman) {
-    this.house = house;               // 'player' | 'enemy'
+    this.house = house;               // 'player' | 'enemy' | 'neutral'
     this.isHuman = isHuman;
+    this.isNeutral = false;           // neutral supply-depot owner (no AI, no win goal)
     this.credits = isHuman ? ECONOMY.startCredits : ECONOMY.aiStartCredits;
     this.displayCredits = this.credits; // animated counter for UI
     this.powerMade = 0;
@@ -93,6 +103,15 @@ export class Unit extends Entity {
     this.guardX = x; this.guardY = y;
     this.stuckT = 0;
     this.repathT = 0;
+    // veterancy
+    this.xp = 0; this.rank = 0;
+    // EMP disable timer (>0 = can't move or fire)
+    this.empT = 0;
+    // APC transport: passengers ride inside (removed from the grid). Non-APC
+    // units keep this null. `boarded` marks a unit currently riding an APC.
+    this.cargoUnits = this.def.capacity ? [] : null;
+    this.boarded = false;
+    this.unloadAt = false;            // drop cargo on reaching a move goal
   }
 }
 
@@ -105,7 +124,10 @@ export class Game {
     this.seed = seed;
     this.rng = makeRng(seed);
     this.players = { player: new Player('player', true) };
-    for (const h of enemyHouses) this.players[h] = new Player(h, false);
+    for (const h of enemyHouses) if (h !== 'neutral') this.players[h] = new Player(h, false);
+    // neutral house owns the map's supply depots — never an opponent
+    this.players.neutral = new Player('neutral', false);
+    this.players.neutral.isNeutral = true;
     this.units = [];
     this.buildings = [];
     this.projectiles = [];
@@ -122,6 +144,11 @@ export class Game {
     this.visible = new Uint8Array(n);
     this.visionDirty = true;
     this.underAttackCooldown = 0;
+    // commander powers (human, tech-center gated)
+    this.reconCd = 0;                 // recon-sweep cooldown remaining
+    this.empCd = 0;                   // EMP-blast cooldown remaining
+    this.reconSweeps = [];            // {x,y,r,t} temporary fog reveals
+    this.empZones = [];               // {x,y,r,t} active EMP fields (for fx)
   }
 
   emit(kind, text, voice) { this.events.push({ kind, text, voice }); }
@@ -160,6 +187,14 @@ export class Game {
     this.map.occupant[this.map.idx(u.cellX, u.cellY)] = u;
     this.visionDirty = true;
     return u;
+  }
+
+  // spawn the map's neutral supply depots (2x2 buildings owned by 'neutral').
+  // Called once on a fresh match; loaded games restore them as buildings.
+  spawnDepots() {
+    for (const d of this.map.depots || []) {
+      this.addBuilding(this.players.neutral, 'depot', d.x, d.y, { instant: true });
+    }
   }
 
   // ------------------------------------------------------------ production --
@@ -329,6 +364,117 @@ export class Game {
     u.path = [];
   }
 
+  // infantry walks up to a friendly APC and climbs aboard
+  orderBoard(u, apc) {
+    if (!u || !u.def || u.def.kind !== 'infantry') return;
+    if (!apc || apc.dead || !apc.isUnit || apc.key !== 'apc' || apc.owner !== u.owner) return;
+    if (apc.cargoUnits && apc.cargoUnits.length >= (apc.def.capacity || 0)) return;
+    u.order = { type: 'board' };
+    u.target = apc;
+    u.path = [];
+    u.unloadAt = false;
+  }
+
+  // APC drops its passengers onto free cells around it
+  orderUnload(apc) {
+    if (!apc || apc.key !== 'apc' || !apc.cargoUnits || apc.cargoUnits.length === 0) return;
+    apc.order = { type: 'unload' };
+    apc.target = null;
+    apc.path = [];
+    apc.unloadAt = false;
+  }
+
+  // move an infantry passenger inside the APC: it leaves the grid entirely
+  boardUnit(apc, passenger) {
+    if (!apc.cargoUnits || apc.cargoUnits.length >= (apc.def.capacity || 0)) {
+      passenger.order = { type: 'idle' }; passenger.target = null; return;
+    }
+    const m = this.map;
+    m.occupant[m.idx(passenger.cellX, passenger.cellY)] = null;
+    if (passenger.reserved) m.occupant[m.idx(passenger.reserved[0], passenger.reserved[1])] = null;
+    passenger.reserved = null;
+    passenger.moving = false;
+    passenger.path = [];
+    passenger.boarded = true;
+    passenger.order = { type: 'idle' };
+    passenger.target = null;
+    apc.cargoUnits.push(passenger);
+    if (apc.owner.isHuman) this.audio.sfx('select');
+    this.visionDirty = true;
+  }
+
+  // drop a single passenger back onto a free cell next to the APC
+  unloadUnit(apc, passenger, cell) {
+    const m = this.map;
+    passenger.boarded = false;
+    passenger.cellX = cell[0]; passenger.cellY = cell[1];
+    passenger.x = cell[0]; passenger.y = cell[1];
+    passenger.fromX = cell[0]; passenger.fromY = cell[1];
+    passenger.moving = false;
+    passenger.reserved = null;
+    passenger.path = [];
+    passenger.order = { type: 'idle' };
+    passenger.target = null;
+    m.occupant[m.idx(cell[0], cell[1])] = passenger;
+    this.visionDirty = true;
+  }
+
+  // a free cell hugging a unit's own cell (for APC unload spots)
+  adjacentFreeUnitCell(u, ignore) {
+    for (let r = 1; r <= 3; r++) {
+      for (let dy = -r; dy <= r; dy++)
+        for (let dx = -r; dx <= r; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;
+          const x = u.cellX + dx, y = u.cellY + dy;
+          if (this.map.isFree(x, y, ignore)) return [x, y];
+        }
+    }
+    return null;
+  }
+
+  // ------------------------------------------------------- commander powers --
+
+  // human tech-center abilities. Returns true if fired (starts the cooldown).
+  castPower(which, x, y) {
+    const p = this.players.player;
+    const hasTech = this.buildings.some((b) => !b.dead && b.owner === p && b.key === 'techcenter');
+    if (!hasTech) return false;
+    if (which === 'recon') {
+      if (this.reconCd > 0) return false;
+      this.reconCd = RECON_CD;
+      this.reconSweeps.push({ x: Math.round(x), y: Math.round(y), r: RECON_RADIUS, t: RECON_DUR });
+      this.visionDirty = true;
+      if (p.isHuman) { this.audio.sfx('ready'); this.audio.say('Recon sweep', true); }
+      return true;
+    }
+    if (which === 'emp') {
+      if (this.empCd > 0) return false;
+      this.empCd = EMP_CD;
+      this.castEmp(x, y);
+      if (p.isHuman) this.audio.say('E M P blast', true);
+      return true;
+    }
+    return false;
+  }
+
+  // disable enemy vehicles + defence buildings inside the blast for EMP_DUR
+  castEmp(x, y) {
+    const p = this.players.player;
+    const r = EMP_RADIUS;
+    this.empZones.push({ x, y, r, t: EMP_DUR });
+    for (const u of this.units) {
+      if (u.dead || u.boarded || u.owner === p || u.def.kind !== 'vehicle') continue;
+      if (Math.hypot(u.x - x, u.y - y) <= r) u.empT = EMP_DUR;
+    }
+    for (const b of this.buildings) {
+      if (b.dead || b.owner === p || !b.def.weapon) continue;   // defence buildings only
+      const [bx, by] = b.centre();
+      if (Math.hypot(bx - 0.5 - x, by - 0.5 - y) <= r + 0.5) b.empT = EMP_DUR;
+    }
+    this.effects.push({ kind: 'emp', x, y, r, t: 0 });
+    this.audio.sfx('tesla');
+  }
+
   setPath(u, tx, ty) {
     const path = findPath(this.map, u.cellX, u.cellY, Math.round(tx), Math.round(ty), u);
     u.path = path || [];
@@ -358,7 +504,9 @@ export class Game {
       this.oreDirty = true;
     }
 
-    for (const u of this.units) if (!u.dead) this.tickUnit(u, dt);
+    this.tickPowers(dt);
+
+    for (const u of this.units) if (!u.dead && !u.boarded) this.tickUnit(u, dt);
     for (const b of this.buildings) if (!b.dead) this.tickBuilding(b, dt);
     this.tickPendingShots(dt);
     this.tickProjectiles(dt);
@@ -373,11 +521,27 @@ export class Game {
     this.checkEnd();
   }
 
+  // tick commander-power cooldowns, temporary recon reveals and EMP fields
+  tickPowers(dt) {
+    if (this.reconCd > 0) this.reconCd = Math.max(0, this.reconCd - dt);
+    if (this.empCd > 0) this.empCd = Math.max(0, this.empCd - dt);
+    if (this.reconSweeps.length) {
+      for (const s of this.reconSweeps) s.t -= dt;
+      this.reconSweeps = this.reconSweeps.filter((s) => s.t > 0);
+      this.visionDirty = true;      // keep revealing while active; clears on expiry
+    }
+    if (this.empZones.length) {
+      for (const z of this.empZones) z.t -= dt;
+      this.empZones = this.empZones.filter((z) => z.t > 0);
+    }
+  }
+
   // ------------------------------------------------------------ unit tick --
 
   tickUnit(u, dt) {
     u.animT += dt;
     if (u.cooldown > 0) u.cooldown -= dt;
+    if (u.empT > 0) { u.empT -= dt; return; }   // EMP'd: can't move or fire
 
     switch (u.order.type) {
       case 'harvest': this.tickHarvest(u, dt); break;
@@ -472,6 +636,39 @@ export class Game {
         }
         break;
       }
+      case 'board': {
+        const apc = u.target;
+        if (!apc || apc.dead || apc.key !== 'apc' || apc.owner !== u.owner ||
+            (apc.cargoUnits && apc.cargoUnits.length >= (apc.def.capacity || 0))) {
+          u.order = { type: 'idle' }; u.target = null; break;
+        }
+        if (!u.moving && Math.hypot(apc.x - u.x, apc.y - u.y) <= 1.6) {
+          this.boardUnit(apc, u);
+          return;
+        }
+        // chase the APC (it may be moving); repath periodically
+        u.repathT -= dt;
+        if (!u.moving && (u.path.length === 0 || u.repathT <= 0)) {
+          u.repathT = 0.6;
+          const spot = nearestFree(this.map, apc.cellX, apc.cellY, u) || [apc.cellX, apc.cellY];
+          this.setPath(u, spot[0], spot[1]);
+        }
+        break;
+      }
+      case 'unload': {
+        if (!u.cargoUnits || u.cargoUnits.length === 0) { u.order = { type: 'idle' }; break; }
+        if (u.moving) break;
+        // drop as many as there are free cells this tick
+        let progressed = false;
+        while (u.cargoUnits.length) {
+          const spot = this.adjacentFreeUnitCell(u, u);
+          if (!spot) break;
+          this.unloadUnit(u, u.cargoUnits.pop(), spot);
+          progressed = true;
+        }
+        if (u.cargoUnits.length === 0 || !progressed) u.order = { type: 'idle' };
+        break;
+      }
       case 'move':
         // armed units on the march return fire the moment they spot a foe:
         // switch to attack-move so they resume the trip once it's dealt with
@@ -483,7 +680,12 @@ export class Game {
             if (t) { u.order = { type: 'attackmove' }; u.target = t; break; }
           }
         }
-        if (u.path.length === 0 && !u.moving) u.order = { type: 'idle' };
+        if (u.path.length === 0 && !u.moving) {
+          // a loaded APC told to move-and-unload drops its cargo on arrival
+          if (u.unloadAt && u.cargoUnits && u.cargoUnits.length) {
+            u.unloadAt = false; u.order = { type: 'unload' };
+          } else u.order = { type: 'idle' };
+        }
         break;
       case 'idle': {
         if (u.def.weapon && u.cooldown <= 0) {
@@ -508,12 +710,12 @@ export class Game {
     const range = w.range + 1.5;
     let best = null, bestD = 1e9;
     for (const e of this.units) {
-      if (e.dead || e.owner === u.owner) continue;
+      if (e.dead || e.boarded || e.owner === u.owner) continue;
       const d = Math.hypot(e.x - u.x, e.y - u.y);
       if (d < range && d < bestD) { best = e; bestD = d; }
     }
     for (const b of this.buildings) {
-      if (b.dead || b.owner === u.owner) continue;
+      if (b.dead || b.owner === u.owner || b.def.isDepot) continue;
       const [bx, by] = b.centre();
       const d = Math.hypot(bx - u.x, by - u.y) - Math.max(b.def.w, b.def.h) * 0.4;
       if (d < range && d < bestD) { best = b; bestD = d; }
@@ -522,6 +724,7 @@ export class Game {
   }
 
   aimAndFire(u, target, tx, ty, dt) {
+    if (u.empT > 0) return;                    // EMP'd: weapons offline
     const want = Math.atan2(ty - u.y, tx - u.x) + Math.PI / 2;
     const turnRate = (u.def.turn || 8) * 1.6;
     if (u.def.hasTurret) {
@@ -610,7 +813,7 @@ export class Game {
     const inner = 0.7;               // "impact cell" gets full damage
     const factor = w.splashFactor ?? 0.4;
     const hit = (e, ex, ey) => {
-      if (e.dead) return;
+      if (e.dead || e.boarded) return;
       const d = Math.hypot(ex - x, ey - y);
       if (d > rad) return;
       this.dealDamage(e, w, src, d <= inner ? 1 : factor);
@@ -646,7 +849,9 @@ export class Game {
   dealDamage(target, w, src, factor = 1) {
     if (target.dead) return;
     const mult = WARHEADS[w.warhead][target.def.armor] ?? 1;
-    target.hp -= w.damage * mult * factor;
+    // veteran shooters hit harder
+    const rankMult = (src && src.isUnit && src.rank) ? RANK_DMG[src.rank] : 1;
+    target.hp -= w.damage * mult * factor * rankMult;
     // human base under attack notification
     if (target.owner.isHuman && this.underAttackCooldown <= 0) {
       this.underAttackCooldown = 12;
@@ -660,10 +865,34 @@ export class Game {
       this.orderAttack(target, src.isUnit || src.isBuilding ? src : null);
     }
     if (target.hp <= 0) {
-      if (src) src.owner.stats.killed++;
+      if (src) {
+        src.owner.stats.killed++;
+        // killing blow credits the shooter with the victim's worth as xp
+        if (src.isUnit && src.def.weapon) this.awardXp(src, target);
+      }
       if (target.isUnit) this.destroyUnit(target);
       else this.destroyBuilding(target, src);
     }
+  }
+
+  // grant xp equal to the destroyed thing's cost; promote at 1x / 3x own cost
+  awardXp(u, victim) {
+    if (u.rank >= MAX_RANK) return;
+    u.xp += (victim.def && victim.def.cost) || 0;
+    const cost = u.def.cost || 1;
+    let rank = u.rank;
+    if (u.xp >= cost * 3) rank = 2;
+    else if (u.xp >= cost) rank = 1;
+    if (rank > u.rank) this.promote(u, rank);
+  }
+
+  promote(u, rank) {
+    u.rank = Math.min(MAX_RANK, rank);
+    // rank2 lifts max hp; heal the fresh delta so the promotion feels good
+    const newMax = Math.round(u.def.hp * RANK_HP[u.rank]);
+    if (newMax > u.maxHp) { u.hp += newMax - u.maxHp; u.maxHp = newMax; }
+    this.effects.push({ kind: 'puff', x: u.x, y: u.y, t: 0, frame: 0 });
+    if (u.owner.isHuman) this.audio.sfx('ready');
   }
 
   destroyUnit(u) {
@@ -671,6 +900,15 @@ export class Game {
     u.owner.stats.lost++;
     this.map.occupant[this.map.idx(u.cellX, u.cellY)] = null;
     if (u.reserved) this.map.occupant[this.map.idx(u.reserved[0], u.reserved[1])] = null;
+    // an APC takes its passengers down with it
+    if (u.cargoUnits && u.cargoUnits.length) {
+      for (const p of u.cargoUnits) {
+        if (p.dead) continue;
+        p.dead = true; p.boarded = false;
+        p.owner.stats.lost++;
+      }
+      u.cargoUnits = [];
+    }
     const big = u.def.kind === 'vehicle';
     this.effects.push({ kind: 'explosion', x: u.x, y: u.y, t: 0, frame: 0, big });
     this.effects.push({ kind: 'scorch', x: u.cellX, y: u.cellY, t: 25 });
@@ -974,6 +1212,12 @@ export class Game {
 
   tickBuilding(b, dt) {
     if (b.buildRise < 1) b.buildRise = Math.min(1, b.buildRise + dt * 1.6);
+    if (b.empT > 0) b.empT -= dt;
+
+    // captured supply depot trickles credits to its owner
+    if (b.def.isDepot && !b.owner.isNeutral) {
+      b.owner.credits += b.def.income * dt;
+    }
 
     // battle damage smoke
     if (b.hp < b.maxHp * 0.5) {
@@ -1003,6 +1247,7 @@ export class Game {
     // defensive structures
     if (b.def.weapon) {
       if (b.cooldown > 0) b.cooldown -= dt;
+      if (b.empT > 0) { b.target = null; return; }     // EMP'd defence: offline
       if (b.def.needsPower && b.owner.lowPower()) { b.target = null; return; }
       if (!b.target || b.target.dead) b.target = this.acquireTargetFor(b);
       if (b.target) {
@@ -1027,7 +1272,7 @@ export class Game {
     const [bx, by] = b.centre();
     let best = null, bestD = 1e9;
     for (const e of this.units) {
-      if (e.dead || e.owner === b.owner) continue;
+      if (e.dead || e.boarded || e.owner === b.owner) continue;
       const d = Math.hypot(e.x - bx, e.y - by);
       if (d <= w.range && d < bestD) { best = e; bestD = d; }
     }
@@ -1054,7 +1299,7 @@ export class Game {
       }
     };
     for (const u of this.units) {
-      if (u.dead || !u.owner.isHuman) continue;
+      if (u.dead || u.boarded || !u.owner.isHuman) continue;
       reveal(u.cellX, u.cellY, u.def.sight);
     }
     for (const b of this.buildings) {
@@ -1062,6 +1307,8 @@ export class Game {
       const [cx, cy] = b.centre();
       reveal(Math.floor(cx), Math.floor(cy), b.def.sight);
     }
+    // recon-sweep power: temporary reveal circles that pierce the fog
+    for (const s of this.reconSweeps) reveal(s.x, s.y, s.r);
   }
 
   isVisibleToPlayer(e) {
@@ -1102,12 +1349,18 @@ export class Game {
       rally: b.rally ? [b.rally[0], b.rally[1]] : null,
       turretFacing: b.turretFacing,
       seen: !!b.seen,
+      empT: b.empT > 0 ? b.empT : 0,
     }));
     const units = this.units.filter((u) => !u.dead).map((u) => ({
       id: u.id, key: u.key, house: u.house,
       x: u.x, y: u.y, cellX: u.cellX, cellY: u.cellY,
       hp: u.hp, facing: u.facing, turretFacing: u.turretFacing,
       cargo: u.cargo,
+      xp: u.xp || 0, rank: u.rank || 0,
+      empT: u.empT > 0 ? u.empT : 0,
+      boarded: !!u.boarded,
+      cargoUnits: (u.cargoUnits && u.cargoUnits.length)
+        ? u.cargoUnits.map((c) => c.id) : null,
       order: {
         type: u.order.type,
         destX: u.destX ?? null, destY: u.destY ?? null,
@@ -1122,6 +1375,10 @@ export class Game {
       seed: this.seed,
       time: this.time,
       nextId: NEXT_ID,
+      reconCd: this.reconCd,
+      empCd: this.empCd,
+      reconSweeps: this.reconSweeps.map((s) => ({ x: s.x, y: s.y, r: s.r, t: s.t })),
+      empZones: this.empZones.map((z) => ({ x: z.x, y: z.y, r: z.r, t: z.t })),
       map: {
         size: m.size, seed: m.seed, biome: m.biome,
         layout: m.layout, layoutReq: m.layoutReq,
@@ -1143,9 +1400,13 @@ export class Game {
   // lazily by main.js (buildTerrain/Ore/Fog after this returns).
   static load(data, audio) {
     const map = GameMap.restore(data.map);
-    const enemyHouses = Object.keys(data.players).filter((h) => h !== 'player');
+    const enemyHouses = Object.keys(data.players).filter((h) => h !== 'player' && h !== 'neutral');
     const game = new Game(map, audio, data.seed ?? 1234, enemyHouses);
     game.time = data.time || 0;
+    game.reconCd = data.reconCd || 0;
+    game.empCd = data.empCd || 0;
+    game.reconSweeps = (data.reconSweeps || []).map((s) => ({ x: s.x, y: s.y, r: s.r, t: s.t }));
+    game.empZones = (data.empZones || []).map((z) => ({ x: z.x, y: z.y, r: z.r, t: z.t }));
 
     // players: credits/storage/stats/production come from the save; power and
     // radar are recomputed from the rebuilt buildings below
@@ -1182,6 +1443,7 @@ export class Game {
       b.rally = bd.rally ? [bd.rally[0], bd.rally[1]] : null;
       b.turretFacing = bd.turretFacing || 0;
       b.seen = !!bd.seen;
+      b.empT = bd.empT || 0;
       b.buildRise = 1;
       game.buildings.push(b);
       for (let y = b.cy; y < b.cy + b.def.h; y++)
@@ -1204,6 +1466,11 @@ export class Game {
       u.hp = ud.hp;
       u.facing = ud.facing; u.turretFacing = ud.turretFacing;
       u.cargo = ud.cargo || 0;
+      u.xp = ud.xp || 0; u.rank = ud.rank || 0;
+      // rank2 restores its raised max hp (rank1 is a damage-only bonus)
+      u.maxHp = Math.round(u.def.hp * RANK_HP[Math.min(MAX_RANK, u.rank)]);
+      u.empT = ud.empT || 0;
+      u.boarded = !!ud.boarded;
       u.moving = false; u.reserved = null;
       u.guardX = u.x; u.guardY = u.y;
       const o = ud.order || { type: 'idle' };
@@ -1213,8 +1480,10 @@ export class Game {
       u.path = (ud.path || []).map((c) => [c[0], c[1]]);
       u.order = { type: o.type || 'idle' };
       u._savedTargetId = o.targetId ?? null;
+      u._savedCargo = ud.cargoUnits || null;
       game.units.push(u);
-      map.occupant[map.idx(u.cellX, u.cellY)] = u;
+      // boarded units are inside an APC: they hold no cell on the grid
+      if (!u.boarded) map.occupant[map.idx(u.cellX, u.cellY)] = u;
       byId.set(u.id, u);
     }
 
@@ -1222,10 +1491,19 @@ export class Game {
     for (const u of game.units) {
       const tid = u._savedTargetId;
       delete u._savedTargetId;
+      // re-link APC cargo (passengers are stored by id)
+      if (u._savedCargo) {
+        u.cargoUnits = [];
+        for (const cid of u._savedCargo) {
+          const c = byId.get(cid);
+          if (c) { c.boarded = true; u.cargoUnits.push(c); }
+        }
+      }
+      delete u._savedCargo;
       if (tid == null) continue;
       const t = byId.get(tid);
       if (t && !t.dead) u.target = t;
-      else if (u.order.type === 'attack' || u.order.type === 'capture') {
+      else if (u.order.type === 'attack' || u.order.type === 'capture' || u.order.type === 'board') {
         u.order = { type: 'idle' }; u.target = null;
       }
     }
@@ -1242,13 +1520,14 @@ export class Game {
 
   checkEnd() {
     if (this.over || this.time < 5) return;
-    // walls don't count as a surviving base — a house with only walls is out
+    // walls and neutral depots don't count as a surviving base — a house with
+    // only those is out
     const alive = (house) =>
-      this.buildings.some((b) => !b.dead && !b.def.isWall && b.house === house) ||
+      this.buildings.some((b) => !b.dead && !b.def.isWall && !b.def.isDepot && b.house === house) ||
       this.units.some((u) => !u.dead && u.house === house);
     const playerAlive = alive('player');
     const anyFoeAlive = Object.values(this.players)
-      .some((p) => !p.isHuman && alive(p.house));
+      .some((p) => !p.isHuman && !p.isNeutral && alive(p.house));
     if (!anyFoeAlive) { this.over = true; this.won = true; this.audio.say('Mission accomplished', true); }
     else if (!playerAlive) { this.over = true; this.won = false; this.audio.say('Mission failed', true); }
   }

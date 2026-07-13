@@ -61,6 +61,17 @@
   #eva-line{height:18px;margin:0 4px 4px;font-size:10px;color:var(--ui-gold);
     text-align:center;overflow:hidden;white-space:nowrap;text-shadow:1px 1px 0 #000}
 
+  /* ---------- commander powers (tech-center abilities) ---------- */
+  #powers{display:flex;gap:4px;margin:0 4px 4px;height:36px}
+  #powers.hidden{display:none}
+  .power-btn{position:relative;flex:1;cursor:pointer;background:#161a20;overflow:hidden;
+    border:2px solid var(--ui-edge-d);outline:1px solid var(--ui-edge-l)}
+  .power-btn canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
+  .power-btn .pw-tag{position:absolute;left:0;right:0;bottom:0;font-size:8px;text-align:center;
+    color:#fff;background:rgba(0,0,0,.6);letter-spacing:1px;pointer-events:none}
+  .power-btn.on{outline:1px solid var(--ui-gold);box-shadow:0 0 5px var(--ui-gold)}
+  .power-btn.cooling{filter:grayscale(.6) brightness(.62);cursor:default}
+
   /* ---------- overlay screens ---------- */
   .screen{position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;
     align-items:center;justify-content:center;background:#0b0b0f;text-align:center}
@@ -151,6 +162,8 @@
   #sel-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
   #sel-name{font-size:11px;letter-spacing:1px;color:var(--ui-text);text-shadow:1px 1px 0 #000;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #sel-extra{font-size:9px;letter-spacing:1px;color:var(--ui-gold);text-shadow:1px 1px 0 #000;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-height:11px}
   #sel-hp{height:6px;background:#111;border:1px solid #0a0a0a}
   #sel-hp-fill{height:100%;width:100%;background:var(--ui-green)}
   #sel-multi{display:none;flex-direction:column;gap:2px;font-size:10px;letter-spacing:1px;
@@ -206,6 +219,8 @@
             <button class="tgl" id="set-musicon">ON</button></div>
           <div class="set-row"><label for="set-music">MUSIC VOLUME</label>
             <input type="range" id="set-music" min="0" max="0.6" step="0.03"></div>
+          <div class="set-row"><label for="set-sfx">SFX VOLUME</label>
+            <input type="range" id="set-sfx" min="0" max="1" step="0.05"></div>
           <div class="set-row"><label>ADVISOR VOICE</label>
             <button class="tgl" id="set-voice">ON</button></div>
           <div class="set-group">GAME</div>
@@ -229,6 +244,7 @@
         <canvas id="sel-icon" width="52" height="39"></canvas>
         <div id="sel-info">
           <div id="sel-name"></div>
+          <div id="sel-extra"></div>
           <div id="sel-hp"><div id="sel-hp-fill"></div></div>
         </div>
       </div>
@@ -310,6 +326,7 @@
         <button id="btn-sell" class="side-btn bevel">SELL</button>
       </div>
     </div>
+    <div id="powers" class="hidden"></div>
     <div id="strips" class="bevel-in">
       <div id="strip-buildings" class="strip"></div>
       <div id="strip-units" class="strip"></div>

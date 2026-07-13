@@ -56,6 +56,7 @@ const audio = new AudioSys();
 const settings = loadSettings();
 audio.setMaster(settings.master);
 audio.setMusicVol(settings.musicVol);
+audio.setSfxVol(settings.sfxVol);
 audio.voiceOn = settings.voice;
 const sprites = buildSprites();
 drawTitleLogo(document.getElementById('title-logo'));
@@ -129,7 +130,14 @@ const cam = { x: 12, y: MAP_SIZE - 14, zoom: 2.0 };
 let map, game, ui, input;
 let ais = [];
 let terrainQuad, oreQuad, fogQuad;
+let terrainCanvas, terrainG;       // kept for animated-water region redraws
+let waterCells = [];               // {x,y,ice} cells to re-tile each water frame
+let waterFrame = 0, waterT = 0;    // animated-water clock
 let oreCanvas, oreG, fogCanvas, fogG;
+const cloudQuads = [];             // drifting cloud-shadow blobs
+const debris = [];                 // { quad, x, y, z, vx, vy, vz, t, life }
+let shakeT = 0, shakeMag = 0;      // building-death camera shake
+let knownBuildingIds = new Set();  // for detecting building deaths (shake)
 const entityViews = new Map();     // entity id -> view objects
 const fxViews = [];
 let state = 'title';               // title | setup | brief | play | end
@@ -188,6 +196,10 @@ function newGame() {
   entityViews.clear();
   for (const v of fxViews.splice(0)) v.quad.dispose(scene);
   for (const q of rallyFlags.splice(0)) q.dispose(scene);
+  for (const q of cloudQuads.splice(0)) q.dispose(scene);
+  for (const d of debris.splice(0)) d.quad.dispose(scene);
+  knownBuildingIds = new Set();
+  shakeT = 0; shakeMag = 0;
   while (scene.children.length) scene.remove(scene.children[0]);
 
   const size = SIZES[setup.size] || 64;
@@ -230,6 +242,9 @@ function newGame() {
     game.addUnit(e, 'rifle', st.x - 1, st.y + 3);
     game.addUnit(e, 'heavyTank', st.x + 2, st.y + 4);
   });
+
+  // neutral supply depots in the contested middle
+  game.spawnDepots();
 
   cam.x = ps.x; cam.y = ps.y; cam.zoom = 2.0;
   game.recomputeVision();
@@ -287,6 +302,10 @@ function teardownScene() {
   for (const p of game ? game.projectiles : []) if (p.view) p.view.dispose(scene);
   if (syncFx.live) syncFx.live.clear();
   for (const q of rallyFlags.splice(0)) q.dispose(scene);
+  for (const q of cloudQuads.splice(0)) q.dispose(scene);
+  for (const d of debris.splice(0)) d.quad.dispose(scene);
+  knownBuildingIds = new Set();
+  shakeT = 0; shakeMag = 0;
   while (scene.children.length) scene.remove(scene.children[0]);
 }
 
@@ -346,40 +365,106 @@ function loadSavedGame() {
 
 // ------------------------------------------------------------- terrain ----
 
-function buildTerrain() {
-  const s = map.size;
-  const c = document.createElement('canvas');
-  c.width = s * TILE; c.height = s * TILE;
-  const g = c.getContext('2d');
-  g.imageSmoothingEnabled = false;
+// paint a single terrain cell (base tile + shore/edge fringes) at its pixel
+// slot. Shared by the initial bake and the animated-water region redraws.
+function paintTerrainCell(x, y) {
+  const g = terrainG;
   const tiles = sprites.tiles[map.biome] || sprites.tiles.forest;
-  for (let y = 0; y < s; y++) {
-    for (let x = 0; x < s; x++) {
-      const i = map.idx(x, y);
-      const t = map.terrain[i], v = map.variant[i];
-      let tile;
-      if (t === T.GRASS) tile = tiles.ground[v % tiles.ground.length];
-      else if (t === T.DIRT) tile = tiles.dirt[v % tiles.dirt.length];
-      else if (t === T.WATER) {
-        tile = (v === V_ICE && tiles.ice) ? tiles.ice[(x + y) % tiles.ice.length]
-          : tiles.water[v % tiles.water.length];
-      } else if (t === T.ROCK) tile = tiles.rock[v % tiles.rock.length];
-      else if (t === T.RUIN) tile = tiles.ruin[v % tiles.ruin.length];
-      else tile = tiles.tree[v % tiles.tree.length];
-      g.drawImage(tile, x * TILE, y * TILE);
-      // shore fringe on land next to water
-      if (t !== T.WATER) {
-        let mask = 0;
-        if (map.terrainAt(x, y - 1) === T.WATER) mask |= 1;
-        if (map.terrainAt(x + 1, y) === T.WATER) mask |= 2;
-        if (map.terrainAt(x, y + 1) === T.WATER) mask |= 4;
-        if (map.terrainAt(x - 1, y) === T.WATER) mask |= 8;
-        if (mask) g.drawImage(sprites.shore(tile, mask, map.biome), x * TILE, y * TILE);
-      }
+  const i = map.idx(x, y);
+  const t = map.terrain[i], v = map.variant[i];
+  let tile;
+  if (t === T.GRASS) tile = tiles.ground[v % tiles.ground.length];
+  else if (t === T.DIRT) tile = tiles.dirt[v % tiles.dirt.length];
+  else if (t === T.WATER) {
+    tile = (v === V_ICE && tiles.ice) ? tiles.ice[(x + y) % tiles.ice.length]
+      : tiles.water[waterFrame % tiles.water.length];
+  } else if (t === T.ROCK) tile = tiles.rock[v % tiles.rock.length];
+  else if (t === T.RUIN) tile = tiles.ruin[v % tiles.ruin.length];
+  else tile = tiles.tree[v % tiles.tree.length];
+  g.clearRect(x * TILE, y * TILE, TILE, TILE);
+  g.drawImage(tile, x * TILE, y * TILE);
+  if (t !== T.WATER) {
+    // shore fringe on land next to water
+    let wmask = 0;
+    if (map.terrainAt(x, y - 1) === T.WATER) wmask |= 1;
+    if (map.terrainAt(x + 1, y) === T.WATER) wmask |= 2;
+    if (map.terrainAt(x, y + 1) === T.WATER) wmask |= 4;
+    if (map.terrainAt(x - 1, y) === T.WATER) wmask |= 8;
+    if (wmask) g.drawImage(sprites.shore(tile, wmask, map.biome), x * TILE, y * TILE);
+    // grass<->dirt auto-edge: scuffed-dirt fringe on grass beside dirt
+    if (t === T.GRASS) {
+      let dmask = 0;
+      if (map.terrainAt(x, y - 1) === T.DIRT) dmask |= 1;
+      if (map.terrainAt(x + 1, y) === T.DIRT) dmask |= 2;
+      if (map.terrainAt(x, y + 1) === T.DIRT) dmask |= 4;
+      if (map.terrainAt(x - 1, y) === T.DIRT) dmask |= 8;
+      if (dmask) g.drawImage(sprites.edge(tile, dmask, map.biome), x * TILE, y * TILE);
     }
   }
-  terrainQuad = new SpriteQuad(scene, c, s, s, 0);
+}
+
+function buildTerrain() {
+  const s = map.size;
+  terrainCanvas = document.createElement('canvas');
+  terrainCanvas.width = s * TILE; terrainCanvas.height = s * TILE;
+  terrainG = terrainCanvas.getContext('2d');
+  terrainG.imageSmoothingEnabled = false;
+  waterCells = [];
+  waterFrame = 0; waterT = 0;
+  for (let y = 0; y < s; y++) {
+    for (let x = 0; x < s; x++) {
+      paintTerrainCell(x, y);
+      const i = map.idx(x, y);
+      // remember open-water cells (not shore ice) so we can animate just them
+      if (map.terrain[i] === T.WATER && map.variant[i] !== V_ICE) waterCells.push([x, y]);
+    }
+  }
+  terrainQuad = new SpriteQuad(scene, terrainCanvas, s, s, 0);
   terrainQuad.mesh.position.set(s / 2, -s / 2, 0);
+  buildClouds();
+}
+
+// redraw only the water cells into the terrain canvas for the next frame,
+// then flag the texture — no full-map rebake, no per-frame scan
+function stepWater() {
+  if (!waterCells.length) return;
+  waterFrame = (waterFrame + 1) % 4;
+  for (const [x, y] of waterCells) paintTerrainCell(x, y);
+  terrainQuad.tex.needsUpdate = true;
+}
+
+// three big soft cloud shadows drifting across the map on their own vectors,
+// wrapping at the edges. Barely-there opacity — just a hint of movement.
+function buildClouds() {
+  for (const q of cloudQuads.splice(0)) q.dispose(scene);
+  const s = map.size;
+  const specs = [
+    { w: s * 0.6, h: s * 0.5, vx: 0.55, vy: 0.12, op: 0.12 },
+    { w: s * 0.75, h: s * 0.55, vx: 0.32, vy: -0.09, op: 0.10 },
+    { w: s * 0.5, h: s * 0.45, vx: 0.7, vy: 0.05, op: 0.13 },
+  ];
+  specs.forEach((sp, i) => {
+    const q = new SpriteQuad(scene, sprites.clouds[i % sprites.clouds.length], sp.w, sp.h, 2.9);
+    q.mat.opacity = sp.op;
+    q.spec = sp;
+    q.cx = (i * 0.31 + 0.15) * s;
+    q.cy = (i * 0.27 + 0.2) * s;
+    cloudQuads.push(q);
+  });
+}
+
+function stepClouds(dt) {
+  const s = map.size;
+  for (const q of cloudQuads) {
+    const sp = q.spec;
+    q.cx += sp.vx * dt; q.cy += sp.vy * dt;
+    const margin = Math.max(sp.w, sp.h);
+    if (q.cx > s + margin) q.cx = -margin;
+    if (q.cx < -margin) q.cx = s + margin;
+    if (q.cy > s + margin) q.cy = -margin;
+    if (q.cy < -margin) q.cy = s + margin;
+    q.set(q.cx, mapY(q.cy), 2.9);
+  }
 }
 
 function buildOreLayer() {
@@ -479,10 +564,18 @@ function ensureUnitView(u) {
   const set = sprites.units[u.house][u.key];
   const scale = (u.def.size + 4) / TILE;
   v = { kind: 'unit', quads: {} };
+  // soft ground shadow, wider than tall, sitting just above the terrain
+  const shScale = set.hull ? scale * 0.85 : scale * 0.55;
+  v.quads.shadow = new SpriteQuad(scene, sprites.unitShadow, shScale, shScale * 0.55, 0.9);
+  v.quads.shadow.mat.opacity = 0.25;
   const body = set.hull ? set.hull[0] : set.frames[0][0];
   v.quads.body = new SpriteQuad(scene, body, scale, scale, 1);
   if (set.turret) v.quads.turret = new SpriteQuad(scene, set.turret[0], scale, scale, 1.1);
+  // harvester intake spinner (shown only while scooping ore)
+  if (u.def.harvester) v.quads.spin = new SpriteQuad(scene, sprites.harvSpin[0], 0.42, 0.42, 1.2);
   v.quads.health = new SpriteQuad(scene, healthBarCanvas(1), 1.0, 0.16, 1.6);
+  // veterancy chevrons ride just above the health bar (armed units only)
+  if (u.def.weapon) v.quads.rank = new SpriteQuad(scene, sprites.rankChevrons[0], 0.5, 0.36, 1.62);
   v.quads.sel = new SpriteQuad(scene, SELBOX_UNIT, scale + 0.25, scale + 0.25, 1.5);
   entityViews.set(u.id, v);
   return v;
@@ -492,10 +585,20 @@ function ensureBuildingView(b) {
   let v = entityViews.get(b.id);
   if (v) return v;
   const spr = sprites.buildings[b.house][b.key];
-  v = { kind: 'building', house: b.house, quads: {} };
+  v = { kind: 'building', house: b.house, quads: {}, puffT: 1 + Math.random() * 2, hvySmokeT: 0 };
   v.quads.body = new SpriteQuad(scene, spr, b.def.w, b.def.h, 0.5);
   if (b.def.weapon && b.key === 'guard') {
     v.quads.turret = new SpriteQuad(scene, sprites.guardGun[b.house][0], 1, 1, 0.7);
+  }
+  // rotating radar dish overlay
+  if (b.key === 'radar') {
+    v.quads.dish = new SpriteQuad(scene, sprites.radarDish[0], b.def.w, b.def.h, 0.62);
+  }
+  // battle-damage decal (shown < 50% hp); pick one of two footprint variants
+  const ck = sprites.cracks[`${b.def.w}x${b.def.h}`];
+  if (ck) {
+    v.crack = ck[b.id % ck.length];
+    v.quads.crack = new SpriteQuad(scene, v.crack, b.def.w, b.def.h, 0.55);
   }
   v.quads.health = new SpriteQuad(scene, healthBarCanvas(1), Math.max(1, b.def.w * 0.8), 0.16, 1.6);
   v.quads.sel = new SpriteQuad(scene, SELBOX_BIG, b.def.w + 0.2, b.def.h + 0.2, 1.5);
@@ -533,6 +636,41 @@ function syncEntities(dt) {
       v.quads.turret.setCanvas(set[facingIndex(b.turretFacing)]);
       v.quads.turret.set(cx, mapY(cy), 0.7);
     }
+    // rotating radar dish (only once the structure has risen)
+    if (v.quads.dish && rise >= 1) {
+      v.quads.dish.mesh.visible = true;
+      v.quads.dish.setCanvas(sprites.radarDish[Math.floor(game.time * 4) % 4]);
+      v.quads.dish.set(cx, mapY(cy), 0.62);
+    }
+    // battle-damage decal below half health
+    const hpFrac = b.hp / b.maxHp;
+    if (v.quads.crack && rise >= 1 && hpFrac < 0.5) {
+      v.quads.crack.mesh.visible = true;
+      v.quads.crack.set(cx, mapY(cy), 0.55);
+      v.quads.crack.mat.opacity = Math.min(1, (0.5 - hpFrac) * 3);
+    }
+    // idle power-plant exhaust + heavier smoke when badly hurt
+    if (!paused && !menuOpen && rise >= 1) {
+      if (b.key === 'power') {
+        v.puffT -= dt;
+        if (v.puffT <= 0) {
+          v.puffT = 1.6 + Math.random() * 1.8;
+          game.effects.push({ kind: 'smoke', t: 0, x: b.cx + 0.5, y: b.cy + 0.35 });
+          game.effects.push({ kind: 'smoke', t: 0, x: b.cx + b.def.w - 0.6, y: b.cy + 0.35 });
+        }
+      }
+      if (hpFrac < 0.25) {
+        v.hvySmokeT -= dt;
+        if (v.hvySmokeT <= 0) {
+          v.hvySmokeT = 0.35 + Math.random() * 0.4;
+          game.effects.push({
+            kind: 'smoke', t: 0,
+            x: b.cx + 0.4 + Math.random() * (b.def.w - 0.8),
+            y: b.cy + 0.3 + Math.random() * (b.def.h - 0.8),
+          });
+        }
+      }
+    }
     const selected = input.selection.includes(b);
     const hurt = b.hp < b.maxHp;
     if (selected || hurt || b.repairing) {
@@ -551,18 +689,27 @@ function syncEntities(dt) {
   }
 
   for (const u of game.units) {
-    if (u.dead) continue;
+    if (u.dead || u.boarded) continue;   // boarded units ride inside an APC
     seen.add(u.id);
     const v = ensureUnitView(u);
     const vis = u.house === 'player' || game.isVisibleToPlayer(u);
     for (const q of Object.values(v.quads)) q.mesh.visible = false;
     if (!vis) continue;
 
+    // ground shadow, offset a touch down-right for a low sun
+    if (v.quads.shadow) {
+      v.quads.shadow.mesh.visible = true;
+      v.quads.shadow.set(u.x + 0.58, mapY(u.y + 0.62), 0.9);
+    }
+
     const set = sprites.units[u.house][u.key];
     const f = facingIndex(u.facing);
     let bodyCanvas;
-    if (set.hull) bodyCanvas = set.hull[f];
-    else {
+    if (set.hull) {
+      // vehicles: alternate base / tread-shifted hull at ~8fps while rolling
+      bodyCanvas = (set.hullB && u.moving && Math.floor(u.animT * 8) % 2)
+        ? set.hullB[f] : set.hull[f];
+    } else {
       // infantry: walk cycle / fire pose
       let pose = 0;
       if (u.fireFlash && u.fireFlash > 0) pose = 2;
@@ -572,10 +719,33 @@ function syncEntities(dt) {
     v.quads.body.mesh.visible = true;
     v.quads.body.setCanvas(bodyCanvas);
     v.quads.body.set(u.x + 0.5, mapY(u.y + 0.5), 1);
+    // EMP disable: pulse the hull electric blue while frozen, else normal
+    if (u.empT > 0) {
+      const p = 0.55 + 0.35 * Math.sin(game.time * 12);
+      v.quads.body.mat.color.setRGB(p * 0.7, p * 0.85, 1);
+    } else v.quads.body.mat.color.setRGB(1, 1, 1);
     if (v.quads.turret) {
       v.quads.turret.mesh.visible = true;
+      if (u.empT > 0) v.quads.turret.mat.color.copy(v.quads.body.mat.color);
+      else v.quads.turret.mat.color.setRGB(1, 1, 1);
       v.quads.turret.setCanvas(set.turret[facingIndex(u.turretFacing)]);
-      v.quads.turret.set(u.x + 0.5, mapY(u.y + 0.5), 1.1);
+      // muzzle recoil: shove the turret back 1px along the barrel on fire
+      let rx = 0, ry = 0;
+      if (u.fireFlash > 0) {
+        const a = u.turretFacing;
+        rx = -Math.cos(a) * 0.06; ry = -Math.sin(a) * 0.06;
+      }
+      v.quads.turret.set(u.x + 0.5 + rx, mapY(u.y + 0.5) - ry, 1.1);
+    }
+    // harvester intake spinner while actively scooping
+    if (v.quads.spin) {
+      const scooping = u.order && u.order.type === 'harvest' && !u.moving
+        && map.ore[map.idx(u.cellX, u.cellY)] > 0;
+      if (scooping) {
+        v.quads.spin.mesh.visible = true;
+        v.quads.spin.setCanvas(sprites.harvSpin[Math.floor(game.time * 10) % 2]);
+        v.quads.spin.set(u.x + 0.5, mapY(u.y + 0.5), 1.2);
+      }
     }
     if (u.fireFlash > 0) u.fireFlash -= dt;
 
@@ -589,6 +759,12 @@ function syncEntities(dt) {
       v.quads.sel.mesh.visible = true;
       v.quads.sel.set(u.x + 0.5, mapY(u.y + 0.5), 1.5);
     }
+    // veterancy chevrons above the health bar
+    if (v.quads.rank && u.rank > 0) {
+      v.quads.rank.mesh.visible = true;
+      v.quads.rank.setCanvas(sprites.rankChevrons[Math.min(1, u.rank - 1)]);
+      v.quads.rank.set(u.x + 0.5, mapY(u.y + 0.5 - 0.95), 1.62);
+    }
   }
 
   // remove views for gone entities
@@ -598,6 +774,16 @@ function syncEntities(dt) {
       entityViews.delete(id);
     }
   }
+
+  // a structure that vanished since last frame just died — kick the camera
+  const curB = new Set();
+  for (const b of game.buildings) if (!b.dead) curB.add(b.id);
+  if (!paused && !menuOpen) {
+    for (const id of knownBuildingIds) {
+      if (!curB.has(id)) { shakeT = 0.12; shakeMag = 2; break; }
+    }
+  }
+  knownBuildingIds = curB;
 }
 
 function mapY(y) { return -y; } // map y grows down; scene y grows up
@@ -612,6 +798,7 @@ function syncFx(dt) {
   for (const e of game.effects.splice(0)) {
     if (e.kind === 'explosion') {
       fxViews.push({ e, quad: new SpriteQuad(scene, sprites.explosion[0], e.big ? 1.6 : 1.1, e.big ? 1.6 : 1.1, 2.2) });
+      if (e.big) spawnDebris(e.x + 0.5, e.y + 0.5);
     } else if (e.kind === 'puff') {
       fxViews.push({ e, quad: new SpriteQuad(scene, sprites.puff[0], 0.6, 0.6, 2.1) });
     } else if (e.kind === 'tracer' || e.kind === 'zap') {
@@ -641,6 +828,11 @@ function syncFx(dt) {
     } else if (e.kind === 'muzzle') {
       const q = new SpriteQuad(scene, sprites.muzzle, 0.42, 0.42, 2.25);
       q.set(e.x + 0.5, mapY(e.y + 0.5), 2.25);
+      fxViews.push({ e, quad: q });
+    } else if (e.kind === 'emp') {
+      // EMP shock ring — coords are already in world (cell) space
+      const q = new SpriteQuad(scene, sprites.empRing, e.r * 2, e.r * 2, 2.35);
+      q.set(e.x, mapY(e.y), 2.35);
       fxViews.push({ e, quad: q });
     }
   }
@@ -674,6 +866,12 @@ function syncFx(dt) {
       if (e.t > 0.9) e.done = true;
     } else if (e.kind === 'muzzle') {
       if (e.t > 0.08) e.done = true;
+    } else if (e.kind === 'emp') {
+      const life = 0.7;
+      const s = 0.35 + (e.t / life) * 1.1;
+      v.quad.mesh.scale.set(s, s, 1);
+      v.quad.mat.opacity = Math.max(0, 1 - e.t / life);
+      if (e.t > life) e.done = true;
     }
   }
   // cleanup
@@ -685,6 +883,8 @@ function syncFx(dt) {
       fxViews.splice(i, 1);
     }
   }
+
+  stepDebris(dt);
 
   // projectiles as quads (pooled per projectile object)
   for (const p of game.projectiles) {
@@ -705,6 +905,38 @@ function syncFx(dt) {
     if (!liveNow.has(old) && old.view) old.view.dispose(scene);
   }
   syncFx.live = liveNow;
+}
+
+// ------------------------------------------------------------- debris -----
+
+// Eject a handful of ember chips from a big blast. Each hops on a little arc
+// (a rising then falling height offset) and vanishes when it lands.
+function spawnDebris(x, y) {
+  const n = 3 + (Math.random() * 3 | 0);
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * Math.PI * 2, sp = 1.4 + Math.random() * 2.6;
+    const quad = new SpriteQuad(scene, sprites.debris, 0.16, 0.16, 2.4);
+    debris.push({
+      quad, x, y,
+      vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
+      hop: 0.2, vh: 1.8 + Math.random() * 1.6,
+      t: 0, life: 0.5 + Math.random() * 0.4,
+    });
+  }
+}
+
+function stepDebris(dt) {
+  for (let i = debris.length - 1; i >= 0; i--) {
+    const d = debris[i];
+    d.t += dt;
+    d.x += d.vx * dt; d.y += d.vy * dt;
+    d.vx *= 0.9; d.vy *= 0.9;               // air drag
+    d.vh -= 9 * dt; d.hop += d.vh * dt;     // gravity arc
+    if (d.hop < 0) d.hop = 0;
+    d.quad.set(d.x, mapY(d.y) + d.hop, 2.4);
+    d.quad.mat.opacity = Math.max(0, 1 - d.t / d.life);
+    if (d.t >= d.life) { d.quad.dispose(scene); debris.splice(i, 1); }
+  }
 }
 
 // ------------------------------------------------------- placement ghost --
@@ -840,6 +1072,9 @@ function showTitle() {
   document.getElementById('tb-continue').classList.toggle('disabled', !canContinue);
   elTitle.classList.remove('hidden');
   startTitleAnim();
+  // resume the ominous menu march (only once audio has been unlocked by a
+  // gesture; the first-gesture handler covers the very first title paint)
+  if (audio.musicOn && audio.ctx) audio.playMenu();
 }
 
 function showSetup() {
@@ -850,6 +1085,7 @@ function showSetup() {
   drawSetupPreview();
   elSetup.classList.remove('hidden');
   audio.ensure(); audio.resume();
+  if (audio.musicOn) audio.playMenu(); // menu theme carries through setup
   audio.sfx('select');
 }
 
@@ -923,6 +1159,14 @@ function buildAndStart() {
   endShown = false;
 }
 
+// Start (or arm) the in-match battle theme. Sets the song context even when
+// music is muted, so re-enabling it mid-battle resumes the right track.
+function playBattleTheme() {
+  audio.currentSong = 'battle';
+  audio.currentLoop = true;
+  if (audio.musicOn) audio.startMusic();
+}
+
 function startMatch() {
   hideScreens();
   setSidebar(true);
@@ -932,7 +1176,7 @@ function startMatch() {
   requestAnimationFrame(() => requestAnimationFrame(() => {
     buildAndStart();
     elLoading.classList.remove('on');
-    if (audio.musicOn) audio.startMusic();
+    playBattleTheme();
     audio.say('Battle control online', true);
   }));
 }
@@ -943,7 +1187,7 @@ function continueMatch() {
     hideScreens();
     state = 'play';
     setSidebar(true);
-    if (audio.musicOn) audio.startMusic();
+    playBattleTheme();
     return;
   }
   if (!hasValidSave()) return;
@@ -954,7 +1198,7 @@ function continueMatch() {
     const ok = loadSavedGame();
     elLoading.classList.remove('on');
     if (!ok) { showTitle(); return; }
-    if (audio.musicOn) audio.startMusic();
+    playBattleTheme();
     audio.say('Battle control online', true);
   }));
 }
@@ -1064,6 +1308,7 @@ function quitToTitle() {
 function syncSettingsWidgets() {
   document.getElementById('set-master').value = settings.master;
   document.getElementById('set-music').value = settings.musicVol;
+  document.getElementById('set-sfx').value = settings.sfxVol;
   document.getElementById('set-camspeed').value = settings.camSpeed;
   document.getElementById('set-gamespeed').value = settings.gameSpeed;
   document.getElementById('set-gamespeed-val').textContent = `${settings.gameSpeed.toFixed(1)}×`;
@@ -1101,6 +1346,12 @@ function syncSettingsWidgets() {
   document.getElementById('set-music').addEventListener('input', (e) => {
     settings.musicVol = parseFloat(e.target.value);
     audio.ensure(); audio.setMusicVol(settings.musicVol);
+    saveSettings(settings);
+  });
+  document.getElementById('set-sfx').addEventListener('input', (e) => {
+    settings.sfxVol = parseFloat(e.target.value);
+    audio.ensure(); audio.setSfxVol(settings.sfxVol);
+    audio.sfx('tick');
     saveSettings(settings);
   });
   document.getElementById('set-musicon').addEventListener('click', () => {
@@ -1155,6 +1406,19 @@ function advanceScreen() {
 }
 // briefing/end screens also advance on click/tap (touch, embedded iframes)
 for (const el of [elBrief, elEnd]) el.addEventListener('click', advanceScreen);
+
+// Autoplay policy: nothing sounds until the first user gesture. On that gesture
+// unlock the context and — if we're still on the title/setup screens — kick off
+// the menu theme so the title has music from the very first click or keypress.
+let audioArmed = false;
+function armAudio() {
+  if (audioArmed) return;
+  audioArmed = true;
+  audio.ensure(); audio.resume();
+  if ((state === 'title' || state === 'setup') && audio.musicOn) audio.playMenu();
+}
+window.addEventListener('pointerdown', armAudio);
+window.addEventListener('keydown', armAudio);
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Enter' && !menuOpen) advanceScreen();
@@ -1211,6 +1475,13 @@ function frame(now) {
   if (game.oreDirty) { game.oreDirty = false; redrawOre(); }
   fogT -= dt;
   if (fogT <= 0) { fogT = 0.2; redrawFog(); }
+  // animated water: advance one frame every 0.5s, region-redraw only
+  if (!halted) {
+    waterT += dt;
+    if (waterT >= 0.5) { waterT = 0; stepWater(); }
+    stepClouds(dt);
+    if (shakeT > 0) shakeT -= dt;
+  }
 
   syncEntities(dt);
   syncFx(halted ? 0 : dt);
@@ -1222,7 +1493,14 @@ function frame(now) {
   const w = viewEl.clientWidth / 2, h = viewEl.clientHeight / 2; // render px
   const cellsW = w / (TILE * cam.zoom / 2);
   const cellsH = h / (TILE * cam.zoom / 2);
-  camera.position.set(cam.x, -cam.y, 5);
+  // building-death shake offsets the render camera only, never the sim
+  let shx = 0, shy = 0;
+  if (shakeT > 0) {
+    const px = (shakeMag / TILE) * (shakeT / 0.12);
+    shx = (Math.random() - 0.5) * 2 * px;
+    shy = (Math.random() - 0.5) * 2 * px;
+  }
+  camera.position.set(cam.x + shx, -cam.y + shy, 5);
   camera.left = -cellsW / 2;
   camera.right = cellsW / 2;
   camera.top = cellsH / 2;
@@ -1240,8 +1518,9 @@ function frame(now) {
       state = 'end';
       setSidebar(false);
       ui.showEnd(game.won, game.players.player.stats);
-      audio.stopMusic();
-      audio.sfx(game.won ? 'ready' : 'zapdown');
+      // end-screen stinger: victory fanfare or defeat dirge, then silence
+      if (audio.musicOn) audio.playJingle(game.won);
+      else { audio.stopMusic(); audio.sfx(game.won ? 'ready' : 'zapdown'); }
     }, 1800);
   }
 }
@@ -1255,6 +1534,28 @@ showTitle();        // sets the CONTINUE button state (also starts title sky)
 
 
 // smoke-test hooks: let automated checks poke the sim
+// audio-test hooks: let headless checks drive the sound engine
+window.__audio_test = {
+  ensure: () => audio.ensure(),
+  // snapshot the WebAudio graph so the test can assert every bus exists
+  graph: () => ({
+    ctx: !!audio.ctx, master: !!audio.master, music: !!audio.musicGain,
+    sfx: !!audio.sfxGain, state: audio.ctx ? audio.ctx.state : null,
+  }),
+  // start a named song; jingles play once, themes loop. Returns live state.
+  play: (name) => {
+    audio.musicOn = true;
+    if (name === 'victory' || name === 'defeat') audio.playJingle(name === 'victory');
+    else audio.playSong(name, true);
+    return { song: audio.songName, playing: audio.playing };
+  },
+  sfx: (n) => { audio.sfx(n); return true; },
+  stop: () => { audio.stopMusic(); return !audio.playing; },
+  setSfxVol: (v) => { audio.setSfxVol(v); return audio.sfxVol; },
+  playing: () => audio.playing,
+  song: () => audio.songName,
+};
+
 window.__game_test = {
   spawn: (house, key, x, y) => game.addUnit(game.players[house], key, x, y),
   build: (house, key, x, y) => game.addBuilding(game.players[house], key, x, y, { instant: true }),
@@ -1284,7 +1585,7 @@ window.__game_test = {
     hideScreens();
     setSidebar(true);
     buildAndStart();   // synchronous so callers can read map info immediately
-    if (audio.musicOn) audio.startMusic();
+    playBattleTheme();
     return { opponents: setup.opponents, size: map.size, biome: map.biome, layout: map.layout };
   },
   // flood-fill connectivity: every start reachable from starts[0]?
@@ -1439,6 +1740,25 @@ window.__game_test = {
     game.orderCapture(u, b);
     return true;
   },
+  // like findOpen, but searches outward from (cx,cy) — lets tests place
+  // several well-separated arenas that won't interfere with each other
+  findOpenNear: (cx, cy, r) => {
+    const m = game.map;
+    for (let rad = 0; rad < m.size; rad++) {
+      for (let dy = -rad; dy <= rad; dy++)
+        for (let dx = -rad; dx <= rad; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== rad) continue;
+          const x = cx + dx, y = cy + dy;
+          if (x < r + 2 || y < r + 2 || x > m.size - r - 2 || y > m.size - r - 2) continue;
+          let ok = true;
+          for (let ay = -r; ay <= r && ok; ay++)
+            for (let ax = -r; ax <= r && ok; ax++)
+              if (!m.isBuildable(x + ax, y + ay)) ok = false;
+          if (ok) return [x, y];
+        }
+    }
+    return null;
+  },
   // top-left of a (2r+1) square whose cells are all buildable, edge-safe
   findOpen: (r) => {
     const m = game.map;
@@ -1453,6 +1773,59 @@ window.__game_test = {
     }
     return null;
   },
+  // --- depth-mechanic test helpers (veterancy / APC / depots / powers) ---
+  // first live matching unit's id (skips boarded riders)
+  unitId: (house, key) => {
+    const u = game.units.find((u) => !u.dead && !u.boarded && u.house === house && u.key === key);
+    return u ? u.id : 0;
+  },
+  countUnits: (house, key) =>
+    game.units.filter((u) => !u.dead && !u.boarded && u.house === house && u.key === key).length,
+  // read a numeric field off a unit by id (hp, maxHp, xp, rank, empT, x, y, boarded)
+  unitField: (id, name) => {
+    const u = game.units.find((u) => u.id === id);
+    if (!u) return null;
+    const v = u[name];
+    return typeof v === 'boolean' ? (v ? 1 : 0) : (v ?? null);
+  },
+  hurtUnit: (id, hp) => {
+    const u = game.units.find((u) => !u.dead && u.id === id);
+    if (!u) return false;
+    u.hp = hp; return true;
+  },
+  attackMoveId: (id, x, y) => {
+    const u = game.units.find((u) => !u.dead && u.id === id);
+    if (!u) return false;
+    game.orderAttackMove(u, x, y); return true;
+  },
+  moveOrderId: (id, x, y) => {
+    const u = game.units.find((u) => !u.dead && u.id === id);
+    if (!u) return false;
+    game.orderMove(u, x, y); return true;
+  },
+  // board passengers (ids) into an APC (id)
+  boardInto: (apcId, passengerIds) => {
+    const apc = game.units.find((u) => !u.dead && u.id === apcId);
+    if (!apc) return false;
+    for (const pid of passengerIds) {
+      const p = game.units.find((u) => !u.dead && u.id === pid);
+      if (p) game.orderBoard(p, apc);
+    }
+    return true;
+  },
+  unloadApc: (apcId) => {
+    const apc = game.units.find((u) => !u.dead && u.id === apcId);
+    if (!apc) return false;
+    game.orderUnload(apc); return true;
+  },
+  apcCargoCount: (apcId) => {
+    const apc = game.units.find((u) => !u.dead && u.id === apcId);
+    return apc && apc.cargoUnits ? apc.cargoUnits.length : -1;
+  },
+  // fire a commander power at a world cell; returns whether it fired
+  castPower: (which, x, y) => game.castPower(which, x, y),
+  powerCd: (which) => (which === 'recon' ? game.reconCd : game.empCd),
+  explored: (x, y) => !!game.explored[game.map.idx(x, y)],
   // findPath result: {len, ex, ey} end cell, or null when unreachable
   path: (sx, sy, tx, ty) => {
     const p = findPath(game.map, sx, sy, tx, ty, null);
@@ -1470,7 +1843,7 @@ window.__game_debug = () => (state !== 'play' ? { state } : {
   enemyCredits: Math.round(game.players.enemy?.credits ?? 0),
   enemyProdB: game.players.enemy?.prod.building?.key || null,
   enemyProdU: game.players.enemy?.prod.unit?.key || null,
-  opponents: Object.values(game.players).filter((p) => !p.isHuman).length,
+  opponents: Object.values(game.players).filter((p) => !p.isHuman && !p.isNeutral).length,
   mapSize: game.map.size,
   biome: game.map.biome,
   layout: game.map.layout,

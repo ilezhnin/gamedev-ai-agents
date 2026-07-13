@@ -4,7 +4,7 @@
 
 import {
   PAL, HOUSE, makeCanvas, px, drawMap, dither, bevelRect, outlineRect,
-  rotatedCopy, houseRecolor, makeRng, shadeColor,
+  rotatedCopy, houseRecolor, makeRng, shadeColor, hexToRgb,
 } from './palette.js';
 
 export const TILE = 24;          // world pixels per map cell
@@ -115,6 +115,28 @@ function shoreTile(base, mask, biome) {
   if (mask & 4) { dither(g, 0, w - 2, w, 2, f1, f2); px(g, 0, w - 3, f2, w, 1); }
   if (mask & 8) { dither(g, 0, 0, 2, w, f1, f2); px(g, 2, 0, f2, 1, w); }
   if (mask & 2) { dither(g, w - 2, 0, 2, w, f1, f2); px(g, w - 3, 0, f2, 1, w); }
+  return c;
+}
+
+// Grass<->dirt auto-edge: a 2px scuffed-dirt fringe drawn on a GRASS tile
+// wherever it borders DIRT, so the biome floor reads as a blended surface
+// instead of hard seams. Same mask convention as shoreTile.
+function edgeTile(base, mask, biome) {
+  const B = BIOMES[biome];
+  const a = B.dirt[0], b = B.dirt[1];
+  const [c, g] = makeCanvas(TILE, TILE);
+  g.drawImage(base, 0, 0);
+  const w = TILE;
+  // sparse checker melts the inner row into the grass beneath
+  const checker = (x, y, ww, hh) => {
+    for (let j = 0; j < hh; j++)
+      for (let i = 0; i < ww; i++)
+        if ((x + i + y + j) & 1) px(g, x + i, y + j, b);
+  };
+  if (mask & 1) { dither(g, 0, 0, w, 1, a, b); checker(0, 1, w, 1); }
+  if (mask & 4) { dither(g, 0, w - 1, w, 1, a, b); checker(0, w - 2, w, 1); }
+  if (mask & 8) { dither(g, 0, 0, 1, w, a, b); checker(1, 0, 1, w); }
+  if (mask & 2) { dither(g, w - 1, 0, 1, w, a, b); checker(w - 2, 0, 1, w); }
   return c;
 }
 
@@ -501,6 +523,44 @@ function mcvHull() {
   return c;
 }
 
+// armoured personnel carrier: a boxy troop hull with side tracks, a roof
+// hatch and a small pintle MG poking forward. No turret — drawn facing north.
+function apcHull() {
+  const [c, g] = makeCanvas(24, 24);
+  const L = {
+    k: PAL.ink, t: PAL.tread, T: PAL.treadHi,
+    a: PAL.steel3, b: PAL.steel2, c: PAL.steel4, h: PAL.steel1,
+    H: HN[2], d: HN[1], g: PAL.gun1, G: PAL.gun2,
+  };
+  drawMap(g, [
+    '........................',
+    '..........kGk...........',
+    '..........kgk...........',
+    '....kkk...kgk....kkk....',
+    '...ktttk..kkk...ktttk...',
+    '...kTttkkkkkkkkkktTttk..',
+    '...ktttkabbbbbbbaktttk..',
+    '...kTttkabbHHbbbaktTttk.',
+    '...ktttkabbbbbbbaktttk..',
+    '...kTttkabbccbbbaktTttk.',
+    '...ktttkabhbbbbbaktttk..',
+    '...kTttkabbbbbbbaktTttk.',
+    '...ktttkabbbbbbbaktttk..',
+    '...kTttkaHdddddHaktTttk.',
+    '...ktttkabbbbbbbaktttk..',
+    '...kTttkabbccbbbaktTttk.',
+    '...ktttkabbbbbbbaktttk..',
+    '...kTttkkkkkkkkkktTttk..',
+    '...ktttk........ktttk...',
+    '....kkk..........kkk....',
+    '........................',
+    '........................',
+    '........................',
+    '........................',
+  ], L);
+  return c;
+}
+
 // self-propelled gun: fixed hull with a long barrel (no turret), drawn north
 function artilleryHull() {
   const [c, g] = makeCanvas(24, 24);
@@ -768,6 +828,8 @@ function powerPlantSprite() {
   bevelRect(g, 8, 28, W - 16, 14, PAL.roof2, PAL.roofHi, PAL.roof3);
   outlineRect(g, 8, 28, W - 16, 14, PAL.ink);
   px(g, 12, 32, HN[2], W - 24, 2);
+  px(g, 12, 34, PAL.ink, W - 24, 1);                 // crisp trim underline
+  dither(g, 12, 36, W - 24, 4, PAL.roof2, PAL.roof3); // shaded metal roof face
   px(g, 12, 37, PAL.ore1, 3, 3); px(g, W - 15, 37, PAL.ore1, 3, 3);
   return c;
 }
@@ -803,9 +865,12 @@ function barracksSprite() {
   const W = TILE * 2, H = TILE * 2;
   const [c, g] = makeCanvas(W, H);
   bldBase(g, W, H, { mid: PAL.wall1 });
-  // pitched roof reading: two shaded halves
+  // pitched roof reading: two shaded halves with an ordered-dither mid-band
+  // so the ridge falls off across four tones instead of a hard two-tone seam
   px(g, 6, 6, PAL.roof1, W - 12, (H - 12) / 2);
   px(g, 6, H / 2, PAL.roof3, W - 12, (H - 12) / 2);
+  dither(g, 6, H / 2 - 3, W - 12, 2, PAL.roof1, PAL.roof2);
+  dither(g, 6, H / 2 + 1, W - 12, 2, PAL.roof2, PAL.roof3);
   px(g, 6, H / 2 - 1, PAL.roofHi, W - 12, 1);
   outlineRect(g, 5, 5, W - 10, H - 10, PAL.ink);
   // house-colour banner + door
@@ -847,13 +912,38 @@ function radarSprite() {
   bevelRect(g, 8, H - 18, W - 16, 12, PAL.roof2, PAL.roofHi, PAL.roof3);
   outlineRect(g, 8, H - 18, W - 16, 12, PAL.ink);
   px(g, 12, H - 15, HN[2], 6, 3);
-  // dish
-  g.fillStyle = PAL.ink; g.beginPath(); g.ellipse(W / 2, 18, 13, 10, -0.5, 0, 7); g.fill();
-  g.fillStyle = PAL.steel1; g.beginPath(); g.ellipse(W / 2, 18, 12, 9, -0.5, 0, 7); g.fill();
-  g.fillStyle = PAL.steel2; g.beginPath(); g.ellipse(W / 2 + 2, 19, 8, 6, -0.5, 0, 7); g.fill();
-  px(g, W / 2 - 1, 16, PAL.zapCore, 3, 3);
-  px(g, W / 2 - 8, 11, PAL.steelHi, 4, 1);
+  // dish mount pedestal — the spinning dish itself is a separate overlay
+  // (radarDishFrames) so it can rotate without a per-house canvas rebuild
+  g.fillStyle = PAL.ink; g.beginPath(); g.arc(W / 2, 18, 5, 0, 7); g.fill();
+  g.fillStyle = PAL.steel3; g.beginPath(); g.arc(W / 2, 18, 4, 0, 7); g.fill();
+  px(g, W / 2 - 1, 14, PAL.steel4, 2, 5);
   return c;
+}
+
+// The radar dish as a set of 4 overlay frames. A bright feed horn orbits the
+// dish and the reflector rocks slightly, reading as a slow radar sweep when
+// the frames cycle ~1s. House-independent (steel), sized to the 2x2 footprint.
+function radarDishFrames() {
+  const W = TILE * 2;
+  const frames = [];
+  for (let f = 0; f < 4; f++) {
+    const [c, g] = makeCanvas(W, W);
+    const ang = f * (Math.PI * 2 / 4);
+    g.save();
+    g.translate(W / 2, 18);
+    g.rotate(Math.sin(ang) * 0.18);   // gentle rock, not a full tumble
+    g.fillStyle = PAL.ink; g.beginPath(); g.ellipse(0, 0, 13, 10, -0.5, 0, 7); g.fill();
+    g.fillStyle = PAL.steel1; g.beginPath(); g.ellipse(0, 0, 12, 9, -0.5, 0, 7); g.fill();
+    g.fillStyle = PAL.steel2; g.beginPath(); g.ellipse(2, 1, 8, 6, -0.5, 0, 7); g.fill();
+    g.restore();
+    px(g, W / 2 - 8, 11, PAL.steelHi, 4, 1);
+    // orbiting feed horn: the visible "sweep" cue
+    const sx = W / 2 + Math.cos(ang) * 6, sy = 18 + Math.sin(ang) * 4;
+    px(g, (sx | 0) - 1, (sy | 0) - 1, PAL.ink, 3, 3);
+    px(g, (sx | 0) - 1, (sy | 0) - 1, PAL.zapCore, 2, 2);
+    frames.push(c);
+  }
+  return frames;
 }
 
 function guardTowerSprite() {
@@ -976,6 +1066,46 @@ function wallSprite() {
   px(g, 6, 11, PAL.concreteD, 1, 9);
   px(g, W - 8, 11, PAL.concreteD, 1, 9);
   px(g, W / 2 - 2, 5, HN[2], 4, 2);   // house tag
+  return c;
+}
+
+// neutral supply depot: a fenced 2x2 pad stacked with wooden crates and
+// fuel drums. Drawn with house-colour placeholders on a corner flag so the
+// tint reads neutral grey when unowned and faction colour once captured.
+function depotSprite() {
+  const W = TILE * 2, H = TILE * 2;
+  const [c, g] = makeCanvas(W, H);
+  // concrete pad
+  g.fillStyle = PAL.shadow; g.fillRect(4, 5, W - 6, H - 6);
+  bevelRect(g, 2, 2, W - 4, H - 4, PAL.concrete, PAL.wallHi, PAL.concreteD);
+  outlineRect(g, 2, 2, W - 4, H - 4, PAL.ink);
+  // hazard stripe along the top edge
+  for (let i = 0; i < 8; i++) px(g, 4 + i * 5, 4, i % 2 ? PAL.ore1 : PAL.ink, 4, 2);
+  // wooden crates (brown) with plank seams
+  const crate = (x, y, s) => {
+    px(g, x, y, PAL.ink, s, s);
+    bevelRect(g, x + 1, y + 1, s - 2, s - 2, '#8a6034', '#a97a44', '#5e4020');
+    px(g, x + 1, y + (s >> 1), '#5e4020', s - 2, 1);
+    px(g, x + (s >> 1), y + 1, '#5e4020', 1, s - 2);
+  };
+  crate(8, 12, 12);
+  crate(21, 10, 11);
+  crate(11, 26, 11);
+  // fuel drums (steel cylinders with a rim + bung)
+  const drum = (cx, cy) => {
+    g.fillStyle = PAL.ink; g.beginPath(); g.arc(cx, cy, 6, 0, 7); g.fill();
+    g.fillStyle = PAL.steel3; g.beginPath(); g.arc(cx, cy, 5, 0, 7); g.fill();
+    g.fillStyle = PAL.steel1; g.beginPath(); g.arc(cx - 1, cy - 1, 3, 0, 7); g.fill();
+    px(g, cx - 3, cy, PAL.steel4, 6, 1);
+    px(g, cx - 1, cy - 4, PAL.ore1, 2, 2);   // yellow bung cap
+  };
+  drum(W - 13, H - 15);
+  drum(W - 24, H - 12);
+  // corner flag: house-colour trim (tinted per owner)
+  px(g, 4, H - 12, PAL.ink, 3, 10);
+  px(g, 5, H - 12, HN[2], 1, 10);
+  px(g, 6, H - 12, HN[2], 6, 5);
+  px(g, 6, H - 12, HN[3], 6, 2);
   return c;
 }
 
@@ -1191,6 +1321,191 @@ export function drawTitleLogo(canvas, t = 0) {
   g.textAlign = 'left';
 }
 
+// --------------------------------------------------------- unit life fx ---
+
+// Track/wheel shimmer: post-process a tinted hull so the tread highlights
+// (PAL.treadHi over PAL.tread) shift down one row. Alternating this "B" hull
+// with the base "A" hull at ~8fps while moving sells rolling treads without a
+// second hand-drawn frame. Operates before rotation (tread colours are never
+// house-recoloured, so they survive houseRecolor untouched).
+function treadShift(src) {
+  const w = src.width, h = src.height;
+  const [dst, g] = makeCanvas(w, h);
+  g.drawImage(src, 0, 0);
+  const img = g.getImageData(0, 0, w, h);
+  const d = img.data;
+  const hi = hexToRgb(PAL.treadHi), lo = hexToRgb(PAL.tread);
+  const at = (x, y) => ((y * w + x) * 4);
+  const isHi = (i) => d[i] === hi[0] && d[i + 1] === hi[1] && d[i + 2] === hi[2] && d[i + 3] > 0;
+  // snapshot which pixels are highlights, then rewrite: highlight moves down
+  const wasHi = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) if (isHi(at(x, y))) wasHi[y * w + x] = 1;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = at(x, y);
+      const here = wasHi[y * w + x];
+      const above = y > 0 && wasHi[(y - 1) * w + x];
+      if (here && !above) { d[i] = lo[0]; d[i + 1] = lo[1]; d[i + 2] = lo[2]; }
+      else if (!here && above) { d[i] = hi[0]; d[i + 1] = hi[1]; d[i + 2] = hi[2]; d[i + 3] = 255; }
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return dst;
+}
+
+// Harvester intake spinner: 2 tiny frames of a rotating auger, overlaid on
+// the hull while it is actively scooping ore.
+function harvSpinFrames() {
+  const mk = (rot) => {
+    const [c, g] = makeCanvas(10, 10);
+    g.save(); g.translate(5, 5); g.rotate(rot);
+    g.fillStyle = PAL.ink; g.fillRect(-4, -1, 8, 2); g.fillRect(-1, -4, 2, 8);
+    g.fillStyle = PAL.ore3; g.fillRect(-4, -1, 3, 1); g.fillRect(1, 0, 3, 1);
+    g.fillStyle = PAL.oreHi; g.fillRect(0, -4, 1, 3);
+    g.restore();
+    return c;
+  };
+  return [mk(0), mk(Math.PI / 4)];
+}
+
+// Battle-damage decal: procedural cracks + soot on a transparent footprint
+// canvas, drawn as an extra quad over a building below 50% hp. Two variants
+// per footprint size keep repeats from looking stamped.
+function crackOverlay(wT, hT, seed) {
+  const W = wT * TILE, H = hT * TILE;
+  const [c, g] = makeCanvas(W, H);
+  const rng = makeRng(seed);
+  // soot smudges
+  for (let i = 0; i < 2 + wT; i++) {
+    const x = 4 + rng() * (W - 8), y = 4 + rng() * (H - 8), r = 3 + rng() * 5;
+    g.globalAlpha = 0.35 + rng() * 0.2;
+    g.fillStyle = '#14120c';
+    g.beginPath(); g.arc(x, y, r, 0, 7); g.fill();
+  }
+  g.globalAlpha = 1;
+  // jagged cracks with a faint highlighted lip
+  const nc = 2 + wT;
+  for (let i = 0; i < nc; i++) {
+    let x = (3 + rng() * (W - 6)) | 0, y = (3 + rng() * (H - 6)) | 0;
+    const steps = 6 + (rng() * 8 | 0);
+    for (let s = 0; s < steps; s++) {
+      px(g, x, y, '#0c0b08');
+      if ((s & 1) === 0) px(g, x + 1, y, 'rgba(200,190,170,0.22)');
+      x += (rng() < 0.5 ? 1 : -1) * (1 + (rng() * 2 | 0));
+      y += 1 + (rng() * 2 | 0);
+      if (x < 1 || x >= W - 1 || y >= H - 1) break;
+    }
+  }
+  return c;
+}
+
+// Veterancy rank pips: 1-2 tiny gold chevrons with an ink outline, worn
+// above a ranked unit's health bar. Index 0 = rank1 (one), 1 = rank2 (two).
+function rankChevrons() {
+  const mk = (n) => {
+    const [c, g] = makeCanvas(14, 10);
+    const chevron = (oy) => {
+      // an ink-outlined gold "^" a few pixels wide
+      for (let i = 0; i < 4; i++) {
+        px(g, 3 + i, oy + i, PAL.ink);
+        px(g, 10 - i, oy + i, PAL.ink);
+      }
+      for (let i = 0; i < 3; i++) {
+        px(g, 4 + i, oy + i, PAL.ore1);
+        px(g, 9 - i, oy + i, PAL.ore1);
+      }
+      px(g, 6, oy, PAL.oreHi, 2, 1);
+    };
+    if (n === 1) chevron(3);
+    else { chevron(0); chevron(5); }
+    return c;
+  };
+  return [mk(1), mk(2)];
+}
+
+// EMP shock ring: concentric electric-blue rings on transparent, scaled up
+// and faded by the renderer over ~0.7s when a blast lands.
+function empRingSprite() {
+  const S = 64;
+  const [c, g] = makeCanvas(S, S);
+  const cx = S / 2, cy = S / 2;
+  for (const [r, col, lw] of [[30, PAL.zap, 3], [22, PAL.zapCore, 2], [14, PAL.zap, 2]]) {
+    g.strokeStyle = col; g.lineWidth = lw;
+    g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.stroke();
+  }
+  // a few radial sparks
+  const rng = makeRng(8123);
+  for (let i = 0; i < 10; i++) {
+    const a = rng() * Math.PI * 2, d = 24 + rng() * 6;
+    px(g, cx + Math.cos(a) * d, cy + Math.sin(a) * d, PAL.zapCore, 2, 2);
+  }
+  return c;
+}
+
+// Commander-power cameo glyphs (48x36): recon sweep (radar arcs) + EMP bolt.
+function powerIcon(kind) {
+  const [c, g] = makeCanvas(48, 36);
+  const grad = g.createLinearGradient(0, 0, 0, 36);
+  grad.addColorStop(0, '#2a3038'); grad.addColorStop(1, '#12161c');
+  g.fillStyle = grad; g.fillRect(0, 0, 48, 36);
+  if (kind === 'recon') {
+    // sweeping radar arcs from the bottom-left origin
+    g.strokeStyle = '#7fe08a'; g.lineWidth = 2;
+    for (const r of [10, 17, 24]) { g.beginPath(); g.arc(12, 28, r, -Math.PI / 2, 0); g.stroke(); }
+    g.fillStyle = '#bfe8ff';
+    g.beginPath(); g.moveTo(12, 28); g.lineTo(34, 12); g.lineTo(36, 16); g.closePath(); g.fill();
+    px(g, 11, 27, '#eafff0', 3, 3);
+  } else {
+    // jagged EMP bolt inside a broken ring
+    g.strokeStyle = '#5f8fd0'; g.lineWidth = 2;
+    g.beginPath(); g.arc(24, 18, 13, 0.6, Math.PI * 2 - 0.6); g.stroke();
+    g.fillStyle = '#bfe8ff';
+    g.beginPath();
+    g.moveTo(26, 6); g.lineTo(19, 19); g.lineTo(24, 19); g.lineTo(20, 30);
+    g.lineTo(31, 15); g.lineTo(25, 15); g.lineTo(30, 6); g.closePath(); g.fill();
+    px(g, 23, 8, '#ffffff', 2, 2);
+  }
+  outlineRect(g, 0, 0, 48, 36, '#0a0a0a');
+  return c;
+}
+
+// A soft dark ground shadow for units — one shared ellipse, scaled per unit.
+function unitShadowSprite() {
+  const [c, g] = makeCanvas(24, 14);
+  g.fillStyle = 'rgba(0,0,0,1)';
+  g.beginPath(); g.ellipse(12, 7, 10, 5, 0, 0, 7); g.fill();
+  return c;
+}
+
+// Tiny ember/debris chip flung by big explosions.
+function debrisSprite() {
+  const [c, g] = makeCanvas(3, 3);
+  px(g, 0, 0, PAL.fire2, 2, 2);
+  px(g, 0, 0, PAL.fire1);
+  px(g, 1, 1, PAL.smoke2);
+  return c;
+}
+
+// A large soft cloud-shadow blob that drifts over the terrain. Radial alpha
+// falloff so the edges are feathered; the caller keeps opacity very low.
+function cloudShadowSprite(seed) {
+  const S = 128;
+  const [c, g] = makeCanvas(S, S);
+  const rng = makeRng(seed);
+  // a few overlapping radial gradients make an organic, non-circular blob
+  for (let i = 0; i < 5; i++) {
+    const cx = S / 2 + (rng() - 0.5) * 46, cy = S / 2 + (rng() - 0.5) * 32;
+    const r = 26 + rng() * 26;
+    const grad = g.createRadialGradient(cx, cy, 0, cx, cy, r);
+    grad.addColorStop(0, 'rgba(0,0,0,0.34)');
+    grad.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grad;
+    g.beginPath(); g.arc(cx, cy, r, 0, 7); g.fill();
+  }
+  return c;
+}
+
 // ------------------------------------------------------------ atlas build --
 
 export function buildSprites() {
@@ -1202,7 +1517,7 @@ export function buildSprites() {
     S.tiles[biome] = {
       ground: [1, 2, 3, 4].map((s) => groundTile(s, biome)),
       dirt: [11, 12].map((s) => dirtTile(s, biome)),
-      water: [0, 1].map((f) => waterTile(21, f, biome)),
+      water: [0, 1, 2, 3].map((f) => waterTile(21, f, biome)),
       rock: [31, 32].map((s) => rockTile(s, biome)),
       tree: [41, 42, 43].map((s) => treeTile(s, biome)),
       ruin: [51, 52, 53].map((s) => ruinTile(s, biome)),
@@ -1214,6 +1529,7 @@ export function buildSprites() {
   S.gem = [gemOverlay(1), gemOverlay(2), gemOverlay(3)];
   S.scorch = scorchDecal();
   S.shore = (base, mask, biome) => shoreTile(base, mask, biome);
+  S.edge = (base, mask, biome) => edgeTile(base, mask, biome);
 
   // faction-tinted body sets
   const factions = {
@@ -1229,14 +1545,23 @@ export function buildSprites() {
   S.units = {};
   for (const [house, colors] of Object.entries(factions)) {
     const tint = (c) => houseRecolor(c, colors);
+    // a tracked vehicle: base facings ("hull") + a tread-shifted "hullB" set,
+    // alternated at ~8fps by the renderer while the unit is moving
+    const veh = (hullFn, turretFn) => {
+      const t = tint(hullFn());
+      const set = { hull: facingsOf(t), hullB: facingsOf(treadShift(t)) };
+      if (turretFn) set.turret = facingsOf(tint(turretFn()));
+      return set;
+    };
     S.units[house] = {
-      lightTank: { hull: facingsOf(tint(lightTankHull())), turret: facingsOf(tint(lightTankTurret())) },
-      heavyTank: { hull: facingsOf(tint(heavyTankHull())), turret: facingsOf(tint(heavyTankTurret())) },
-      behemoth: { hull: facingsOf(tint(behemothHull())), turret: facingsOf(tint(behemothTurret())) },
-      artillery: { hull: facingsOf(tint(artilleryHull())) },
-      rocketTruck: { hull: facingsOf(tint(rocketTruckHull())) },
-      harvester: { hull: facingsOf(tint(harvesterHull())) },
-      mcv: { hull: facingsOf(tint(mcvHull())) },
+      lightTank: veh(lightTankHull, lightTankTurret),
+      heavyTank: veh(heavyTankHull, heavyTankTurret),
+      behemoth: veh(behemothHull, behemothTurret),
+      artillery: veh(artilleryHull),
+      rocketTruck: veh(rocketTruckHull),
+      apc: veh(apcHull),
+      harvester: veh(harvesterHull),
+      mcv: veh(mcvHull),
       rifle: { frames: soldierFrames('rifle').map((f) => facingsOf(tint(f))) },
       rocket: { frames: soldierFrames('rocket').map((f) => facingsOf(tint(f))) },
       engineer: { frames: soldierFrames('engineer').map((f) => facingsOf(tint(f))) },
@@ -1249,8 +1574,11 @@ export function buildSprites() {
     barracks: barracksSprite(), factory: factorySprite(), radar: radarSprite(),
     guard: guardTowerSprite(), tesla: teslaSprite(), silo: siloSprite(),
     flametower: flameTowerSprite(), techcenter: techCenterSprite(), wall: wallSprite(),
+    depot: depotSprite(),
   };
-  for (const [house, colors] of Object.entries(factions)) {
+  // buildings also tint for the neutral house (supply depots start neutral)
+  const bfactions = { ...factions, neutral: HOUSE.neutral };
+  for (const [house, colors] of Object.entries(bfactions)) {
     S.buildings[house] = {};
     for (const [k, spr] of Object.entries(bsprites)) {
       S.buildings[house][k] = houseRecolor(spr, colors);
@@ -1270,6 +1598,26 @@ export function buildSprites() {
   S.flame = flameFrames();
   S.smoke = smokeFrames();
   S.flag = flagSprite();
+  S.debris = debrisSprite();
+
+  // extra render-only art: rotating radar dish, harvester spinner, unit
+  // shadow, damage decals (2 variants per footprint), drifting cloud blobs
+  S.radarDish = radarDishFrames();
+  S.harvSpin = harvSpinFrames();
+  S.unitShadow = unitShadowSprite();
+  S.cracks = {};
+  for (const [w, h] of [[3, 3], [2, 2], [3, 2], [1, 1]]) {
+    S.cracks[`${w}x${h}`] = [
+      crackOverlay(w, h, 700 + w * 31 + h * 7),
+      crackOverlay(w, h, 1900 + w * 13 + h * 17),
+    ];
+  }
+  S.clouds = [cloudShadowSprite(11), cloudShadowSprite(29), cloudShadowSprite(53)];
+
+  // veterancy chevrons, EMP shock ring, commander-power cameo glyphs
+  S.rankChevrons = rankChevrons();
+  S.empRing = empRingSprite();
+  S.powerIcons = { recon: powerIcon('recon'), emp: powerIcon('emp') };
 
   return S;
 }

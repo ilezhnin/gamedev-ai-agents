@@ -29,6 +29,7 @@ export class GameMap {
     this.oreMax = 280;
     this.blocked = new Uint8Array(size * size);     // 1 = building/static blocker
     this.occupant = new Array(size * size).fill(null); // moving unit reservation
+    this.depots = [];                               // {x,y} neutral supply depots
     this.generate();
   }
 
@@ -51,6 +52,7 @@ export class GameMap {
     m.gem = b64ToU8(md.gem);
     m.blocked = new Uint8Array(m.size * m.size);
     m.occupant = new Array(m.size * m.size).fill(null);
+    m.depots = [];   // depots are restored as neutral buildings, not from the map
     return m;
   }
 
@@ -148,6 +150,9 @@ export class GameMap {
       }
     }
 
+    // neutral supply depots in the contested middle (never in start zones)
+    this.placeDepots(rng);
+
     // map edges: rocks to frame the world
     for (let x = 0; x < s; x++) {
       for (const y of [0, s - 1]) if (rng() < 0.5) this.terrain[this.idx(x, y)] = T.ROCK;
@@ -158,6 +163,48 @@ export class GameMap {
 
     // safety net: carve a passable path to any start walled off by terrain
     this.ensureConnectivity();
+  }
+
+  // 2-4 neutral supply depots (scaled by map size), biased toward the
+  // contested centre, clear of every start zone. Each is a 2x2 footprint of
+  // cleared land; the game spawns a neutral building on it.
+  placeDepots(rng) {
+    const s = this.size;
+    this.depots = [];
+    const n = s <= 48 ? 2 : s <= 64 ? 3 : 4;
+    const cx = s / 2, cy = s / 2;
+    for (let k = 0; k < n; k++) {
+      for (let tries = 0; tries < 80; tries++) {
+        const ang = rng() * Math.PI * 2;
+        const rad = (0.10 + rng() * 0.32) * s;   // ring around the centre
+        const x = Math.round(cx + Math.cos(ang) * rad) - 1;
+        const y = Math.round(cy + Math.sin(ang) * rad) - 1;
+        if (!this.depotSpotOk(x, y)) continue;
+        // clear the 2x2 footprint to grass, wipe any ore under it
+        for (let dy = 0; dy < 2; dy++)
+          for (let dx = 0; dx < 2; dx++) {
+            const i = this.idx(x + dx, y + dy);
+            this.terrain[i] = T.GRASS; this.ore[i] = 0; this.gem[i] = 0;
+          }
+        this.depots.push({ x, y });
+        break;
+      }
+    }
+  }
+
+  // is (x,y) a valid top-left for a 2x2 depot? land footprint, edge-safe,
+  // away from every start zone and any depot already placed
+  depotSpotOk(x, y) {
+    const s = this.size;
+    if (x < 3 || y < 3 || x > s - 5 || y > s - 5) return false;
+    for (const st of this.starts) if (Math.hypot(st.x - (x + 1), st.y - (y + 1)) < 16) return false;
+    for (const d of this.depots) if (Math.hypot(d.x - x, d.y - y) < 8) return false;
+    for (let dy = 0; dy < 2; dy++)
+      for (let dx = 0; dx < 2; dx++) {
+        const t = this.terrain[this.idx(x + dx, y + dy)];
+        if (t === T.WATER || t === T.ROCK || t === T.RUIN) return false;
+      }
+    return true;
   }
 
   // ------------------------------------------------------ layout templates --

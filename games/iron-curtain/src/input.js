@@ -87,6 +87,16 @@ export class Input {
     const cx = Math.floor(wx), cy = Math.floor(wy);
     const p = this.game.players.player;
 
+    // commander-power targeting: left-click fires, anything else cancels
+    if (this.ui.mode === 'power-recon' || this.ui.mode === 'power-emp') {
+      if (e.button === 0) {
+        const which = this.ui.mode === 'power-recon' ? 'recon' : 'emp';
+        this.audio.sfx(this.game.castPower(which, wx, wy) ? 'ack' : 'nofunds');
+      }
+      this.ui.setMode('normal');
+      return;
+    }
+
     if (e.button === 0) {
       // placement mode
       if (this.ui.mode === 'place' || p.readyBuilding) {
@@ -175,7 +185,7 @@ export class Input {
     // units first (small radius)
     let bestD = 0.8;
     for (const u of g.units) {
-      if (u.dead) continue;
+      if (u.dead || u.boarded) continue;
       const d = Math.hypot(u.x + 0.0 - wx + 0.0, u.y - wy);
       if (d < bestD) { picked = u; bestD = d; }
     }
@@ -186,7 +196,7 @@ export class Input {
     if (picked) {
       if (picked.house === 'player') {
         if (!this.selection.includes(picked)) this.selection.push(picked);
-        this.audio.sfx('select');
+        this.audio.sfx(picked.isUnit ? (picked.def.kind === 'vehicle' ? 'selVeh' : 'selInf') : 'select');
         if (picked.isUnit) this.audio.say(picked.def.name.toLowerCase());
       } else {
         this.selection = [picked]; // enemy: info-select only
@@ -199,13 +209,13 @@ export class Input {
     if (!additive) this.selection = [];
     let any = false;
     for (const u of g.units) {
-      if (u.dead || u.house !== 'player') continue;
+      if (u.dead || u.boarded || u.house !== 'player') continue;
       if (u.x >= ax - 0.4 && u.x <= bx + 0.4 && u.y >= ay - 0.4 && u.y <= by + 0.4) {
         if (!this.selection.includes(u)) this.selection.push(u);
         any = true;
       }
     }
-    if (any) this.audio.sfx('select');
+    if (any) this.audio.sfx(this.selection.some((u) => u.def && u.def.kind === 'vehicle') ? 'selVeh' : 'selInf');
   }
 
   buildingAt(cx, cy, owner) {
@@ -217,7 +227,11 @@ export class Input {
     return null;
   }
 
-  selectedUnits() { return this.selection.filter((s) => s.isUnit && !s.dead && s.house === 'player'); }
+  selectedUnits() { return this.selection.filter((s) => s.isUnit && !s.dead && !s.boarded && s.house === 'player'); }
+
+  // pick the acknowledge blip by branch: vehicles get the gruff motor tone,
+  // foot soldiers the bright PSG chirp (a vehicle in the mix wins)
+  ackName(units) { return units.some((u) => u.def && u.def.kind === 'vehicle') ? 'ackVeh' : 'ackInf'; }
 
   // --------------------------------------------------------------- orders --
 
@@ -232,6 +246,22 @@ export class Input {
       return;
     }
     if (units.length === 0) return;
+
+    // clicked on a friendly APC? load the selected infantry aboard it
+    let apc = null;
+    for (const u of g.units) {
+      if (u.dead || u.boarded || u.house !== 'player' || u.key !== 'apc') continue;
+      if (Math.hypot(u.x - wx, u.y - wy) < 0.9) { apc = u; break; }
+    }
+    if (apc) {
+      const riders = units.filter((u) => u.def.kind === 'infantry');
+      if (riders.length) {
+        for (const u of riders) g.orderBoard(u, apc);
+        this.audio.sfx(this.ackName(units));
+        this.audio.say('Loading up');
+        return;
+      }
+    }
 
     // clicked on enemy?
     let target = null;
@@ -253,7 +283,7 @@ export class Input {
           g.orderAttack(u, target);
         }
       }
-      this.audio.sfx('ack');
+      this.audio.sfx(this.ackName(units));
       this.audio.say(captured ? 'Infiltrating' : 'Attacking');
       return;
     }
@@ -267,9 +297,11 @@ export class Input {
       if (u.def.harvester && oreHere) { g.orderHarvest(u, [cx, cy]); moved = true; continue; }
       const [ox, oy] = spread[k++ % spread.length];
       g.orderMove(u, cx + ox, cy + oy);
+      // a loaded transport disgorges its cargo when it reaches the spot
+      if (u.key === 'apc' && u.cargoUnits && u.cargoUnits.length) u.unloadAt = true;
       moved = true;
     }
-    if (moved) { this.audio.sfx('ack'); this.audio.say('Moving out'); }
+    if (moved) { this.audio.sfx(this.ackName(units)); this.audio.say('Moving out'); }
   }
 
   issueAttackMove(wx, wy) {
@@ -281,7 +313,7 @@ export class Input {
       const [ox, oy] = spread[k++ % spread.length];
       this.game.orderAttackMove(u, Math.round(wx + ox), Math.round(wy + oy));
     }
-    this.audio.sfx('ack');
+    this.audio.sfx(this.ackName(units));
     this.audio.say('Engaging');
   }
 
@@ -315,6 +347,7 @@ export class Input {
     if (e.code === 'KeyB') {
       for (const u of this.selectedUnits()) {
         if (u.def.deploysTo) this.game.orderDeploy(u);
+        else if (u.key === 'apc' && u.cargoUnits && u.cargoUnits.length) this.game.orderUnload(u);
       }
     }
     if (e.code === 'KeyH') {

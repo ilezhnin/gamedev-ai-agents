@@ -65,6 +65,7 @@ export class AI {
     this.harvHp = new Map();        // harvester id -> hp last seen
     this.harassCd = 0;              // cooldown between harasser dispatches
     this.econT = 0;                 // throttle for the local-ore map scan
+    this.depotCd = 20;              // cooldown between depot-capture pushes
     this.needRefinery = false;
     this.refineryAnchor = null;     // [x,y] richest field to expand toward
     this.wallsBuilt = 0;
@@ -126,6 +127,7 @@ export class AI {
     this.harassCd = 0;
     this.needRefinery = false;
     this.refineryAnchor = null;
+    this.depotCd = 20;
     this.harvHp = new Map();
   }
 
@@ -172,6 +174,7 @@ export class AI {
     this.manageRepair();
     this.manageHarvesterDefense();
     this.manageDefense();
+    this.manageDepotCapture(step);
     this.manageWave(step);
     if (this.waveT <= 0 && !this.wave) this.launchWave();
   }
@@ -432,6 +435,34 @@ export class AI {
       if (this.attackers.has(u.id)) continue;   // wave units keep pushing
       if (u.order.type === 'idle' || u.order.type === 'move') g.orderAttack(u, intruder);
     }
+  }
+
+  // opportunistic supply-depot grab: normal/hard occasionally train an
+  // engineer and send it to seize a nearby capturable depot. Wiring only —
+  // the AI doesn't fight over them cleverly, it just takes free ones.
+  manageDepotCapture(step) {
+    if (this.level === 'easy') return;
+    this.depotCd -= step;
+    const g = this.game, p = this.p;
+    const [bx, by] = this.baseCentroid();
+    // nearest depot not already ours, preferring close ones
+    let depot = null, bd = 1e9;
+    for (const b of g.buildings) {
+      if (b.dead || !b.def.isDepot || b.owner === p) continue;
+      const [dx, dy] = b.centre();
+      const d = Math.hypot(dx - bx, dy - by);
+      if (d < 55 && d < bd) { bd = d; depot = b; }
+    }
+    if (!depot) return;
+    // send an idle engineer if we have one
+    const eng = g.units.find((u) => !u.dead && u.owner === p && u.key === 'engineer' && u.order.type === 'idle');
+    if (eng) { g.orderCapture(eng, depot); return; }
+    // otherwise train one, throttled, and only if none is already in play
+    if (this.depotCd > 0 || p.prod.unit) return;
+    if (!g.canProduce(p, 'unit', 'engineer') || p.credits < UNITS.engineer.cost + 400) return;
+    if (g.units.some((u) => !u.dead && u.owner === p && u.key === 'engineer')) return;
+    g.startProduction(p, 'unit', 'engineer');
+    this.depotCd = 60;
   }
 
   // -------------------------------------------------------------- wave logic --
