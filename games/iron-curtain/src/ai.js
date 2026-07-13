@@ -307,27 +307,28 @@ export class AI {
     const harvesters = myUnits.filter((u) => u.def.harvester).length;
     const refineries = g.buildings.filter((b) => !b.dead && b.owner === p && b.key === 'refinery').length;
 
-    // keep the ore trucks stocked: 2 per refinery on normal/hard, 1 on easy
+    // keep the ore trucks stocked: 2 per refinery on normal/hard, 1 on easy.
+    // Only queue an extra truck when we can very nearly pay for it outright —
+    // the unit factory has a SINGLE production slot, and queuing a 1100-credit
+    // truck the thin early income can't finish left it stalled there forever,
+    // locking army production out entirely (the classic "one harvester, one
+    // rifle" stall). When credits are that tight, build army instead; a richer
+    // field will clear the bar and the truck (and its income) follows.
     const perRef = this.level === 'easy' ? 1 : 2;
     const wantHarvesters = Math.min(refineries * perRef, 6);
     if (refineries > 0 && harvesters < wantHarvesters &&
-        g.canProduce(p, 'unit', 'harvester') && p.credits > UNITS.harvester.cost * 0.7) {
+        g.canProduce(p, 'unit', 'harvester') && p.credits >= UNITS.harvester.cost + 200) {
       g.startProduction(p, 'unit', 'harvester');
       return;
     }
     const army = myUnits.filter((u) => u.def.weapon && !u.def.harvester).length;
     if (army >= this.d.armyCap) return; // cap the horde
-    // economy-first: past a small early guard, hold the horde until BOTH the war
-    // factory and a full stable of ore trucks are up — the opening bank should
-    // buy the factory (not a doomed rush of rifles) and income should ramp
-    // before army spend. This is safe from the old deadlock because the build
-    // order only *buffers* credits (see luxuryBuffer above), never fully halts,
-    // so the second truck always gets funded and the army resumes right after.
+    // economy-first: keep only a small early guard until the war factory is up,
+    // so the opening bank buys the factory rather than a doomed rush of rifles.
     const hasFactory = g.buildings.some((b) => !b.dead && b.owner === p && b.key === 'factory');
     const earlyGuard = this.personality === 'turtle' ? 3 : 4;
     if (army >= earlyGuard && !hasFactory) return;   // save the opening bank for the factory
-    if (army >= earlyGuard && refineries > 0 && harvesters < wantHarvesters) return; // stock trucks first
-    if (p.credits < 500) return;
+    if (p.credits < 300) return;
     // walk the pattern; skip entries we can't build yet
     for (let tries = 0; tries < this.trainPattern.length; tries++) {
       const key = this.trainPattern[this.trainIx % this.trainPattern.length];
