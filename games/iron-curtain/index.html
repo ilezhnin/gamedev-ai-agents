@@ -98,6 +98,13 @@
   .cycle:hover{color:#fff}
   .chip{flex:none;width:12px;height:12px;border:1px solid #000;outline:1px solid var(--ui-edge-l)}
   .su-hidden{display:none}
+  .su-hint{font-size:9px;letter-spacing:1px;color:#9a9078;text-align:center;padding:1px 0 3px}
+  .su-hint b{color:var(--ui-gold)}
+  #su-preview-row{display:flex;align-items:center;gap:10px;padding:3px 0}
+  #su-preview{width:132px;height:132px;flex:none;image-rendering:pixelated;background:#000}
+  #su-pv-side{flex:1;display:flex;flex-direction:column;gap:6px;text-align:left}
+  #su-pv-label{font-size:9px;letter-spacing:1px;color:#9a9078}
+  #su-regen{height:26px}
 
   /* ---------- pause menu ---------- */
   #menu{position:absolute;inset:0;z-index:45;display:none;align-items:center;justify-content:center;
@@ -134,6 +141,43 @@
   #help{position:absolute;left:8px;bottom:8px;z-index:20;font-size:10px;color:#cfc6b0;line-height:1.8;
     background:rgba(20,18,14,.75);padding:6px 10px;border:1px solid #55503f;display:none}
   #fps{position:absolute;left:8px;top:8px;z-index:20;font-size:10px;color:#9a9;display:none}
+
+  /* ---------- in-game selection panel (bottom-left overlay) ---------- */
+  #sel-panel{position:absolute;left:8px;bottom:8px;z-index:22;display:none;
+    min-width:150px;max-width:230px;padding:6px 8px}
+  #sel-single{display:flex;align-items:center;gap:8px}
+  #sel-icon{width:52px;height:39px;flex:none;image-rendering:pixelated;background:#181c22;
+    border:1px solid #0a0a0a}
+  #sel-info{flex:1;min-width:0;display:flex;flex-direction:column;gap:4px}
+  #sel-name{font-size:11px;letter-spacing:1px;color:var(--ui-text);text-shadow:1px 1px 0 #000;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  #sel-hp{height:6px;background:#111;border:1px solid #0a0a0a}
+  #sel-hp-fill{height:100%;width:100%;background:var(--ui-green)}
+  #sel-multi{display:none;flex-direction:column;gap:2px;font-size:10px;letter-spacing:1px;
+    color:var(--ui-text);text-shadow:1px 1px 0 #000;max-height:120px;overflow:hidden}
+  #sel-multi .sel-row{display:flex;justify-content:space-between;gap:12px}
+  #sel-multi .sel-row .sel-n{color:var(--ui-gold)}
+  #sel-multi .sel-head{color:var(--ui-gold);letter-spacing:2px;font-size:9px;padding-bottom:2px}
+
+  /* ---------- cameo tooltip ---------- */
+  #cameo-tip{position:fixed;z-index:50;display:none;pointer-events:none;
+    min-width:120px;max-width:200px;padding:6px 8px;font-size:10px;letter-spacing:1px;
+    line-height:1.5;background:#14120e;color:var(--ui-text);
+    border-top:2px solid var(--ui-edge-l);border-left:2px solid var(--ui-edge-l);
+    border-bottom:2px solid var(--ui-edge-d);border-right:2px solid var(--ui-edge-d);
+    box-shadow:0 2px 6px rgba(0,0,0,.6)}
+  #cameo-tip .tip-name{color:var(--ui-gold);letter-spacing:2px;text-shadow:1px 1px 0 #000}
+  #cameo-tip .tip-cost{color:#8fc2ff}
+  #cameo-tip .tip-pwr-plus{color:var(--ui-green)}
+  #cameo-tip .tip-pwr-minus{color:var(--ui-gold)}
+  #cameo-tip .tip-req{margin-top:3px;color:#8d8474;font-size:9px}
+  #cameo-tip .tip-have{color:#7fe08a}
+  #cameo-tip .tip-miss{color:#d66a5a}
+
+  /* ---------- loading flash ---------- */
+  #loading{position:absolute;inset:0;z-index:46;display:none;align-items:center;justify-content:center;
+    background:#0b0b0f;color:var(--ui-gold);font-size:18px;letter-spacing:6px;text-shadow:1px 1px 0 #000}
+  #loading.on{display:flex}
 </style>
 </head>
 <body>
@@ -164,6 +208,9 @@
             <input type="range" id="set-music" min="0" max="0.6" step="0.03"></div>
           <div class="set-row"><label>ADVISOR VOICE</label>
             <button class="tgl" id="set-voice">ON</button></div>
+          <div class="set-group">GAME</div>
+          <div class="set-row"><label for="set-gamespeed">GAME SPEED <span id="set-gamespeed-val">1.0×</span></label>
+            <input type="range" id="set-gamespeed" min="0.5" max="2" step="0.1"></div>
           <div class="set-group">CONTROLS</div>
           <div class="set-row"><label for="set-camspeed">CAMERA SPEED</label>
             <input type="range" id="set-camspeed" min="8" max="44" step="2"></div>
@@ -176,6 +223,21 @@
 
     <div id="help"></div>
     <div id="fps"></div>
+
+    <div id="sel-panel" class="bevel">
+      <div id="sel-single">
+        <canvas id="sel-icon" width="52" height="39"></canvas>
+        <div id="sel-info">
+          <div id="sel-name"></div>
+          <div id="sel-hp"><div id="sel-hp-fill"></div></div>
+        </div>
+      </div>
+      <div id="sel-multi"></div>
+    </div>
+
+    <div id="cameo-tip"></div>
+
+    <div id="loading">ESTABLISHING BATTLEFIELD...</div>
 
     <div id="screen-title" class="screen">
       <canvas id="title-logo" width="320" height="180"></canvas>
@@ -202,8 +264,17 @@
           <label>CPU 2 · AMBER</label><button class="cycle" id="su-diff2">NORMAL</button></div>
         <div class="su-row" id="su-cpu3"><span class="chip" style="background:#8a3fcf"></span>
           <label>CPU 3 · VIOLET</label><button class="cycle" id="su-diff3">NORMAL</button></div>
+        <div class="su-hint"><b>EASY</b> relaxed &nbsp;·&nbsp; <b>NORMAL</b> fair &nbsp;·&nbsp; <b>HARD</b> relentless</div>
         <div class="su-row"><label>MAP SIZE</label><button class="cycle" id="su-size">MEDIUM 64×64</button></div>
         <div class="su-row"><label>BIOME</label><button class="cycle" id="su-biome">GREEN FOREST</button></div>
+        <div class="su-row"><label>LAYOUT</label><button class="cycle" id="su-layout">RANDOM</button></div>
+        <div id="su-preview-row">
+          <canvas id="su-preview" class="bevel-in" width="96" height="96"></canvas>
+          <div id="su-pv-side">
+            <div id="su-pv-label">BATTLEFIELD PREVIEW</div>
+            <button class="cycle" id="su-regen">REGENERATE MAP</button>
+          </div>
+        </div>
         <button class="menu-btn" id="su-start" style="margin-top:8px">COMMENCE OPERATION</button>
         <button class="menu-btn" id="su-back">BACK</button>
       </div>

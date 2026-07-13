@@ -10,6 +10,7 @@ export const WARHEADS = {
   shell:   { none: 0.6, light: 0.85, heavy: 1.0,  wood: 0.9,  concrete: 0.7 },
   rocket:  { none: 0.5, light: 1.0,  heavy: 0.85, wood: 0.85, concrete: 0.9 },
   zap:     { none: 1.0, light: 1.0,  heavy: 1.0,  wood: 1.0,  concrete: 1.0 },
+  fire:    { none: 1.4, light: 0.6,  heavy: 0.25, wood: 1.0,  concrete: 0.4 },
 };
 
 export const WEAPONS = {
@@ -19,6 +20,14 @@ export const WEAPONS = {
   cannon75:  { damage: 28, rof: 1.5,  range: 4.75, warhead: 'shell', projectile: 'shell', speed: 9, sound: 'cannon' },
   cannon105: { damage: 42, rof: 2.1,  range: 4.75, warhead: 'shell', projectile: 'shell', speed: 9, sound: 'cannon' },
   teslaZap:  { damage: 110, rof: 3.2, range: 6,   warhead: 'zap', projectile: 'zap', sound: 'tesla' },
+  // long-range siege gun: slow shell with a small area blast (glass cannon)
+  field120:  { damage: 60, rof: 4.0,  range: 8,    warhead: 'shell', projectile: 'shell', speed: 5, splash: 1.2, splashFactor: 0.4, sound: 'cannon' },
+  // multiple-launch rocket rack: a stagger-fired salvo of splash rockets
+  rocketRack:{ damage: 22, rof: 5.5,  range: 7.5,  warhead: 'rocket', projectile: 'rocket', speed: 6, salvo: 4, stagger: 0.15, splash: 1.0, splashFactor: 0.4, sound: 'rocket' },
+  // super-heavy twin cannon: two shells a hair apart per volley
+  twinCannon:{ damage: 40, rof: 3.2,  range: 5.25, warhead: 'shell', projectile: 'shell', speed: 9, salvo: 2, stagger: 0.12, sound: 'cannon' },
+  // short-range flame projector: melts infantry, laughs at armour
+  flameJet:  { damage: 35, rof: 1.4,  range: 3.5,  warhead: 'fire', projectile: 'flame', speed: 7, sound: 'flame' },
 };
 
 // ---------------------------------------------------------------- units ----
@@ -43,6 +52,26 @@ export const UNITS = {
     name: 'HEAVY TANK', kind: 'vehicle', cost: 950, buildTime: 17,
     hp: 400, armor: ARMOR.HEAVY, speed: 2.2, turn: 5, sight: 5, weapon: 'cannon105',
     producedAt: 'factory', size: 22, hasTurret: true, crusher: true, requires: ['radar'],
+  },
+  artillery: {
+    name: 'ARTILLERY', kind: 'vehicle', cost: 750, buildTime: 14,
+    hp: 120, armor: ARMOR.LIGHT, speed: 1.7, turn: 4, sight: 4, weapon: 'field120',
+    producedAt: 'factory', size: 22, requires: ['radar'],
+  },
+  rocketTruck: {
+    name: 'ROCKET TRUCK', kind: 'vehicle', cost: 900, buildTime: 16,
+    hp: 150, armor: ARMOR.LIGHT, speed: 2.4, turn: 5, sight: 5, weapon: 'rocketRack',
+    producedAt: 'factory', size: 22, requires: ['radar'],
+  },
+  behemoth: {
+    name: 'BEHEMOTH TANK', kind: 'vehicle', cost: 1700, buildTime: 24,
+    hp: 700, armor: ARMOR.HEAVY, speed: 1.5, turn: 4, sight: 5, weapon: 'twinCannon',
+    producedAt: 'factory', size: 28, hasTurret: true, crusher: true, requires: ['techcenter'],
+  },
+  engineer: {
+    name: 'ENGINEER', kind: 'infantry', cost: 500, buildTime: 9,
+    hp: 40, armor: ARMOR.NONE, speed: 2.0, sight: 4, weapon: null,
+    producedAt: 'barracks', size: 12,
   },
   harvester: {
     name: 'ORE TRUCK', kind: 'vehicle', cost: 1100, buildTime: 15,
@@ -103,10 +132,25 @@ export const BUILDINGS = {
     hp: 400, armor: ARMOR.WOOD, w: 1, h: 1, power: -100, sight: 7,
     weapon: 'teslaZap', requires: ['factory'], needsPower: true,
   },
+  flametower: {
+    name: 'FLAME TOWER', cost: 600, buildTime: 12,
+    hp: 450, armor: ARMOR.WOOD, w: 1, h: 1, power: -10, sight: 5,
+    weapon: 'flameJet', requires: ['barracks'],
+  },
+  techcenter: {
+    name: 'TECH CENTER', cost: 1500, buildTime: 18,
+    hp: 500, armor: ARMOR.LIGHT, w: 2, h: 2, power: -60, sight: 4,
+    requires: ['radar'],
+  },
+  wall: {
+    name: 'CONCRETE WALL', cost: 75, buildTime: 2,
+    hp: 300, armor: ARMOR.CONCRETE, w: 1, h: 1, power: 0, sight: 1,
+    isWall: true,
+  },
 };
 
-export const BUILD_ORDER_STRIP = ['power', 'refinery', 'barracks', 'factory', 'radar', 'silo', 'guard', 'tesla'];
-export const UNIT_STRIP = ['rifle', 'rocket', 'lightTank', 'heavyTank', 'harvester', 'mcv'];
+export const BUILD_ORDER_STRIP = ['power', 'refinery', 'barracks', 'factory', 'radar', 'techcenter', 'silo', 'guard', 'flametower', 'tesla', 'wall'];
+export const UNIT_STRIP = ['rifle', 'engineer', 'rocket', 'lightTank', 'artillery', 'rocketTruck', 'heavyTank', 'behemoth', 'harvester', 'mcv'];
 
 export const ECONOMY = {
   startCredits: 5000,

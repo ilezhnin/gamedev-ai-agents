@@ -4,14 +4,16 @@
 
 import * as THREE from '../lib/three.module.min.js';
 import { buildSprites, drawTitleLogo, TILE, FACINGS } from './sprites.js';
-import { GameMap, T } from './map.js';
-import { Game, facingIndex } from './game.js';
+import { GameMap, T, V_ICE, LAYOUTS } from './map.js';
+import { Game, facingIndex, SAVE_VERSION } from './game.js';
+import { findPath } from './pathfind.js';
 import { AI } from './ai.js';
 import { UI } from './ui.js';
 import { Input } from './input.js';
 import { AudioSys } from './audio.js';
 import { loadSettings, saveSettings } from './settings.js';
 import { BUILDINGS, ECONOMY } from './rules.js';
+import { makeCanvas, HOUSE_UI } from './palette.js';
 
 const MAP_SIZE = 64;
 
@@ -58,6 +60,60 @@ audio.voiceOn = settings.voice;
 const sprites = buildSprites();
 drawTitleLogo(document.getElementById('title-logo'));
 
+// -------------------------------------------------------------- cursors ----
+
+// 16x16 crosshair cursors baked to data-URIs at boot. Hot spot at the centre
+// (8,8). Kept subtle: thin strokes, muted colours matching the retro palette.
+function makeCursor(draw) {
+  const [c, g] = makeCanvas(16, 16);
+  draw(g);
+  return `url(${c.toDataURL('image/png')}) 8 8, crosshair`;
+}
+const CURSORS = {
+  default: 'crosshair',
+  move: makeCursor((g) => {
+    g.fillStyle = '#7fe08a';
+    g.fillRect(7, 2, 2, 12); g.fillRect(2, 7, 12, 2);
+    g.fillStyle = '#0a0a0a';
+    g.fillRect(7, 1, 2, 1); g.fillRect(7, 14, 2, 1);
+    g.fillRect(1, 7, 1, 2); g.fillRect(14, 7, 1, 2);
+  }),
+  attack: makeCursor((g) => {
+    g.strokeStyle = '#e04a3a'; g.lineWidth = 2;
+    g.beginPath(); g.arc(8, 8, 5, 0, Math.PI * 2); g.stroke();
+    g.fillStyle = '#e04a3a';
+    g.fillRect(7, 0, 2, 4); g.fillRect(7, 12, 2, 4);
+    g.fillRect(0, 7, 4, 2); g.fillRect(12, 7, 4, 2);
+    g.fillStyle = '#ffdd55'; g.fillRect(7, 7, 2, 2);
+  }),
+  noentry: makeCursor((g) => {
+    g.strokeStyle = '#e04a3a'; g.lineWidth = 2;
+    g.beginPath(); g.arc(8, 8, 6, 0, Math.PI * 2); g.stroke();
+    g.beginPath(); g.moveTo(4, 4); g.lineTo(12, 12); g.stroke();
+  }),
+};
+
+// ------------------------------------------------------------ title anim ----
+
+// The title logo canvas doubles as a slow animated sky: drifting cloud bands
+// with the occasional lightning flicker, redrawn ~10fps only while visible.
+let titleRaf = 0, titleT0 = 0, titleLastDraw = 0;
+function startTitleAnim() {
+  if (titleRaf) return;
+  const el = document.getElementById('title-logo');
+  titleT0 = performance.now();
+  titleLastDraw = 0;
+  const step = (now) => {
+    if (state !== 'title') { titleRaf = 0; return; }
+    if (now - titleLastDraw >= 100) {
+      titleLastDraw = now;
+      drawTitleLogo(el, (now - titleT0) / 1000);
+    }
+    titleRaf = requestAnimationFrame(step);
+  };
+  titleRaf = requestAnimationFrame(step);
+}
+
 const viewEl = document.getElementById('viewport');
 const canvas = document.getElementById('game-canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: false });
@@ -77,18 +133,25 @@ let oreCanvas, oreG, fogCanvas, fogG;
 const entityViews = new Map();     // entity id -> view objects
 const fxViews = [];
 let state = 'title';               // title | setup | brief | play | end
-let speedFactor = 1;
+let speedFactor = settings.gameSpeed || 1;
+let previewSeed = (Math.random() * 1e9) | 0;   // seed shared by preview + match
 
 // -------------------------------------------------------- operation setup --
 
 const SIZES = { small: 48, medium: 64, large: 96 };
 const SIZE_LABEL = { small: 'SMALL 48×48', medium: 'MEDIUM 64×64', large: 'LARGE 96×96' };
 const BIOME_LABEL = { forest: 'GREEN FOREST', taiga: 'SNOW TAIGA', desert: 'DESERT WASTE' };
+// layout templates offered on the setup screen (RANDOM first, then LAYOUTS)
+const LAYOUT_KEYS = ['random', ...LAYOUTS];
+const LAYOUT_LABEL = {
+  random: 'RANDOM', river: 'RIVER', lakes: 'LAKES', ridges: 'RIDGES',
+  islands: 'ISLANDS', open: 'OPEN STEPPE', maze: 'DEEP WOODS',
+};
 const DIFF_ORDER = ['easy', 'normal', 'hard'];
 const ENEMY_HOUSES = ['enemy', 'enemy2', 'enemy3'];
 
 function loadSetup() {
-  const def = { opponents: 1, diffs: ['normal', 'normal', 'normal'], size: 'medium', biome: 'forest' };
+  const def = { opponents: 1, diffs: ['normal', 'normal', 'normal'], size: 'medium', biome: 'forest', layout: 'random' };
   try {
     const raw = localStorage.getItem('iron-curtain-setup');
     return raw ? { ...def, ...JSON.parse(raw) } : def;
@@ -124,15 +187,16 @@ function newGame() {
   for (const [, v] of entityViews) disposeEntityView(v);
   entityViews.clear();
   for (const v of fxViews.splice(0)) v.quad.dispose(scene);
+  for (const q of rallyFlags.splice(0)) q.dispose(scene);
   while (scene.children.length) scene.remove(scene.children[0]);
 
   const size = SIZES[setup.size] || 64;
-  const seed = (Math.random() * 1e9) | 0;
+  const seed = previewSeed;   // what the setup preview showed is what we play
   const starts = START_SPOTS.slice(0, 1 + setup.opponents)
     .map((f) => ({ x: Math.round(f.x * size), y: Math.round(f.y * size) }));
   const houses = ENEMY_HOUSES.slice(0, setup.opponents);
 
-  map = new GameMap(size, seed, setup.biome, starts);
+  map = new GameMap(size, seed, setup.biome, starts, setup.layout || 'random');
   game = new Game(map, audio, seed ^ 0x9e37, houses);
   ais = houses.map((h, i) => new AI(game, game.players[h], setup.diffs[i] || 'normal'));
   if (!ui) {
@@ -172,6 +236,114 @@ function newGame() {
   ui.setMode('normal');
 }
 
+// ------------------------------------------------------------ save / load --
+
+const SAVE_KEY = 'iron-curtain-save';
+const SAVE_MAX_BYTES = 3.5 * 1024 * 1024;   // skip autosave past this (safety)
+
+// full snapshot: sim state (game.serialize) + opponent AI plans
+function serializeSave() {
+  const data = game.serialize();
+  data.ais = ais.map((a) => a.serialize());
+  return data;
+}
+
+function autosave() {
+  if (!game || game.over || state !== 'play') return;
+  try {
+    const str = JSON.stringify(serializeSave());
+    if (str.length > SAVE_MAX_BYTES) return;   // too large: skip silently
+    localStorage.setItem(SAVE_KEY, str);
+  } catch { /* quota exceeded or serialize error: leave the old save be */ }
+}
+
+function clearSave() {
+  try { localStorage.removeItem(SAVE_KEY); } catch { /* ok */ }
+}
+
+// parse + validate the stored save; a corrupt/version-mismatched blob is
+// deleted and treated as "no save"
+function readSave() {
+  let raw;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch { return null; }
+  if (!raw) return null;
+  try {
+    const data = JSON.parse(raw);
+    if (!data || data.version !== SAVE_VERSION || !data.map) { clearSave(); return null; }
+    return data;
+  } catch { clearSave(); return null; }
+}
+
+function hasValidSave() { return !!readSave(); }
+
+// tear down all renderer views (safe for both quad- and line-based fx)
+function teardownScene() {
+  for (const [, v] of entityViews) disposeEntityView(v);
+  entityViews.clear();
+  for (const v of fxViews.splice(0)) {
+    if (v.quad) v.quad.dispose(scene);
+    if (v.line) { scene.remove(v.line); v.geo.dispose(); v.mat.dispose(); }
+  }
+  for (const p of game ? game.projectiles : []) if (p.view) p.view.dispose(scene);
+  if (syncFx.live) syncFx.live.clear();
+  for (const q of rallyFlags.splice(0)) q.dispose(scene);
+  while (scene.children.length) scene.remove(scene.children[0]);
+}
+
+function centerCamOnPlayer() {
+  let sx = 0, sy = 0, n = 0;
+  for (const b of game.buildings) {
+    if (b.dead || b.house !== 'player') continue;
+    const [cx, cy] = b.centre(); sx += cx; sy += cy; n++;
+  }
+  if (n === 0) {
+    for (const u of game.units) {
+      if (u.dead || u.house !== 'player') continue;
+      sx += u.x; sy += u.y; n++;
+    }
+  }
+  if (n) { cam.x = sx / n; cam.y = sy / n; }
+  cam.zoom = 2.0;
+}
+
+// rebuild a live match from localStorage; returns false if nothing loadable
+function loadSavedGame() {
+  const data = readSave();
+  if (!data) return false;
+  try {
+    teardownScene();
+    game = Game.load(data, audio);
+    map = game.map;
+    ais = (data.ais || []).map((s) => {
+      const ai = new AI(game, game.players[s.house], s.level);
+      ai.restore(s);
+      return ai;
+    }).filter((a) => a.p);
+    if (!ui) {
+      ui = new UI(game, sprites, audio);
+      input = new Input(game, cam, ui, audio, viewEl);
+      input.settings = settings;
+    } else {
+      ui.reset(game);
+      input.reset(game);
+    }
+    buildTerrain();
+    buildOreLayer();
+    buildFog();
+    game.recomputeVision();
+    redrawFog();
+    ui.setMode('normal');
+    centerCamOnPlayer();
+    state = 'play';
+    endShown = false;
+    return true;
+  } catch (e) {
+    console.error('save load failed:', e);
+    clearSave();
+    return false;
+  }
+}
+
 // ------------------------------------------------------------- terrain ----
 
 function buildTerrain() {
@@ -188,8 +360,11 @@ function buildTerrain() {
       let tile;
       if (t === T.GRASS) tile = tiles.ground[v % tiles.ground.length];
       else if (t === T.DIRT) tile = tiles.dirt[v % tiles.dirt.length];
-      else if (t === T.WATER) tile = tiles.water[v % tiles.water.length];
-      else if (t === T.ROCK) tile = tiles.rock[v % tiles.rock.length];
+      else if (t === T.WATER) {
+        tile = (v === V_ICE && tiles.ice) ? tiles.ice[(x + y) % tiles.ice.length]
+          : tiles.water[v % tiles.water.length];
+      } else if (t === T.ROCK) tile = tiles.rock[v % tiles.rock.length];
+      else if (t === T.RUIN) tile = tiles.ruin[v % tiles.ruin.length];
       else tile = tiles.tree[v % tiles.tree.length];
       g.drawImage(tile, x * TILE, y * TILE);
       // shore fringe on land next to water
@@ -317,7 +492,7 @@ function ensureBuildingView(b) {
   let v = entityViews.get(b.id);
   if (v) return v;
   const spr = sprites.buildings[b.house][b.key];
-  v = { kind: 'building', quads: {} };
+  v = { kind: 'building', house: b.house, quads: {} };
   v.quads.body = new SpriteQuad(scene, spr, b.def.w, b.def.h, 0.5);
   if (b.def.weapon && b.key === 'guard') {
     v.quads.turret = new SpriteQuad(scene, sprites.guardGun[b.house][0], 1, 1, 0.7);
@@ -334,6 +509,11 @@ function syncEntities(dt) {
   for (const b of game.buildings) {
     if (b.dead) continue;
     seen.add(b.id);
+    // a captured building changed colour — rebuild its view with new tint
+    let ev = entityViews.get(b.id);
+    if (ev && ev.kind === 'building' && ev.house !== b.house) {
+      disposeEntityView(ev); entityViews.delete(b.id);
+    }
     const v = ensureBuildingView(b);
     const [cx, cy] = b.centre();
     // enemy buildings stay on the map once scouted (classic "last seen" rule)
@@ -509,11 +689,13 @@ function syncFx(dt) {
   // projectiles as quads (pooled per projectile object)
   for (const p of game.projectiles) {
     if (!p.view) {
-      const c = p.kind === 'rocket' ? sprites.rocket : sprites.shell;
-      p.view = new SpriteQuad(scene, c, 0.35, 0.35, 2.0);
+      const c = p.kind === 'rocket' ? sprites.rocket : p.kind === 'flame' ? sprites.flame[0] : sprites.shell;
+      const sz = p.kind === 'flame' ? 0.6 : 0.35;
+      p.view = new SpriteQuad(scene, c, sz, sz, 2.0);
     }
+    if (p.kind === 'flame') p.view.setCanvas(sprites.flame[Math.floor(game.time * 15) % 3]);
     p.view.set(p.x + 0.5, mapY(p.y + 0.5), 2.0);
-    p.view.mesh.rotation.z = -(p.angle + Math.PI / 2);
+    p.view.mesh.rotation.z = p.kind === 'flame' ? 0 : -(p.angle + Math.PI / 2);
     p.viewAlive = true;
   }
   // dispose views for finished projectiles: track via marker
@@ -558,6 +740,78 @@ function syncPlacementGhost() {
   scene.add(ghostGroup);
 }
 
+// ---------------------------------------------------------- rally flags ----
+
+// A pooled little flag marker at each selected factory/barracks rally point.
+const rallyFlags = [];
+function syncRallyFlags() {
+  const wanted = input
+    ? input.selection.filter((s) => s.isBuilding && !s.dead && s.house === 'player'
+        && s.def.factoryFor && s.rally)
+    : [];
+  while (rallyFlags.length < wanted.length) {
+    rallyFlags.push(new SpriteQuad(scene, sprites.flag, 0.55, 0.72, 1.55));
+  }
+  for (let i = 0; i < rallyFlags.length; i++) {
+    const q = rallyFlags[i];
+    if (i < wanted.length) {
+      const [rx, ry] = wanted[i].rally;
+      q.mesh.visible = true;
+      q.set(rx + 0.5, mapY(ry + 0.5) + 0.3, 1.55);
+    } else q.mesh.visible = false;
+  }
+}
+
+// -------------------------------------------------------------- cursors ----
+
+// hovered world cell (fractional) or null when the pointer is off-viewport
+function hoveredCell() {
+  if (!input || !input.mouse.seen) return null;
+  const r = viewEl.getBoundingClientRect();
+  const mx = input.mouse.x, my = input.mouse.y;
+  if (mx < r.left || mx > r.right || my < r.top || my > r.bottom) return null;
+  return input.screenToWorld(mx - r.left, my - r.top, r);
+}
+
+// is there a visible enemy under (wx,wy)? used to pick the attack cursor
+function enemyAtCursor(wx, wy) {
+  for (const u of game.units) {
+    if (u.dead || u.house === 'player') continue;
+    if (Math.hypot(u.x - wx, u.y - wy) < 0.8 && game.isVisibleToPlayer(u)) return true;
+  }
+  const cx = Math.floor(wx), cy = Math.floor(wy);
+  for (const b of game.buildings) {
+    if (b.dead || b.house === 'player') continue;
+    if (b.containsCell(cx, cy) && (b.seen || game.isVisibleToPlayer(b))) return true;
+  }
+  return false;
+}
+
+let cursorT = 0;
+function updateCursor(dt) {
+  cursorT -= dt;
+  if (cursorT > 0) return;
+  cursorT = 0.06;
+  // sell / repair modes own the cursor via ui.setMode — leave them be
+  if (ui.mode === 'sell' || ui.mode === 'repair') return;
+  const p = game.players.player;
+  const hv = hoveredCell();
+  let cur = CURSORS.default;
+  if (p.readyBuilding) {
+    if (hv) {
+      const cx = Math.floor(hv[0]), cy = Math.floor(hv[1]);
+      if (!game.map.inBounds(cx, cy) || !game.explored[game.map.idx(cx, cy)]) cur = CURSORS.noentry;
+    }
+  } else if (hv) {
+    const units = input.selectedUnits();
+    if (units.length) {
+      const hasWeapon = units.some((u) => u.def.weapon);
+      cur = (hasWeapon && enemyAtCursor(hv[0], hv[1])) ? CURSORS.attack : CURSORS.move;
+    }
+  }
+  if (viewEl.style.cursor !== cur) viewEl.style.cursor = cur;
+}
+
 // ---------------------------------------------------------------- screens --
 
 const elTitle = document.getElementById('screen-title');
@@ -582,18 +836,74 @@ function showTitle() {
   hideScreens();
   state = 'title';
   setSidebar(false);
-  const canContinue = !!(game && !game.over && !endShown);
+  const canContinue = !!(game && !game.over && !endShown) || hasValidSave();
   document.getElementById('tb-continue').classList.toggle('disabled', !canContinue);
   elTitle.classList.remove('hidden');
+  startTitleAnim();
 }
 
 function showSetup() {
   hideScreens();
   state = 'setup';
+  previewSeed = (Math.random() * 1e9) | 0;   // fresh battlefield each visit
   syncSetupWidgets();
+  drawSetupPreview();
   elSetup.classList.remove('hidden');
   audio.ensure(); audio.resume();
   audio.sfx('select');
+}
+
+// ---- setup battlefield preview ------------------------------------------
+
+// Renders a radar-style minimap of the exact map the current setup + seed
+// will generate. Cheap enough to regenerate on every option change.
+const PV = document.getElementById('su-preview');
+const PVG = PV.getContext('2d');
+function previewTerrainRGB(m, i) {
+  const t = m.terrain[i];
+  let r = 60, g = 92, b = 44;                 // grass
+  if (t === T.WATER) { r = 26; g = 60; b = 110; }
+  else if (t === T.ROCK) { r = 90; g = 86; b = 80; }
+  else if (t === T.TREE) { r = 30; g = 62; b = 26; }
+  else if (t === T.RUIN) { r = 78; g = 72; b = 66; }
+  else if (t === T.DIRT) { r = 110; g = 88; b = 52; }
+  if (m.ore[i] > 0) {
+    if (m.gem[i]) { r = 90; g = 200; b = 220; }
+    else { r = 190; g = 150; b = 40; }
+  }
+  return [r, g, b];
+}
+function drawSetupPreview() {
+  const size = SIZES[setup.size] || 64;
+  const starts = START_SPOTS.slice(0, 1 + setup.opponents)
+    .map((f) => ({ x: Math.round(f.x * size), y: Math.round(f.y * size) }));
+  const m = new GameMap(size, previewSeed, setup.biome, starts, setup.layout || 'random');
+  const off = document.createElement('canvas');
+  off.width = size; off.height = size;
+  const og = off.getContext('2d');
+  const img = og.createImageData(size, size);
+  const d = img.data;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const i = m.idx(x, y), o = i * 4;
+      const [r, g, b] = previewTerrainRGB(m, i);
+      d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
+    }
+  }
+  og.putImageData(img, 0, 0);
+  PVG.imageSmoothingEnabled = false;
+  PVG.clearRect(0, 0, PV.width, PV.height);
+  PVG.drawImage(off, 0, 0, PV.width, PV.height);
+  // start markers: player then CPUs, in their house colours
+  const scale = PV.width / size;
+  const houses = ['player', ...ENEMY_HOUSES.slice(0, setup.opponents)];
+  starts.forEach((st, i) => {
+    const col = (HOUSE_UI[houses[i]] || HOUSE_UI.enemy).building;
+    PVG.fillStyle = '#000';
+    PVG.fillRect(st.x * scale - 3, st.y * scale - 3, 6, 6);
+    PVG.fillStyle = col;
+    PVG.fillRect(st.x * scale - 2, st.y * scale - 2, 4, 4);
+  });
 }
 
 function showBrief() {
@@ -604,22 +914,49 @@ function showBrief() {
   audio.sfx('ready');
 }
 
+const elLoading = document.getElementById('loading');
+
+// synchronous match build — used by both the normal flow and the test hooks
+function buildAndStart() {
+  newGame();
+  state = 'play';
+  endShown = false;
+}
+
 function startMatch() {
   hideScreens();
-  state = 'play';
   setSidebar(true);
-  newGame();
-  endShown = false;
-  if (audio.musicOn) audio.startMusic();
-  audio.say('Battle control online', true);
+  // brief loading flash — generating a 96×96 map can take a beat. Show the
+  // overlay, let it paint one frame, then do the synchronous build.
+  elLoading.classList.add('on');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    buildAndStart();
+    elLoading.classList.remove('on');
+    if (audio.musicOn) audio.startMusic();
+    audio.say('Battle control online', true);
+  }));
 }
 
 function continueMatch() {
-  if (!game || game.over) return;
+  // prefer the warm in-memory match; otherwise reload the last save from disk
+  if (game && !game.over && !endShown) {
+    hideScreens();
+    state = 'play';
+    setSidebar(true);
+    if (audio.musicOn) audio.startMusic();
+    return;
+  }
+  if (!hasValidSave()) return;
   hideScreens();
-  state = 'play';
   setSidebar(true);
-  if (audio.musicOn) audio.startMusic();
+  elLoading.classList.add('on');
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    const ok = loadSavedGame();
+    elLoading.classList.remove('on');
+    if (!ok) { showTitle(); return; }
+    if (audio.musicOn) audio.startMusic();
+    audio.say('Battle control online', true);
+  }));
 }
 
 // --- setup screen wiring ---
@@ -632,13 +969,14 @@ function syncSetupWidgets() {
   }
   document.getElementById('su-size').textContent = SIZE_LABEL[setup.size];
   document.getElementById('su-biome').textContent = BIOME_LABEL[setup.biome];
+  document.getElementById('su-layout').textContent = LAYOUT_LABEL[setup.layout] || 'RANDOM';
 }
 
 {
   for (let n = 1; n <= 3; n++) {
     document.getElementById(`su-n${n}`).addEventListener('click', () => {
       setup.opponents = n;
-      saveSetup(); syncSetupWidgets(); audio.sfx('select');
+      saveSetup(); syncSetupWidgets(); drawSetupPreview(); audio.sfx('select');
     });
     document.getElementById(`su-diff${n}`).addEventListener('click', () => {
       const cur = DIFF_ORDER.indexOf(setup.diffs[n - 1] || 'normal');
@@ -649,12 +987,21 @@ function syncSetupWidgets() {
   document.getElementById('su-size').addEventListener('click', () => {
     const keys = Object.keys(SIZES);
     setup.size = keys[(keys.indexOf(setup.size) + 1) % keys.length];
-    saveSetup(); syncSetupWidgets(); audio.sfx('select');
+    saveSetup(); syncSetupWidgets(); drawSetupPreview(); audio.sfx('select');
   });
   document.getElementById('su-biome').addEventListener('click', () => {
     const keys = Object.keys(BIOME_LABEL);
     setup.biome = keys[(keys.indexOf(setup.biome) + 1) % keys.length];
-    saveSetup(); syncSetupWidgets(); audio.sfx('select');
+    saveSetup(); syncSetupWidgets(); drawSetupPreview(); audio.sfx('select');
+  });
+  document.getElementById('su-layout').addEventListener('click', () => {
+    const cur = LAYOUT_KEYS.indexOf(setup.layout);
+    setup.layout = LAYOUT_KEYS[(cur + 1) % LAYOUT_KEYS.length];
+    saveSetup(); syncSetupWidgets(); drawSetupPreview(); audio.sfx('select');
+  });
+  document.getElementById('su-regen').addEventListener('click', () => {
+    previewSeed = (Math.random() * 1e9) | 0;
+    drawSetupPreview(); audio.sfx('select');
   });
   document.getElementById('su-start').addEventListener('click', () => { audio.sfx('ack'); showBrief(); });
   document.getElementById('su-back').addEventListener('click', () => { audio.sfx('select'); showTitle(); });
@@ -702,6 +1049,7 @@ function closeMenu() {
 }
 
 function quitToTitle() {
+  autosave();           // persist so CONTINUE survives even a later reload
   closeMenu();
   paused = false;
   elPaused.style.display = 'none';
@@ -714,6 +1062,8 @@ function syncSettingsWidgets() {
   document.getElementById('set-master').value = settings.master;
   document.getElementById('set-music').value = settings.musicVol;
   document.getElementById('set-camspeed').value = settings.camSpeed;
+  document.getElementById('set-gamespeed').value = settings.gameSpeed;
+  document.getElementById('set-gamespeed-val').textContent = `${settings.gameSpeed.toFixed(1)}×`;
   const m = document.getElementById('set-musicon');
   m.textContent = audio.musicOn ? 'ON' : 'OFF';
   m.classList.toggle('on', audio.musicOn);
@@ -764,6 +1114,12 @@ function syncSettingsWidgets() {
   });
   document.getElementById('set-camspeed').addEventListener('input', (e) => {
     settings.camSpeed = parseFloat(e.target.value);
+    saveSettings(settings);
+  });
+  document.getElementById('set-gamespeed').addEventListener('input', (e) => {
+    settings.gameSpeed = parseFloat(e.target.value);
+    speedFactor = settings.gameSpeed;
+    document.getElementById('set-gamespeed-val').textContent = `${settings.gameSpeed.toFixed(1)}×`;
     saveSettings(settings);
   });
   document.getElementById('set-edge').addEventListener('click', () => {
@@ -828,6 +1184,7 @@ resize();
 
 let last = performance.now();
 let fogT = 0;
+let saveT = 0;
 
 function frame(now) {
   requestAnimationFrame(frame);
@@ -840,10 +1197,13 @@ function frame(now) {
   if (!halted && !game.over) {
     game.tick(dt * speedFactor);
     for (const a of ais) a.tick(dt * speedFactor);
+    // periodic autosave (wall-clock, so it's independent of game speed)
+    saveT += dt;
+    if (saveT >= 30) { saveT = 0; autosave(); }
   }
 
   input.tickScroll(dt);
-  ui.update(dt);
+  ui.update(dt, input.selection);
 
   if (game.oreDirty) { game.oreDirty = false; redrawOre(); }
   fogT -= dt;
@@ -852,6 +1212,8 @@ function frame(now) {
   syncEntities(dt);
   syncFx(halted ? 0 : dt);
   syncPlacementGhost();
+  syncRallyFlags();
+  updateCursor(dt);
 
   // camera: scene lives at y' = -mapY, camera looks down -z
   const w = viewEl.clientWidth / 2, h = viewEl.clientHeight / 2; // render px
@@ -869,6 +1231,7 @@ function frame(now) {
 
   if (game.over && !endShown) {
     endShown = true;
+    clearSave();   // match decided — nothing left to continue
     setTimeout(() => {
       closeMenu();
       state = 'end';
@@ -879,7 +1242,13 @@ function frame(now) {
     }, 1800);
   }
 }
+// persist the match if the tab is closed/reloaded mid-battle
+window.addEventListener('beforeunload', () => {
+  if (state === 'play' && game && !game.over) autosave();
+});
+
 requestAnimationFrame(frame);
+showTitle();        // sets the CONTINUE button state (also starts title sky)
 
 
 // smoke-test hooks: let automated checks poke the sim
@@ -888,7 +1257,41 @@ window.__game_test = {
   build: (house, key, x, y) => game.addBuilding(game.players[house], key, x, y, { instant: true }),
   credits: (house, n) => { game.players[house].credits = n; },
   placeReady: (x, y) => game.placeBuilding(game.players.player, x, y),
+  // force an autosave to localStorage (drives the save/load test)
+  save: () => { autosave(); return true; },
+  hasSave: () => hasValidSave(),
+  // order the first player unit to move (drives order-persistence checks)
+  moveAnyUnit: (x, y) => {
+    const u = game.units.find((u) => !u.dead && u.house === 'player');
+    if (!u) return 0;
+    game.orderMove(u, x, y);
+    return u.id;
+  },
   cam: (x, y) => { cam.x = x; cam.y = y; },
+  // start a fresh match with a setup patch {opponents,size,biome,layout};
+  // size accepts a key ('small') or the numeric edge (48). Returns the
+  // resolved match info (map.layout is concrete even when 'random' was asked)
+  startWith: (patch = {}) => {
+    const p = { ...patch };
+    if (typeof p.size === 'number') {
+      const key = Object.keys(SIZES).find((k) => SIZES[k] === p.size);
+      if (key) p.size = key; else delete p.size;
+    }
+    Object.assign(setup, p);
+    hideScreens();
+    setSidebar(true);
+    buildAndStart();   // synchronous so callers can read map info immediately
+    if (audio.musicOn) audio.startMusic();
+    return { opponents: setup.opponents, size: map.size, biome: map.biome, layout: map.layout };
+  },
+  // flood-fill connectivity: every start reachable from starts[0]?
+  connectivity: () => game.map.connectivityOK(),
+  // lift the fog everywhere (terrain inspection / screenshots)
+  revealAll: () => { game.explored.fill(1); game.visible.fill(1); redrawFog(); },
+  // construction-yard count (one per living house)
+  conyards: () => game.buildings.filter((b) => !b.dead && b.key === 'conyard').length,
+  // accelerate the sim clock for headless soak tests (1 = real time)
+  setSpeed: (n) => { speedFactor = Math.max(0.25, Math.min(8, n)); return speedFactor; },
   attack: () => {
     for (const u of game.units) {
       if (u.house !== 'player' || !u.def.weapon) continue;
@@ -897,6 +1300,16 @@ window.__game_test = {
   },
   moveOrder: (unit, x, y) => game.orderMove(unit, x, y),
   harvestOrder: (unit, cell) => game.orderHarvest(unit, cell),
+  // select a player building by key and give it a rally point (drives the
+  // rally-flag marker); returns how many rally flags are currently visible
+  selectAndRally: (key, rx, ry) => {
+    const b = game.buildings.find((b) => !b.dead && b.house === 'player' && b.key === key);
+    if (!b) return false;
+    input.selection = [b];
+    b.rally = [rx, ry];
+    return true;
+  },
+  rallyFlagCount: () => rallyFlags.filter((q) => q.mesh.visible).length,
   findCells: () => {
     // first free gem cell and non-gem ore cell, for balance tests
     const m = game.map;
@@ -916,6 +1329,134 @@ window.__game_test = {
     for (const b of game.buildings) if (b.house === house) { b.hp = 0; game.destroyBuilding(b); }
     for (const u of game.units) if (u.house === house) game.destroyUnit(u);
   },
+  // --- roster-content test helpers (used by tests/content.js) ---
+  canProduce: (house, kind, key) => game.canProduce(game.players[house], kind, key),
+  power: (house) => ({ made: game.players[house].powerMade, used: game.players[house].powerUsed, radar: game.players[house].hasRadar }),
+  buildingInfo: (house, key) => {
+    const b = game.buildings.find((b) => !b.dead && b.house === house && b.key === key);
+    return b ? { id: b.id, hp: Math.round(b.hp), maxHp: b.maxHp, repairing: !!b.repairing, owner: b.house, cx: b.cx, cy: b.cy } : null;
+  },
+  // destroy a single structure by house+key (drives conyard-recovery test)
+  killBuilding: (house, key) => {
+    const b = game.buildings.find((b) => !b.dead && b.house === house && b.key === key);
+    if (!b) return false;
+    game.destroyBuilding(b, null);
+    return true;
+  },
+  // knock a building down to a fraction of its hp (drives the AI repair test)
+  hurtBuilding: (house, key, frac) => {
+    const b = game.buildings.find((b) => !b.dead && b.house === house && b.key === key);
+    if (!b) return null;
+    b.hp = Math.max(1, Math.round(b.maxHp * frac));
+    return { id: b.id, hp: Math.round(b.hp), maxHp: b.maxHp };
+  },
+  // drain ore around a house's refinery (drives the expansion-refinery test)
+  drainOre: (house, r) => {
+    const b = game.buildings.find((b) => !b.dead && b.house === house && b.key === 'refinery');
+    if (!b) return 0;
+    const [cx, cy] = b.centre();
+    const m = game.map;
+    let n = 0;
+    for (let y = Math.max(0, (cy | 0) - r); y <= Math.min(m.size - 1, (cy | 0) + r); y++) {
+      for (let x = Math.max(0, (cx | 0) - r); x <= Math.min(m.size - 1, (cx | 0) + r); x++) {
+        const i = m.idx(x, y);
+        if (m.ore[i]) { m.ore[i] = 0; m.gem[i] = 0; n++; }
+      }
+    }
+    game.oreDirty = true;
+    return n;
+  },
+  // per-AI snapshot: personality, difficulty and live wave state
+  aiInfo: () => ais.map((a) => ({
+    house: a.p.house,
+    level: a.level,
+    personality: a.personality,
+    firstWave: Math.round(a.d.firstWave),
+    waveT: Math.round(a.waveT * 10) / 10,
+    wavePhase: a.wave ? a.wave.phase : null,
+    waveN: a.wave ? a.wave.members.size : 0,
+    needRefinery: a.needRefinery,
+    buildings: game.buildings.filter((b) => !b.dead && b.owner === a.p).map((b) => b.key),
+  })),
+  // force a personality on an AI (isolates difficulty in comparison tests)
+  setPersonality: (house, name) => {
+    const a = ais.find((a) => a.p.house === house);
+    if (!a) return false;
+    a.applyPersonality(name);
+    a.waveT = a.d.firstWave;
+    return a.personality;
+  },
+  // count enemy combat units within r cells of the player's conyard
+  enemyNearBase: (r) => {
+    const c = game.buildings.find((b) => !b.dead && b.house === 'player' && b.key === 'conyard');
+    if (!c) return 0;
+    const [cx, cy] = c.centre();
+    let n = 0;
+    for (const u of game.units) {
+      if (u.dead || u.house === 'player' || !u.def.weapon) continue;
+      if (Math.hypot(u.x - cx, u.y - cy) <= r) n++;
+    }
+    return n;
+  },
+  unitStats: (house, key) => {
+    let min = Infinity, maxHp = 0, count = 0;
+    for (const u of game.units) {
+      if (u.dead || u.house !== house || u.key !== key) continue;
+      min = Math.min(min, u.hp); maxHp = Math.max(maxHp, u.maxHp); count++;
+    }
+    return count ? { minHp: Math.round(min), maxHp, count } : null;
+  },
+  attackAll: (uHouse, uKey, tHouse, tKey) => {
+    const b = game.buildings.find((b) => !b.dead && b.house === tHouse && b.key === tKey);
+    if (!b) return 0;
+    let n = 0;
+    for (const u of game.units) {
+      if (u.dead || u.house !== uHouse || u.key !== uKey) continue;
+      game.orderAttack(u, b); n++;
+    }
+    return n;
+  },
+  ownerAt: (x, y) => {
+    const b = game.buildings.find((b) => !b.dead && x >= b.cx && y >= b.cy && x < b.cx + b.def.w && y < b.cy + b.def.h);
+    return b ? b.house : null;
+  },
+  captureOrder: (uHouse, uKey, tHouse, tKey) => {
+    const b = game.buildings.find((b) => !b.dead && b.house === tHouse && b.key === tKey);
+    const u = game.units.find((u) => !u.dead && u.house === uHouse && u.key === uKey);
+    if (!u || !b) return false;
+    game.orderCapture(u, b);
+    return true;
+  },
+  // capture the specific structure covering (tx,ty) — avoids matching the
+  // wrong same-keyed building elsewhere on the map (e.g. the AI's own base)
+  captureAt: (uHouse, uKey, tx, ty) => {
+    const b = game.buildings.find((b) => !b.dead && tx >= b.cx && ty >= b.cy && tx < b.cx + b.def.w && ty < b.cy + b.def.h);
+    const u = game.units.find((u) => !u.dead && u.house === uHouse && u.key === uKey);
+    if (!u || !b) return false;
+    game.orderCapture(u, b);
+    return true;
+  },
+  // top-left of a (2r+1) square whose cells are all buildable, edge-safe
+  findOpen: (r) => {
+    const m = game.map;
+    for (let y = r + 3; y < m.size - r - 3; y++) {
+      for (let x = r + 3; x < m.size - r - 3; x++) {
+        let ok = true;
+        for (let dy = -r; dy <= r && ok; dy++)
+          for (let dx = -r; dx <= r && ok; dx++)
+            if (!m.isBuildable(x + dx, y + dy)) ok = false;
+        if (ok) return [x, y];
+      }
+    }
+    return null;
+  },
+  // findPath result: {len, ex, ey} end cell, or null when unreachable
+  path: (sx, sy, tx, ty) => {
+    const p = findPath(game.map, sx, sy, tx, ty, null);
+    if (!p || p.length === 0) return null;
+    const last = p[p.length - 1];
+    return { len: p.length, ex: last[0], ey: last[1] };
+  },
 };
 window.__game_debug = () => (state !== 'play' ? { state } : {
   state,
@@ -929,6 +1470,7 @@ window.__game_debug = () => (state !== 'play' ? { state } : {
   opponents: Object.values(game.players).filter((p) => !p.isHuman).length,
   mapSize: game.map.size,
   biome: game.map.biome,
+  layout: game.map.layout,
   oreTotal: game.map.ore.reduce((a, v) => a + v, 0),
   gemCells: game.map.gem.reduce((a, v) => a + v, 0),
   over: game.over,

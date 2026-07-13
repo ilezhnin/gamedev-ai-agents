@@ -245,9 +245,16 @@ export class Input {
     }
 
     if (target) {
-      for (const u of units) g.orderAttack(u, target);
+      let captured = false;
+      for (const u of units) {
+        if (u.key === 'engineer' && target.isBuilding && !target.def.isWall && target.house !== 'player') {
+          g.orderCapture(u, target); captured = true;
+        } else {
+          g.orderAttack(u, target);
+        }
+      }
       this.audio.sfx('ack');
-      this.audio.say('Attacking');
+      this.audio.say(captured ? 'Infiltrating' : 'Attacking');
       return;
     }
 

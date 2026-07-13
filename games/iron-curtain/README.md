@@ -24,9 +24,20 @@ runs fully offline.
 
 - **Main menu & skirmish setup**: NEW OPERATION opens a setup screen —
   1–3 CPU opponents (each with its own colour and EASY/NORMAL/HARD
-  brain), map size (48/64/96) and biome (green forest, snow taiga,
-  desert waste). CONTINUE OPERATION returns to a match you left via the
-  pause menu; the last used setup is remembered.
+  brain), map size (48/64/96), biome (green forest, snow taiga,
+  desert waste) and map layout (RANDOM / river / lakes / rock ridges /
+  central-lake islands / open steppe / deep-woods maze). A live
+  **battlefield preview** minimap shows the exact map you'll play (terrain,
+  ore and start positions); REGENERATE rerolls the seed — what you see is
+  what you get. CONTINUE OPERATION returns to a match you left via the pause
+  menu; the last used setup is remembered.
+
+- **Save & continue**: a match in progress is autosaved to the browser
+  (localStorage) every 30 seconds, when you quit to the title, and if you
+  close or reload the tab. CONTINUE OPERATION resumes it — first from the
+  warm in-memory match, otherwise by reloading the saved one — so a battle
+  survives a page refresh. The save is cleared when the match ends, and a
+  corrupt or outdated save is discarded (CONTINUE simply greys out).
 
 - **Base building**, classic sidebar flow: one structure at a time, radial
   build clock on the cameo, `READY` → click the map to place (adjacency
@@ -44,27 +55,60 @@ runs fully offline.
 - **Power**: low power halves production speed, kills the radar minimap and
   switches tesla coils off.
 - **Units**: riflemen, rocket troopers, light/heavy tanks (rotating
-  turrets), ore truck, MCV that deploys into a new construction yard (`D`).
-- **Defenses**: guard tower, tesla coil.
+  turrets), ore truck, MCV that deploys into a new construction yard (`D`),
+  plus a mid/late-game tier:
+  - **Engineer** — unarmed sapper; right-click an enemy structure to walk in
+    and **capture** it (the engineer is spent, the building changes hands).
+  - **Artillery** — long-range siege gun (range 8) firing slow area-blast
+    shells. A glass cannon: fragile, no turret, and near-sighted, so it wants
+    a spotter and a screen of armour.
+  - **Rocket Truck** — fast launcher that looses a staggered salvo of four
+    splash rockets.
+  - **Behemoth Tank** — super-heavy twin-cannon monster; needs a **Tech
+    Center** to build.
+- **Defenses & structures**: guard tower, tesla coil, **flame tower**
+  (short-range fire jet that melts infantry), **concrete walls** (cheap
+  fire-and-forget blockers that stop armour until shelled down) and the
+  **Tech Center** that unlocks the behemoth.
+- **Splash & fire**: area-of-effect shells/rockets hurt everything near the
+  blast (friendly fire included), and a dedicated fire warhead makes flame
+  brutal against troops but feeble against tanks.
 - **Radar dome** enables the minimap (click it to navigate).
 - **Fog of war** with explored-but-stale dimming.
 - **Repair & sell** buildings; factory rally points (select factory,
-  right-click the ground).
-- **Skirmish AI** that expands, rebuilds losses, keeps its power up,
-  replaces harvesters and sends growing attack waves; difficulty tunes
-  its thinking speed, army caps and wave pacing (never its prices or
-  income). Multiple CPUs fight each other too — it's a free-for-all.
+  right-click the ground) — a small flag marks the muster cell.
+- **Selection readout**: a bottom-left panel names a single selection with a
+  cameo icon and hp bar, or tallies a mixed group by type.
+- **Cameo tooltips**: hover a sidebar cameo for name, cost, power delta and
+  the tech it needs (missing structures greyed-red).
+- **Contextual cursors**: crosshair to attack over enemies (armed selection),
+  a move reticle otherwise, no-entry over shroud while placing.
+- **Skirmish AI** with rolled **personalities** — a *rusher* (cheap early
+  swarms, minimal defence), a *turtle* (rings of towers and walls, later but
+  bigger waves) or a *balanced* brain — layered on top of the EASY/NORMAL/HARD
+  difficulty knobs. It expands (a second refinery when its home field runs
+  dry), rebuilds losses, **repairs** damaged key structures, keeps 2 ore
+  trucks per refinery, rushes guards to a harvester under fire, and even
+  redeploys a fresh MCV if its construction yard is destroyed. Attacks come
+  as **staged waves**: the squad gathers at a rally point, pushes the enemy
+  economy together, and retreats to rejoin the defence if it's shattered. It
+  never cheats on prices or income. Multiple CPUs fight each other too — it's
+  a free-for-all.
 - **Synthesized audio**: WebAudio sfx, an original chiptune march (M to
   toggle) and a robotic tactical-advisor voice via the browser speech API.
 - Victory/defeat screens with a score sheet; every match generates a fresh
-  procedural map (river, fords, forests, rock outcrops, three ore fields).
+  procedural map from one of six layout templates (river/fords, seeded
+  lakes, gapped rock ridges, central-lake islands, open steppe or a
+  carved woods maze) with biome flavour — desert dry canyons, taiga frozen
+  shores and extra rock — plus scattered ruin doodads and three ore fields.
+  A flood-fill pass guarantees every start stays reachable.
 
 ## Controls
 
 | Input | Action |
 |---|---|
 | LMB / drag | select / marquee select |
-| RMB | move · attack · set rally (factory selected) |
+| RMB | move · attack · capture (engineer → enemy building) · set rally (factory selected) |
 | `F` + click | attack-move |
 | `X` | stop |
 | `B` | deploy MCV |
@@ -73,8 +117,9 @@ runs fully offline.
 | `H` `P` `M` | help · pause · music |
 | `Esc` | cancel mode / clear selection, then pause menu (resume · settings · main menu) |
 
-Settings (audio volumes, advisor voice, camera speed, edge scroll) persist
-in `localStorage`.
+Settings (audio volumes, advisor voice, game speed 0.5×–2×, camera speed,
+edge scroll) persist in `localStorage`. Game speed scales the simulation only;
+the interface stays real-time.
 
 ## Code map
 
@@ -91,6 +136,11 @@ in `localStorage`.
 | `src/input.js` | selection, orders, placement, control groups, scrolling |
 | `src/audio.js` | WebAudio sfx synth, chiptune sequencer, speech advisor |
 | `src/main.js` | Three.js renderer (ortho camera, canvas-texture layers) + game loop |
+
+Headless tests live in `tests/` (playwright-core + chromium):
+`smoke.js` (boots a match, runs the sim), `content.js` (roster/tech checks),
+`layouts.js` (map layout × biome combos) and `saveload.js` (autosave, reload,
+CONTINUE resume). Run e.g. `node tests/saveload.js` — each prints `PASS`.
 
 This is an original homage: game rules and art were written for this
 project and no assets, names, or content from any commercial game are used.

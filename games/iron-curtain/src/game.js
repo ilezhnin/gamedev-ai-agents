@@ -4,10 +4,14 @@
 
 import { UNITS, BUILDINGS, WEAPONS, WARHEADS, ECONOMY } from './rules.js';
 import { findPath, nearestFree } from './pathfind.js';
-import { makeRng } from './palette.js';
+import { makeRng, u8ToB64, b64ToU8 } from './palette.js';
+import { GameMap } from './map.js';
 import { FACINGS } from './sprites.js';
 
 let NEXT_ID = 1;
+
+// bump when the serialized save shape changes; a mismatched save is discarded
+export const SAVE_VERSION = 1;
 
 export class Player {
   constructor(house, isHuman) {
@@ -98,12 +102,14 @@ export class Game {
   constructor(map, audio, seed = 1234, enemyHouses = ['enemy']) {
     this.map = map;
     this.audio = audio;
+    this.seed = seed;
     this.rng = makeRng(seed);
     this.players = { player: new Player('player', true) };
     for (const h of enemyHouses) this.players[h] = new Player(h, false);
     this.units = [];
     this.buildings = [];
     this.projectiles = [];
+    this.pendingShots = [];           // staggered salvo shots waiting to fire
     this.effects = [];                // {kind,x,y,t,...} consumed by renderer
     this.time = 0;
     this.oreTimer = 0;
@@ -248,9 +254,10 @@ export class Game {
         if (!this.map.isBuildable(x, y)) return false;
       }
     }
-    // adjacency: within 3 cells of an existing friendly building footprint
+    // adjacency: within 3 cells of an existing friendly building footprint.
+    // walls are fire-and-forget blockers and never extend the base envelope.
     for (const b of this.buildings) {
-      if (b.dead || b.owner !== owner) continue;
+      if (b.dead || b.owner !== owner || b.def.isWall) continue;
       if (cx < b.cx + b.def.w + 3 && cx + def.w > b.cx - 3 &&
           cy < b.cy + b.def.h + 3 && cy + def.h > b.cy - 3) { nearBase = true; break; }
     }
@@ -312,6 +319,16 @@ export class Game {
     u.deployCell = [u.cellX - Math.floor(def.w / 2), u.cellY - Math.floor(def.h / 2)];
   }
 
+  // engineer boards an enemy structure and seizes it (walls excluded)
+  orderCapture(u, target) {
+    if (!u.def || u.key !== 'engineer') return;
+    if (!target || target.dead || !target.isBuilding) return;
+    if (target.def.isWall || target.owner === u.owner) return;
+    u.order = { type: 'capture' };
+    u.target = target;
+    u.path = [];
+  }
+
   setPath(u, tx, ty) {
     const path = findPath(this.map, u.cellX, u.cellY, Math.round(tx), Math.round(ty), u);
     u.path = path || [];
@@ -343,6 +360,7 @@ export class Game {
 
     for (const u of this.units) if (!u.dead) this.tickUnit(u, dt);
     for (const b of this.buildings) if (!b.dead) this.tickBuilding(b, dt);
+    this.tickPendingShots(dt);
     this.tickProjectiles(dt);
 
     // purge dead
@@ -430,6 +448,30 @@ export class Game {
         }
         break;
       }
+      case 'capture': {
+        const t = u.target;
+        if (!t || t.dead || t.owner === u.owner || t.def.isWall) {
+          u.order = { type: 'idle' }; u.target = null; break;
+        }
+        // adjacent to the footprint (bounding box expanded by one cell)?
+        const adj = u.cellX >= t.cx - 1 && u.cellX <= t.cx + t.def.w &&
+                    u.cellY >= t.cy - 1 && u.cellY <= t.cy + t.def.h;
+        if (adj && !u.moving) {
+          this.captureBuilding(t, u.owner);
+          this.map.occupant[this.map.idx(u.cellX, u.cellY)] = null;
+          u.dead = true;
+          this.effects.push({ kind: 'puff', x: u.x, y: u.y, t: 0, frame: 0 });
+          if (u.owner.isHuman) { this.audio.sfx('place'); this.audio.say('Structure captured'); }
+          this.visionDirty = true;
+          return;
+        }
+        if (!u.moving && u.path.length === 0) {
+          const spot = this.adjacentFreeCell(t, u);
+          if (spot) this.setPath(u, spot[0], spot[1]);
+          else { u.order = { type: 'idle' }; u.target = null; }
+        }
+        break;
+      }
       case 'move':
         // armed units on the march return fire the moment they spot a foe:
         // switch to attack-move so they resume the trip once it's dealt with
@@ -494,15 +536,43 @@ export class Game {
     const w = WEAPONS[u.def.weapon];
     u.cooldown = w.rof;
     u.fireFlash = 0.09;
-    this.spawnProjectile(u, target, w);
+    this.fireWeapon(u, target, w);
   }
 
-  spawnProjectile(src, target, w) {
+  // fire one weapon: single shot, or a staggered salvo of N projectiles
+  fireWeapon(src, target, w) {
+    const salvo = w.salvo || 1;
+    if (salvo <= 1) { this.spawnProjectile(src, target, w); return; }
+    const spriteXY = (e) => e.isUnit ? [e.x, e.y] : [e.centre()[0] - 0.5, e.centre()[1] - 0.5];
+    const aim = spriteXY(target);   // remembered impact point if the target dies
+    for (let i = 0; i < salvo; i++) {
+      this.pendingShots.push({ t: i * (w.stagger || 0.12), src, target, w, aim });
+    }
+  }
+
+  tickPendingShots(dt) {
+    if (this.pendingShots.length === 0) return;
+    for (const s of this.pendingShots) {
+      s.t -= dt;
+      if (s.t <= 0) {
+        if (s.src && !s.src.dead) this.spawnProjectile(s.src, s.target, s.w, s.aim);
+        s.done = true;
+      }
+    }
+    this.pendingShots = this.pendingShots.filter((s) => !s.done);
+  }
+
+  spawnProjectile(src, target, w, aim = null) {
     // effect/projectile coords live in "sprite space": renderer adds +0.5,
     // so unit positions pass through and building centres shift back half a cell
     const spriteXY = (e) => e.isUnit ? [e.x, e.y] : [e.centre()[0] - 0.5, e.centre()[1] - 0.5];
     const [sx, sy] = spriteXY(src);
-    const [tx, ty] = spriteXY(target);
+    // aim at the live target, or the remembered point if it's already gone
+    const live = target && !target.dead ? target : null;
+    let tx, ty;
+    if (live) [tx, ty] = spriteXY(live);
+    else if (aim) [tx, ty] = aim;
+    else return;
     this.audio.sfx(w.sound);
     // muzzle flash at the barrel tip (cannons and tower guns)
     if (w.projectile === 'shell' || w.sound === 'mg') {
@@ -517,17 +587,38 @@ export class Game {
       // hitscan with a brief tracer line
       this.effects.push({ kind: 'tracer', x0: sx, y0: sy, x1: tx, y1: ty, t: 0.06 });
       this.effects.push({ kind: 'puff', x: tx + (this.rng() - 0.5) * 0.4, y: ty + (this.rng() - 0.5) * 0.4, t: 0, frame: 0 });
-      this.dealDamage(target, w, src);
+      if (w.splash) this.applySplash(tx, ty, w, src);
+      else if (live) this.dealDamage(live, w, src);
     } else if (w.projectile === 'zap') {
       this.effects.push({ kind: 'zap', x0: sx, y0: sy, x1: tx, y1: ty, t: 0.35 });
-      this.dealDamage(target, w, src);
+      if (w.splash) this.applySplash(tx, ty, w, src);
+      else if (live) this.dealDamage(live, w, src);
     } else {
       this.projectiles.push({
-        x: sx, y: sy, tx, ty, target, w, src,
+        x: sx, y: sy, tx, ty, target: live, w, src,
         speed: w.speed || 8,
         kind: w.projectile,
         angle: Math.atan2(ty - sy, tx - sx),
       });
+    }
+  }
+
+  // area-of-effect: full damage at the impact cell, a fraction out to the
+  // splash radius. friendly fire is on, classic-style.
+  applySplash(x, y, w, src) {
+    const rad = w.splash;
+    const inner = 0.7;               // "impact cell" gets full damage
+    const factor = w.splashFactor ?? 0.4;
+    const hit = (e, ex, ey) => {
+      if (e.dead) return;
+      const d = Math.hypot(ex - x, ey - y);
+      if (d > rad) return;
+      this.dealDamage(e, w, src, d <= inner ? 1 : factor);
+    };
+    for (const u of this.units) hit(u, u.x, u.y);
+    for (const b of this.buildings) {
+      const [bx, by] = b.centre();
+      hit(b, bx - 0.5, by - 0.5);
     }
   }
 
@@ -542,7 +633,8 @@ export class Game {
       if (d <= step) {
         p.done = true;
         this.effects.push({ kind: 'puff', x: p.tx, y: p.ty, t: 0, frame: 0 });
-        if (p.target && !p.target.dead) this.dealDamage(p.target, p.w, p.src);
+        if (p.w.splash) this.applySplash(p.tx, p.ty, p.w, p.src);
+        else if (p.target && !p.target.dead) this.dealDamage(p.target, p.w, p.src);
       } else {
         p.x += Math.cos(p.angle) * step;
         p.y += Math.sin(p.angle) * step;
@@ -551,10 +643,10 @@ export class Game {
     this.projectiles = this.projectiles.filter((p) => !p.done);
   }
 
-  dealDamage(target, w, src) {
+  dealDamage(target, w, src, factor = 1) {
     if (target.dead) return;
     const mult = WARHEADS[w.warhead][target.def.armor] ?? 1;
-    target.hp -= w.damage * mult;
+    target.hp -= w.damage * mult * factor;
     // human base under attack notification
     if (target.owner.isHuman && this.underAttackCooldown <= 0) {
       this.underAttackCooldown = 12;
@@ -611,6 +703,46 @@ export class Game {
       if (b.owner.isHuman) this.audio.say('Structure destroyed');
     }
     this.visionDirty = true;
+  }
+
+  // transfer a structure to a new owner, keeping power/radar/storage books
+  // straight (no destroy+recreate — hp and position are preserved)
+  captureBuilding(b, newOwner) {
+    const old = b.owner;
+    if (old === newOwner) return;
+    old.powerMade -= Math.max(0, b.def.power);
+    old.powerUsed -= Math.max(0, -b.def.power);
+    newOwner.powerMade += Math.max(0, b.def.power);
+    newOwner.powerUsed += Math.max(0, -b.def.power);
+    if (b.def.storage) { old.storage -= b.def.storage; newOwner.storage += b.def.storage; }
+    if (b.def.givesRadar) {
+      newOwner.hasRadar = true;
+      old.hasRadar = this.buildings.some((o) => !o.dead && o !== b && o.owner === old && o.def.givesRadar);
+    }
+    b.owner = newOwner;
+    b.target = null;
+    b.repairing = false;
+    b.seen = false;
+    if (newOwner.isHuman) this.emit('info', `${b.def.name} CAPTURED`);
+    this.visionDirty = true;
+  }
+
+  // nearest free cell hugging a building's footprint, for engineer approach
+  adjacentFreeCell(b, u) {
+    const cells = [];
+    for (let x = b.cx - 1; x <= b.cx + b.def.w; x++) {
+      cells.push([x, b.cy - 1], [x, b.cy + b.def.h]);
+    }
+    for (let y = b.cy; y < b.cy + b.def.h; y++) {
+      cells.push([b.cx - 1, y], [b.cx + b.def.w, y]);
+    }
+    let best = null, bd = 1e9;
+    for (const [x, y] of cells) {
+      if (!this.map.isFree(x, y, u)) continue;
+      const d = Math.hypot(x - u.cellX, y - u.cellY);
+      if (d < bd) { bd = d; best = [x, y]; }
+    }
+    return best;
   }
 
   // ------------------------------------------------------------- movement --
@@ -884,7 +1016,7 @@ export class Game {
         if (b.cooldown <= 0 && angleDiff(b.turretFacing, want) < 0.3) {
           b.cooldown = w.rof;
           b.fireFlash = 0.09;
-          this.spawnProjectile(b, b.target, w);
+          this.fireWeapon(b, b.target, w);
         }
       }
     }
@@ -943,12 +1075,176 @@ export class Game {
     return !!this.visible[i];
   }
 
+  // -------------------------------------------------------- save / load ----
+
+  // full match snapshot as a plain JSON-friendly object. AI state is added by
+  // the caller (main.js) via AI.serialize — the sim doesn't own the opponents.
+  serialize() {
+    const m = this.map;
+    const players = {};
+    for (const [house, p] of Object.entries(this.players)) {
+      const packProd = (pr) => pr
+        ? { key: pr.key, spent: pr.spent, progress: pr.progress, hold: !!pr.hold } : null;
+      players[house] = {
+        house,
+        credits: p.credits,
+        storage: p.storage,
+        stats: { ...p.stats },
+        prod: { building: packProd(p.prod.building), unit: packProd(p.prod.unit) },
+        readyBuilding: p.readyBuilding
+          ? { key: p.readyBuilding.key, spent: p.readyBuilding.spent } : null,
+      };
+    }
+    const buildings = this.buildings.filter((b) => !b.dead).map((b) => ({
+      id: b.id, key: b.key, house: b.house,
+      cx: b.cx, cy: b.cy, hp: b.hp,
+      repairing: !!b.repairing,
+      rally: b.rally ? [b.rally[0], b.rally[1]] : null,
+      turretFacing: b.turretFacing,
+      seen: !!b.seen,
+    }));
+    const units = this.units.filter((u) => !u.dead).map((u) => ({
+      id: u.id, key: u.key, house: u.house,
+      x: u.x, y: u.y, cellX: u.cellX, cellY: u.cellY,
+      hp: u.hp, facing: u.facing, turretFacing: u.turretFacing,
+      cargo: u.cargo,
+      order: {
+        type: u.order.type,
+        destX: u.destX ?? null, destY: u.destY ?? null,
+        targetId: u.target ? u.target.id : null,
+        oreGoal: u.oreGoal ? [u.oreGoal[0], u.oreGoal[1]] : null,
+        deployCell: u.deployCell ? [u.deployCell[0], u.deployCell[1]] : null,
+      },
+      path: (u.path || []).map((c) => [c[0], c[1]]),
+    }));
+    return {
+      version: SAVE_VERSION,
+      seed: this.seed,
+      time: this.time,
+      nextId: NEXT_ID,
+      map: {
+        size: m.size, seed: m.seed, biome: m.biome,
+        layout: m.layout, layoutReq: m.layoutReq,
+        starts: m.starts.map((s) => ({ x: s.x, y: s.y })),
+        oreMax: m.oreMax,
+        terrain: u8ToB64(m.terrain),
+        variant: u8ToB64(m.variant),
+        ore: u8ToB64(new Uint8Array(m.ore.buffer, m.ore.byteOffset, m.ore.byteLength)),
+        gem: u8ToB64(m.gem),
+      },
+      players,
+      buildings,
+      units,
+      explored: u8ToB64(this.explored),
+    };
+  }
+
+  // rebuild a live Game from a serialized snapshot. Renderer state is rebuilt
+  // lazily by main.js (buildTerrain/Ore/Fog after this returns).
+  static load(data, audio) {
+    const map = GameMap.restore(data.map);
+    const enemyHouses = Object.keys(data.players).filter((h) => h !== 'player');
+    const game = new Game(map, audio, data.seed ?? 1234, enemyHouses);
+    game.time = data.time || 0;
+
+    // players: credits/storage/stats/production come from the save; power and
+    // radar are recomputed from the rebuilt buildings below
+    for (const [house, pd] of Object.entries(data.players)) {
+      const p = game.players[house];
+      if (!p) continue;
+      p.credits = pd.credits;
+      p.displayCredits = pd.credits;
+      p.storage = pd.storage;
+      p.stats = { built: 0, lost: 0, killed: 0, harvested: 0, ...(pd.stats || {}) };
+      p.powerMade = 0; p.powerUsed = 0; p.hasRadar = false;
+      const unpackProd = (pr, kind) => pr
+        ? { kind, key: pr.key, def: (kind === 'building' ? BUILDINGS : UNITS)[pr.key],
+            spent: pr.spent, progress: pr.progress, hold: !!pr.hold } : null;
+      p.prod = {
+        building: unpackProd(pd.prod && pd.prod.building, 'building'),
+        unit: unpackProd(pd.prod && pd.prod.unit, 'unit'),
+      };
+      p.readyBuilding = pd.readyBuilding
+        ? { kind: 'building', key: pd.readyBuilding.key, def: BUILDINGS[pd.readyBuilding.key],
+            spent: pd.readyBuilding.spent, progress: 1, hold: false }
+        : null;
+    }
+
+    const byId = new Map();
+
+    for (const bd of data.buildings) {
+      const owner = game.players[bd.house];
+      if (!owner) continue;
+      const b = new Building(owner, bd.key, bd.cx, bd.cy);
+      b.id = bd.id;
+      b.hp = bd.hp;
+      b.repairing = !!bd.repairing;
+      b.rally = bd.rally ? [bd.rally[0], bd.rally[1]] : null;
+      b.turretFacing = bd.turretFacing || 0;
+      b.seen = !!bd.seen;
+      b.buildRise = 1;
+      game.buildings.push(b);
+      for (let y = b.cy; y < b.cy + b.def.h; y++)
+        for (let x = b.cx; x < b.cx + b.def.w; x++)
+          if (map.inBounds(x, y)) map.blocked[map.idx(x, y)] = 1;
+      owner.powerMade += Math.max(0, b.def.power);
+      owner.powerUsed += Math.max(0, -b.def.power);
+      if (b.def.givesRadar) owner.hasRadar = true;
+      byId.set(b.id, b);
+    }
+
+    for (const ud of data.units) {
+      const owner = game.players[ud.house];
+      if (!owner) continue;
+      const u = new Unit(owner, ud.key, ud.cellX, ud.cellY);
+      u.id = ud.id;
+      // snap to the cell centre — mid-move interpolation isn't preserved
+      u.cellX = ud.cellX; u.cellY = ud.cellY;
+      u.x = ud.cellX; u.y = ud.cellY;
+      u.hp = ud.hp;
+      u.facing = ud.facing; u.turretFacing = ud.turretFacing;
+      u.cargo = ud.cargo || 0;
+      u.moving = false; u.reserved = null;
+      u.guardX = u.x; u.guardY = u.y;
+      const o = ud.order || { type: 'idle' };
+      u.destX = o.destX ?? null; u.destY = o.destY ?? null;
+      u.oreGoal = o.oreGoal ? [o.oreGoal[0], o.oreGoal[1]] : null;
+      u.deployCell = o.deployCell ? [o.deployCell[0], o.deployCell[1]] : null;
+      u.path = (ud.path || []).map((c) => [c[0], c[1]]);
+      u.order = { type: o.type || 'idle' };
+      u._savedTargetId = o.targetId ?? null;
+      game.units.push(u);
+      map.occupant[map.idx(u.cellX, u.cellY)] = u;
+      byId.set(u.id, u);
+    }
+
+    // resolve target references now every entity exists; drop dangling ones
+    for (const u of game.units) {
+      const tid = u._savedTargetId;
+      delete u._savedTargetId;
+      if (tid == null) continue;
+      const t = byId.get(tid);
+      if (t && !t.dead) u.target = t;
+      else if (u.order.type === 'attack' || u.order.type === 'capture') {
+        u.order = { type: 'idle' }; u.target = null;
+      }
+    }
+    for (const b of game.buildings) b.target = null; // defence retargets next tick
+
+    NEXT_ID = Math.max(NEXT_ID, data.nextId || 1);
+
+    game.visionDirty = true;
+    game.recomputeVision();
+    return game;
+  }
+
   // ------------------------------------------------------------------ end --
 
   checkEnd() {
     if (this.over || this.time < 5) return;
+    // walls don't count as a surviving base — a house with only walls is out
     const alive = (house) =>
-      this.buildings.some((b) => !b.dead && b.house === house) ||
+      this.buildings.some((b) => !b.dead && !b.def.isWall && b.house === house) ||
       this.units.some((u) => !u.dead && u.house === house);
     const playerAlive = alive('player');
     const anyFoeAlive = Object.values(this.players)

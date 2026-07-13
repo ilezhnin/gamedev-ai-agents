@@ -172,6 +172,11 @@ export class AudioSys {
         this.noise(now, 0.16, 0.26, 350, null, 90);
         this.osc('triangle', 110, now, 0.12, 0.16, null, 45);
         break;
+      case 'flame':
+        // breathy whoosh: filtered noise sliding down, low body rumble
+        this.noise(now, 0.32, 0.22, 1800, null, 600);
+        this.osc('sawtooth', 130, now, 0.22, 0.08, null, 70);
+        break;
     }
   }
 

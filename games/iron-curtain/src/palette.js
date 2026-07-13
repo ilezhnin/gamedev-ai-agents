@@ -70,6 +70,24 @@ export function px(g, x, y, color, w = 1, h = 1) {
 }
 
 // deterministic pseudo-random for stable art / maps
+// typed-array <-> base64 helpers for save/load (browser btoa/atob, chunked
+// so large maps don't blow the argument stack)
+export function u8ToB64(u8) {
+  let s = '';
+  const CHUNK = 0x8000;
+  for (let i = 0; i < u8.length; i += CHUNK) {
+    s += String.fromCharCode.apply(null, u8.subarray(i, Math.min(u8.length, i + CHUNK)));
+  }
+  return btoa(s);
+}
+
+export function b64ToU8(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8;
+}
+
 export function makeRng(seed) {
   let s = seed >>> 0;
   return () => {

@@ -7,7 +7,8 @@ export const DEFAULTS = {
   musicVol: 0.32,   // music channel 0..1
   voice: true,      // tactical advisor speech
   camSpeed: 22,     // cells per second
-  edgeScroll: false // scroll when the mouse touches the screen edge
+  edgeScroll: false, // scroll when the mouse touches the screen edge
+  gameSpeed: 1      // sim speed multiplier 0.5..2 (UI stays real-time)
 };
 
 export function loadSettings() {

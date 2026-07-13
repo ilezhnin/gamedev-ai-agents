@@ -26,10 +26,20 @@ export class UI {
       btnRepair: document.getElementById('btn-repair'),
       btnSell: document.getElementById('btn-sell'),
       help: document.getElementById('help'),
+      tip: document.getElementById('cameo-tip'),
+      selPanel: document.getElementById('sel-panel'),
+      selSingle: document.getElementById('sel-single'),
+      selMulti: document.getElementById('sel-multi'),
+      selIcon: document.getElementById('sel-icon'),
+      selName: document.getElementById('sel-name'),
+      selHpFill: document.getElementById('sel-hp-fill'),
     };
     this.cameos = {};              // key -> {root, clockCanvas, tag, badge, shade}
     this.radarG = this.el.radar.getContext('2d');
+    this.selIconG = this.el.selIcon.getContext('2d');
+    this.selIconG.imageSmoothingEnabled = false;
     this.radarT = 0;
+    this.selT = 0;
     this.bannerT = 0;
     this.buildStrips();
     this.wireButtons();
@@ -45,6 +55,8 @@ export class UI {
     this.game = game;
     this.bannerT = 0;
     this.el.banner.style.display = 'none';
+    this.el.selPanel.style.display = 'none';
+    this.hideTip();
     this.setMode('normal');
   }
 
@@ -85,9 +97,10 @@ export class UI {
       root.appendChild(tag);
       const badge = document.createElement('div'); badge.className = 'badge';
       root.appendChild(badge);
-      root.title = `${def.name} — $${def.cost}`;
       root.addEventListener('click', () => this.onCameoClick(kind, key));
       root.addEventListener('contextmenu', (e) => { e.preventDefault(); this.onCameoRightClick(kind, key); });
+      root.addEventListener('mouseenter', () => this.showTip(key));
+      root.addEventListener('mouseleave', () => this.hideTip());
       strip.appendChild(root);
       this.cameos[key] = { root, clock, clockG: clock.getContext('2d'), tag, badge, shade, def, kind };
     };
@@ -144,10 +157,102 @@ export class UI {
     }
   }
 
+  // ------------------------------------------------------------ tooltip --
+
+  // Styled hover tooltip for a cameo: name, cost, power delta and the tech
+  // requirements (missing structures greyed-red). Kept inside the viewport.
+  showTip(key) {
+    const c = this.cameos[key];
+    if (!c) return;
+    const def = c.def, g = this.game, p = g.players.player;
+    let html = `<div class="tip-name">${def.name}</div>`;
+    html += `<div class="tip-cost">$${def.cost}</div>`;
+    if (c.kind === 'building' && def.power) {
+      const cls = def.power > 0 ? 'tip-pwr-plus' : 'tip-pwr-minus';
+      const sign = def.power > 0 ? '+' : '';
+      html += `<div class="${cls}">${sign}${def.power} POWER</div>`;
+    }
+    const reqs = def.requires || [];
+    if (reqs.length) {
+      const parts = reqs.map((k) => {
+        const have = g.buildings.some((b) => !b.dead && b.owner === p && b.key === k);
+        return `<span class="${have ? 'tip-have' : 'tip-miss'}">${BUILDINGS[k].name}</span>`;
+      });
+      html += `<div class="tip-req">NEEDS ${parts.join(', ')}</div>`;
+    }
+    const tip = this.el.tip;
+    tip.innerHTML = html;
+    tip.style.display = 'block';
+    // position to the left of the cameo, clamped to the viewport
+    const r = c.root.getBoundingClientRect();
+    const tr = tip.getBoundingClientRect();
+    let left = r.left - tr.width - 8;
+    if (left < 4) left = r.right + 8;
+    if (left + tr.width > window.innerWidth - 4) left = window.innerWidth - tr.width - 4;
+    let top = r.top;
+    if (top + tr.height > window.innerHeight - 4) top = window.innerHeight - tr.height - 4;
+    tip.style.left = `${Math.max(4, left)}px`;
+    tip.style.top = `${Math.max(4, top)}px`;
+  }
+
+  hideTip() { this.el.tip.style.display = 'none'; }
+
+  // ------------------------------------------------------ selection panel --
+
+  // Small bottom-left readout of the current selection: single shows a cameo
+  // icon + name + hp bar; multiple shows a per-type tally. Throttled to ~5fps.
+  updateSelPanel(selection) {
+    const sel = (selection || []).filter((e) => !e.dead);
+    if (!sel.length) { this.el.selPanel.style.display = 'none'; return; }
+    this.el.selPanel.style.display = 'block';
+    if (sel.length === 1) {
+      const e = sel[0];
+      this.el.selSingle.style.display = 'flex';
+      this.el.selMulti.style.display = 'none';
+      this.drawSelIcon(e);
+      this.el.selName.textContent = e.def.name;
+      const frac = Math.max(0, e.hp / e.maxHp);
+      this.el.selHpFill.style.width = `${frac * 100}%`;
+      this.el.selHpFill.style.background =
+        frac > 0.6 ? 'var(--ui-green)' : frac > 0.3 ? 'var(--ui-gold)' : 'var(--ui-red)';
+    } else {
+      this.el.selSingle.style.display = 'none';
+      this.el.selMulti.style.display = 'flex';
+      const counts = new Map();
+      for (const e of sel) counts.set(e.def.name, (counts.get(e.def.name) || 0) + 1);
+      let html = `<div class="sel-head">${sel.length} SELECTED</div>`;
+      for (const [name, n] of counts) {
+        html += `<div class="sel-row"><span>${name}</span><span class="sel-n">×${n}</span></div>`;
+      }
+      this.el.selMulti.innerHTML = html;
+    }
+  }
+
+  drawSelIcon(e) {
+    const g = this.selIconG, W = this.el.selIcon.width, H = this.el.selIcon.height;
+    g.clearRect(0, 0, W, H);
+    g.fillStyle = '#181c22'; g.fillRect(0, 0, W, H);
+    let spr = null;
+    if (e.isBuilding) spr = this.sprites.buildings[e.house]?.[e.key];
+    else {
+      const set = this.sprites.units[e.house]?.[e.key];
+      if (set) spr = set.hull ? set.hull[0] : set.frames[0][0];
+    }
+    if (spr) {
+      const fit = Math.min((W - 6) / spr.width, (H - 6) / spr.height, 2.4);
+      const w = Math.max(6, Math.round(spr.width * fit)), h = Math.max(6, Math.round(spr.height * fit));
+      g.drawImage(spr, (W - w) / 2, (H - h) / 2, w, h);
+    }
+  }
+
   // -------------------------------------------------------------- update --
 
-  update(dt) {
+  update(dt, selection) {
     const g = this.game, p = g.players.player;
+
+    // selection panel (~5fps)
+    this.selT -= dt;
+    if (this.selT <= 0) { this.selT = 0.2; this.updateSelPanel(selection); }
 
     // credits (animated)
     this.el.credits.textContent = Math.round(p.displayCredits).toLocaleString('en-US');
@@ -233,6 +338,7 @@ export class UI {
         if (t === T.WATER) { r = 26; gg = 60; b = 110; }
         else if (t === T.ROCK) { r = 90; gg = 86; b = 80; }
         else if (t === T.TREE) { r = 30; gg = 62; b = 26; }
+        else if (t === T.RUIN) { r = 78; gg = 72; b = 66; }
         else if (t === T.DIRT) { r = 110; gg = 88; b = 52; }
         if (m.ore[i] > 0) {
           if (m.gem[i]) { r = 90; gg = 200; b = 220; }

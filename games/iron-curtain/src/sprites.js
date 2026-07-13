@@ -186,6 +186,57 @@ function treeTile(seed, biome) {
   return c;
 }
 
+// crumbled ruin doodad: a broken stone hut, biome-tinted, sits on ground
+function ruinTile(seed, biome) {
+  const [c, g] = makeCanvas(TILE, TILE);
+  g.drawImage(groundTile(seed ^ 0x9e1, biome), 0, 0);
+  const rng = makeRng(seed);
+  const B = BIOMES[biome];
+  const wall = B.rock[2], wallHi = B.rock[3], wallD = B.rock[1], ink = PAL.ink;
+  const x0 = 4 + (rng() * 2 | 0), y0 = 4 + (rng() * 2 | 0);
+  const w = 12 + (rng() * 4 | 0), h = 12 + (rng() * 4 | 0);
+  // rubble-strewn floor
+  g.fillStyle = PAL.shadow; g.fillRect(x0 + 1, y0 + 2, w, h);
+  // broken perimeter: stone blocks with random missing chunks
+  const seg = (x, y) => {
+    if (rng() < 0.32) return;
+    px(g, x, y, ink, 3, 3);
+    px(g, x, y, wall, 2, 2);
+    px(g, x, y, wallHi, 1, 1);
+  };
+  for (let x = x0; x < x0 + w; x += 3) { seg(x, y0); seg(x, y0 + h - 2); }
+  for (let y = y0; y < y0 + h; y += 3) { seg(x0, y); seg(x0 + w - 2, y); }
+  // toppled interior rubble
+  for (let i = 0; i < 4; i++) {
+    const rx = (x0 + 3 + rng() * (w - 6)) | 0, ry = (y0 + 3 + rng() * (h - 6)) | 0;
+    px(g, rx, ry, ink, 3, 2);
+    px(g, rx, ry, wallD, 2, 1);
+    px(g, rx + 1, ry, wallHi);
+  }
+  return c;
+}
+
+// frozen shore ice: pale cracked sheet used near taiga water edges
+function iceTile(seed, frame) {
+  const [c, g] = makeCanvas(TILE, TILE);
+  const rng = makeRng(seed + frame * 331);
+  px(g, 0, 0, '#bcd4e2', TILE, TILE);
+  for (let i = 0; i < 20; i++) {
+    const x = (rng() * TILE) | 0, y = (rng() * TILE) | 0;
+    px(g, x, y, rng() < 0.5 ? '#a8c4d6' : '#d9ebf4', 2, 1);
+  }
+  for (let i = 0; i < 3; i++) {
+    let x = (rng() * TILE) | 0, y = (rng() * TILE) | 0;
+    for (let s = 0; s < 7; s++) {
+      px(g, x, y, '#8fb0c6');
+      x += rng() < 0.5 ? 1 : -1; y += 1;
+      if (x < 0 || x >= TILE || y >= TILE) break;
+    }
+  }
+  for (let i = 0; i < 4; i++) px(g, (rng() * (TILE - 3)) | 0, (rng() * TILE) | 0, '#f2f9fd', 2, 1);
+  return c;
+}
+
 function oreOverlay(density) { // density 1..3
   const [c, g] = makeCanvas(TILE, TILE);
   const rng = makeRng(1000 + density * 77);
@@ -450,6 +501,88 @@ function mcvHull() {
   return c;
 }
 
+// self-propelled gun: fixed hull with a long barrel (no turret), drawn north
+function artilleryHull() {
+  const [c, g] = makeCanvas(24, 24);
+  px(g, 4, 20, PAL.shadow, 16, 2);
+  // two side tracks
+  for (const tx of [3, 17]) {
+    outlineRect(g, tx, 7, 4, 12, PAL.ink);
+    px(g, tx + 1, 8, PAL.tread, 2, 10);
+    for (let i = 0; i < 5; i++) px(g, tx + 1, 8 + i * 2, PAL.treadHi, 2, 1);
+  }
+  // hull body
+  bevelRect(g, 7, 9, 10, 10, PAL.camo2, PAL.camoHi, PAL.camo3);
+  outlineRect(g, 7, 9, 10, 10, PAL.ink);
+  px(g, 8, 16, HN[2], 8, 2);
+  px(g, 9, 11, PAL.camo1, 6, 3);
+  // mantlet + long barrel up the centre
+  bevelRect(g, 9, 6, 6, 5, PAL.steel3, PAL.steel1, PAL.steel4);
+  outlineRect(g, 9, 6, 6, 5, PAL.ink);
+  px(g, 11, 0, PAL.ink, 3, 8);
+  px(g, 11, 0, PAL.gun1, 2, 8);
+  px(g, 11, 0, PAL.steelHi, 1, 6);
+  px(g, 10, 1, PAL.gun2, 4, 2);   // muzzle brake
+  return c;
+}
+
+// rocket rack truck: body plus four launch tubes pointing north
+function rocketTruckHull() {
+  const [c, g] = makeCanvas(26, 26);
+  px(g, 5, 21, PAL.shadow, 16, 2);
+  for (const tx of [4, 18]) {
+    outlineRect(g, tx, 8, 4, 12, PAL.ink);
+    px(g, tx + 1, 9, PAL.tread, 2, 10);
+    for (let i = 0; i < 5; i++) px(g, tx + 1, 9 + i * 2, PAL.treadHi, 2, 1);
+  }
+  bevelRect(g, 8, 12, 10, 9, PAL.camo2, PAL.camoHi, PAL.camo3);
+  outlineRect(g, 8, 12, 10, 9, PAL.ink);
+  px(g, 9, 18, HN[2], 8, 2);
+  // launch rack: four tubes with warhead tips
+  bevelRect(g, 7, 3, 12, 9, PAL.steel3, PAL.steel1, PAL.steel4);
+  outlineRect(g, 7, 3, 12, 9, PAL.ink);
+  for (let i = 0; i < 4; i++) {
+    const rx = 8 + i * 3;
+    px(g, rx, 2, PAL.ink, 2, 9);
+    px(g, rx, 2, PAL.gun2, 1, 9);
+    px(g, rx, 2, PAL.fire3, 1, 1);
+  }
+  return c;
+}
+
+// super-heavy hull (bigger than the heavy tank) + twin-barrel turret
+function behemothHull() {
+  const [c, g] = makeCanvas(30, 30);
+  px(g, 4, 25, PAL.shadow, 22, 3);
+  for (const tx of [3, 22]) {
+    outlineRect(g, tx, 5, 5, 20, PAL.ink);
+    px(g, tx + 1, 6, PAL.tread, 3, 18);
+    for (let i = 0; i < 9; i++) px(g, tx + 1, 6 + i * 2, PAL.treadHi, 3, 1);
+  }
+  bevelRect(g, 8, 6, 14, 18, PAL.steel2, PAL.steel1, PAL.steel4);
+  outlineRect(g, 8, 6, 14, 18, PAL.ink);
+  px(g, 10, 9, PAL.steel3, 10, 2);
+  px(g, 10, 20, PAL.steel4, 10, 2);
+  px(g, 11, 15, HN[2], 8, 2);
+  return c;
+}
+
+function behemothTurret() {
+  const [c, g] = makeCanvas(30, 30);
+  for (const bx of [11, 16]) {
+    px(g, bx, 0, PAL.ink, 3, 12);
+    px(g, bx, 0, PAL.gun1, 2, 12);
+    px(g, bx, 0, PAL.steelHi, 1, 9);
+  }
+  px(g, 10, 1, PAL.gun2, 10, 2);   // muzzle bar
+  g.fillStyle = PAL.ink; g.beginPath(); g.arc(15, 16, 9, 0, 7); g.fill();
+  g.fillStyle = PAL.steel2; g.beginPath(); g.arc(15, 16, 8, 0, 7); g.fill();
+  g.fillStyle = PAL.steel1; g.beginPath(); g.arc(13, 14, 5, 0, 7); g.fill();
+  px(g, 13, 15, HN[2], 4, 3);
+  px(g, 11, 11, PAL.steelHi, 3, 1);
+  return c;
+}
+
 // -------------------------------------------------------------- infantry ---
 
 // tiny 12x12 soldiers, drawn facing north; 2 walk frames + fire frame
@@ -460,9 +593,38 @@ function soldierFrames(kind) {
     const L = {
       k: PAL.ink, s: PAL.skin, b: PAL.boots,
       u: HN[1], U: HN[2], g: PAL.gun2, G: PAL.gun1, r: PAL.fire3,
+      y: PAL.fire1, x: PAL.steel2,   // hardhat + toolbox for engineers
     };
     let rows;
-    if (kind === 'rifle') {
+    if (kind === 'engineer') {
+      // unarmed sapper: yellow hardhat, tool case at the hip
+      if (pose === 1) rows = [ // walk B
+        '............',
+        '...yyyy.....',
+        '..kyssyk....',
+        '...kUUk.....',
+        '..kUUUUk....',
+        '..kUUUUx....',
+        '..kuUUux....',
+        '...kuuk.....',
+        '..kb.uk.....',
+        '.....kbk....',
+        '............',
+        '............'];
+      else rows = [ // stand / work
+        '............',
+        '...yyyy.....',
+        '..kyssyk....',
+        '...kUUk.....',
+        '..kUUUUk....',
+        '..kUUUUx....',
+        '..kuUUux....',
+        '...kuuk.....',
+        '...kuuk.....',
+        '..kb..bk....',
+        '............',
+        '............'];
+    } else if (kind === 'rifle') {
       if (pose === 0) rows = [ // stand / walk A
         '....gg......',
         '....gg......',
@@ -762,6 +924,61 @@ function siloSprite() {
   return c;
 }
 
+function flameTowerSprite() {
+  const W = TILE, H = TILE;
+  const [c, g] = makeCanvas(W, H);
+  g.fillStyle = PAL.shadow; g.fillRect(4, 6, W - 6, H - 6);
+  // fuel drum base
+  g.fillStyle = PAL.ink; g.beginPath(); g.arc(W / 2, H / 2 + 2, 9, 0, 7); g.fill();
+  g.fillStyle = PAL.steel3; g.beginPath(); g.arc(W / 2, H / 2 + 2, 8, 0, 7); g.fill();
+  g.fillStyle = PAL.steel2; g.beginPath(); g.arc(W / 2 - 2, H / 2, 5, 0, 7); g.fill();
+  px(g, W / 2 - 3, H / 2 + 4, HN[2], 6, 2);
+  // nozzle head with a pilot flame
+  px(g, W / 2 - 2, 3, PAL.ink, 5, 7);
+  px(g, W / 2 - 1, 3, PAL.gun1, 3, 7);
+  px(g, W / 2 - 1, 1, PAL.fire3, 2, 2);
+  px(g, W / 2 - 1, 1, PAL.fire1, 1, 1);
+  return c;
+}
+
+function techCenterSprite() {
+  const W = TILE * 2, H = TILE * 2;
+  const [c, g] = makeCanvas(W, H);
+  bldBase(g, W, H, { mid: PAL.wall2 });
+  // domed lab hall
+  bevelRect(g, 8, 16, W - 16, H - 24, PAL.roof2, PAL.roofHi, PAL.roof3);
+  outlineRect(g, 8, 16, W - 16, H - 24, PAL.ink);
+  g.fillStyle = PAL.ink; g.beginPath(); g.arc(W / 2, 20, 10, Math.PI, 0); g.fill();
+  g.fillStyle = PAL.steel2; g.beginPath(); g.arc(W / 2, 20, 9, Math.PI, 0); g.fill();
+  px(g, W / 2 - 6, 18, PAL.steelHi, 3, 1);
+  // antenna mast with a charged tip
+  px(g, W / 2 - 1, 2, PAL.steel4, 2, 14);
+  px(g, W / 2 - 1, 2, PAL.steelHi, 1, 14);
+  g.fillStyle = PAL.ink; g.beginPath(); g.arc(W / 2, 4, 4, 0, 7); g.fill();
+  g.fillStyle = PAL.zap; g.beginPath(); g.arc(W / 2, 4, 2, 0, 7); g.fill();
+  // house trim + blinking readouts
+  px(g, 12, H - 12, HN[2], W - 24, 3);
+  px(g, 12, H - 8, PAL.zapCore, 2, 2);
+  px(g, 18, H - 8, PAL.fire1, 2, 2);
+  px(g, W - 16, H - 8, PAL.ore1, 2, 2);
+  return c;
+}
+
+function wallSprite() {
+  const W = TILE, H = TILE;
+  const [c, g] = makeCanvas(W, H);
+  g.fillStyle = PAL.shadow; g.fillRect(3, 4, W - 4, H - 4);
+  bevelRect(g, 2, 3, W - 4, H - 6, PAL.concrete, PAL.wallHi, PAL.concreteD);
+  outlineRect(g, 2, 3, W - 4, H - 6, PAL.ink);
+  // block seams
+  px(g, 2, 10, PAL.concreteD, W - 4, 1);
+  px(g, W / 2 - 1, 3, PAL.concreteD, 1, 7);
+  px(g, 6, 11, PAL.concreteD, 1, 9);
+  px(g, W - 8, 11, PAL.concreteD, 1, 9);
+  px(g, W / 2 - 2, 5, HN[2], 4, 2);   // house tag
+  return c;
+}
+
 // ---------------------------------------------------------------- effects --
 
 function explosionFrames() {
@@ -799,6 +1016,23 @@ function puffFrames() {
     g.beginPath(); g.arc(6, 6, r, 0, 7); g.fill();
     g.fillStyle = f < 1 ? PAL.fire1 : PAL.smoke2;
     g.beginPath(); g.arc(6, 5, r * 0.5, 0, 7); g.fill();
+    frames.push(c);
+  }
+  return frames;
+}
+
+// short-lived flame projectile: a 3-frame orange puff stream
+function flameFrames() {
+  const frames = [];
+  for (let f = 0; f < 3; f++) {
+    const [c, g] = makeCanvas(12, 12);
+    const r = 3 + f * 1.2;
+    g.fillStyle = PAL.fire4; g.beginPath(); g.arc(6, 6, r + 1, 0, 7); g.fill();
+    g.fillStyle = PAL.fire3; g.beginPath(); g.arc(6, 6, r, 0, 7); g.fill();
+    g.fillStyle = PAL.fire2; g.beginPath(); g.arc(6, 6 - f * 0.5, r * 0.6, 0, 7); g.fill();
+    g.fillStyle = PAL.fire1; g.beginPath(); g.arc(6, 5, r * 0.3, 0, 7); g.fill();
+    const rng = makeRng(700 + f * 17);
+    for (let i = 0; i < 5; i++) px(g, 3 + rng() * 6, 2 + rng() * 7, i % 2 ? PAL.fire1 : PAL.fire2);
     frames.push(c);
   }
   return frames;
@@ -845,18 +1079,74 @@ function smokeFrames() {
   return frames;
 }
 
+// Tiny rally-point flag: a dark pole with a gold pennant, drawn at the
+// destination cell of a selected factory/barracks so the player can see
+// where fresh units will muster.
+function flagSprite() {
+  const [c, g] = makeCanvas(12, 16);
+  // shadow under the pole
+  px(g, 3, 15, PAL.shadow, 5, 1);
+  // pole
+  px(g, 3, 1, PAL.ink, 1, 14);
+  px(g, 4, 1, '#8f8065', 1, 14);
+  // pennant, notched at the fly end
+  const gold = PAL.ore1, goldHi = PAL.oreHi, red = '#c23a2a';
+  px(g, 5, 1, PAL.ink, 6, 7);
+  px(g, 5, 2, gold, 5, 5);
+  px(g, 5, 2, goldHi, 5, 1);
+  px(g, 5, 3, red, 4, 1);
+  px(g, 9, 3, gold, 1, 3);
+  // triangular notch on the flying edge
+  px(g, 8, 2, PAL.ink, 1, 1);
+  px(g, 7, 6, PAL.ink, 3, 1);
+  return c;
+}
+
 // ------------------------------------------------------------------ logo ---
 
-export function drawTitleLogo(canvas) {
+// Deterministic lightning schedule: 0 (calm) .. 1 (bright flash). A short
+// double-blink recurs a few seconds apart so the title feels alive without
+// ever settling into a distracting strobe.
+function lightningLevel(t) {
+  const period = 4.1;
+  const p = ((t % period) + period) % period;
+  if (p < 0.07) return 1;
+  if (p > 0.13 && p < 0.19) return 0.6;
+  return 0;
+}
+
+// The title logo doubles as an animated backdrop. Pass a seconds value `t`
+// (default 0 for the static first paint) to drift the cloud bands and fire
+// the occasional lightning flicker. Redraw at ~10fps while the title shows.
+export function drawTitleLogo(canvas, t = 0) {
   const g = canvas.getContext('2d');
   g.imageSmoothingEnabled = false;
   const W = canvas.width, H = canvas.height;
+  const flash = lightningLevel(t);
   g.fillStyle = '#0b0b0f'; g.fillRect(0, 0, W, H);
-  // storm sky bands
+  // storm sky bands (lift toward violet-white during a flash)
   for (let y = 0; y < 70; y += 2) {
-    g.fillStyle = y % 4 ? '#16121c' : '#1c1524';
+    const base = y % 4 ? 0x16121c : 0x1c1524;
+    if (flash) {
+      const r = ((base >> 16) & 255) + flash * 70;
+      const gg = ((base >> 8) & 255) + flash * 60;
+      const b = (base & 255) + flash * 80;
+      g.fillStyle = `rgb(${r | 0},${gg | 0},${b | 0})`;
+    } else g.fillStyle = y % 4 ? '#16121c' : '#1c1524';
     g.fillRect(0, y, W, 2);
   }
+  // slow drifting cloud bands — two layers at different speeds, wrapping
+  const band = (yTop, h, speed, alpha) => {
+    g.fillStyle = `rgba(60,52,74,${alpha})`;
+    const off = ((t * speed) % (W + 64)) - 64;
+    for (let k = -1; k < 6; k++) {
+      const x = off + k * 84;
+      g.fillRect(x, yTop, 52, h);
+      g.fillRect(x + 14, yTop - 2, 26, h + 4);
+    }
+  };
+  band(20, 6, 7, 0.16 + flash * 0.25);
+  band(44, 5, 12, 0.12 + flash * 0.25);
   // horizon glow
   for (let i = 0; i < 8; i++) {
     g.fillStyle = `rgba(200,60,30,${0.05 + i * 0.02})`;
@@ -887,12 +1177,18 @@ export function drawTitleLogo(canvas) {
   g.fillStyle = '#e8dcc0';
   g.font = 'bold 10px monospace';
   g.fillText('A COLD-WAR RTS HOMAGE', 84, 132);
-  // lightning bolt accent
-  g.fillStyle = '#bfe8ff';
+  // lightning bolt accent — glows brighter on a flash
+  g.fillStyle = flash ? '#ffffff' : '#bfe8ff';
   g.beginPath();
   g.moveTo(160, 4); g.lineTo(150, 26); g.lineTo(158, 26); g.lineTo(146, 50);
   g.lineTo(166, 22); g.lineTo(157, 22); g.lineTo(168, 4); g.closePath();
   g.fill();
+  // version tag, bottom-right
+  g.fillStyle = '#6d6455';
+  g.font = 'bold 9px monospace';
+  g.textAlign = 'right';
+  g.fillText('v0.2', W - 5, H - 12);
+  g.textAlign = 'left';
 }
 
 // ------------------------------------------------------------ atlas build --
@@ -909,7 +1205,10 @@ export function buildSprites() {
       water: [0, 1].map((f) => waterTile(21, f, biome)),
       rock: [31, 32].map((s) => rockTile(s, biome)),
       tree: [41, 42, 43].map((s) => treeTile(s, biome)),
+      ruin: [51, 52, 53].map((s) => ruinTile(s, biome)),
     };
+    // frozen taiga shores get a separate ice sheet tile set
+    if (biome === 'taiga') S.tiles[biome].ice = [iceTile(61, 0), iceTile(61, 1)];
   }
   S.ore = [oreOverlay(1), oreOverlay(2), oreOverlay(3)];
   S.gem = [gemOverlay(1), gemOverlay(2), gemOverlay(3)];
@@ -933,10 +1232,14 @@ export function buildSprites() {
     S.units[house] = {
       lightTank: { hull: facingsOf(tint(lightTankHull())), turret: facingsOf(tint(lightTankTurret())) },
       heavyTank: { hull: facingsOf(tint(heavyTankHull())), turret: facingsOf(tint(heavyTankTurret())) },
+      behemoth: { hull: facingsOf(tint(behemothHull())), turret: facingsOf(tint(behemothTurret())) },
+      artillery: { hull: facingsOf(tint(artilleryHull())) },
+      rocketTruck: { hull: facingsOf(tint(rocketTruckHull())) },
       harvester: { hull: facingsOf(tint(harvesterHull())) },
       mcv: { hull: facingsOf(tint(mcvHull())) },
       rifle: { frames: soldierFrames('rifle').map((f) => facingsOf(tint(f))) },
       rocket: { frames: soldierFrames('rocket').map((f) => facingsOf(tint(f))) },
+      engineer: { frames: soldierFrames('engineer').map((f) => facingsOf(tint(f))) },
     };
   }
 
@@ -945,6 +1248,7 @@ export function buildSprites() {
     conyard: conYardSprite(), power: powerPlantSprite(), refinery: refinerySprite(),
     barracks: barracksSprite(), factory: factorySprite(), radar: radarSprite(),
     guard: guardTowerSprite(), tesla: teslaSprite(), silo: siloSprite(),
+    flametower: flameTowerSprite(), techcenter: techCenterSprite(), wall: wallSprite(),
   };
   for (const [house, colors] of Object.entries(factions)) {
     S.buildings[house] = {};
@@ -963,7 +1267,9 @@ export function buildSprites() {
   S.muzzle = muzzleFrame();
   S.shell = shellSprite();
   S.rocket = rocketSprite();
+  S.flame = flameFrames();
   S.smoke = smokeFrames();
+  S.flag = flagSprite();
 
   return S;
 }
