@@ -10,6 +10,40 @@ import { SpriteQuad, Z, mapY } from './quad.js';
 const SHAKE_TIME = 0.12;           // seconds a building-death kick lasts
 const SHAKE_MAG = 2;               // peak offset in pixels
 
+// Effect lifetimes, all in seconds. These are the whole of an effect's timing:
+// nothing in the sim knows how long a puff lasts, it just spawns one and this
+// module retires it. Frame times are per animation frame, not per effect.
+const LIFE = {
+  explosionFrame: 0.09,
+  puffFrame: 0.07,
+  puffTail: 0.05,          // extra hold after the last puff frame
+  puffFrames: 3,
+  smokeFrame: 0.22,
+  smokeLife: 0.9,
+  smokeRise: 0.25,         // cells/sec the plume drifts up
+  tracer: 0.08,
+  zap: 0.35,
+  muzzle: 0.08,
+  scorchHold: 20,          // full-opacity seconds before a scorch fades...
+  scorchFade: 5,           // ...then this long fading out
+  empRing: 0.7,
+  empStartScale: 0.35,
+  empGrow: 1.1,            // ring scale added over its life
+};
+
+// Ember chips flung out of a big blast: a hop on a little ballistic arc.
+const DEBRIS = {
+  minCount: 3, extraCount: 3,
+  minSpeed: 1.4, extraSpeed: 2.6,
+  drag: 0.9,               // velocity multiplier per tick
+  gravity: 9,              // hop units/sec^2
+  hop0: 0.2, minLift: 1.8, extraLift: 1.6,
+  minLife: 0.5, extraLife: 0.4,
+};
+
+const ZAP_SEGMENTS = 7;    // polyline points in a tesla bolt (2 = a straight tracer)
+const ZAP_JITTER = 0.7;    // cells of sideways wobble per interior point
+
 export class Fx {
   constructor(scene, sprites) {
     this.scene = scene;
@@ -38,14 +72,14 @@ export class Fx {
         this.views.push({ e, quad: new SpriteQuad(scene, sprites.puff[0], 0.6, 0.6, Z.puff) });
       } else if (e.kind === 'tracer' || e.kind === 'zap') {
         const pts = [];
-        const n = e.kind === 'zap' ? 7 : 2;
+        const n = e.kind === 'zap' ? ZAP_SEGMENTS : 2;
         for (let i = 0; i <= n; i++) {
           const t = i / n;
           let x = e.x0 + (e.x1 - e.x0) * t + 0.5;
           let y = e.y0 + (e.y1 - e.y0) * t + 0.5;
           if (e.kind === 'zap' && i > 0 && i < n) {
-            x += (Math.random() - 0.5) * 0.7;
-            y += (Math.random() - 0.5) * 0.7;
+            x += (Math.random() - 0.5) * ZAP_JITTER;
+            y += (Math.random() - 0.5) * ZAP_JITTER;
           }
           pts.push(new THREE.Vector3(x, -y, Z.tracer));
         }
@@ -77,33 +111,35 @@ export class Fx {
       e.t += dt;
       if (e.kind === 'explosion') {
         if (e.t < 0) { v.quad.mesh.visible = false; continue; }
-        const frame = Math.min(sprites.explosion.length - 1, Math.floor(e.t / 0.09));
+        const frame = Math.min(sprites.explosion.length - 1, Math.floor(e.t / LIFE.explosionFrame));
         v.quad.mesh.visible = true;
         v.quad.setCanvas(sprites.explosion[frame]);
         v.quad.set(e.x + 0.5, mapY(e.y + 0.5), Z.explosion);
-        if (e.t > 0.09 * sprites.explosion.length) e.done = true;
+        if (e.t > LIFE.explosionFrame * sprites.explosion.length) e.done = true;
       } else if (e.kind === 'puff') {
-        const frame = Math.min(sprites.puff.length - 1, Math.floor(e.t / 0.07));
+        const frame = Math.min(sprites.puff.length - 1, Math.floor(e.t / LIFE.puffFrame));
         v.quad.setCanvas(sprites.puff[frame]);
         v.quad.set(e.x + 0.5, mapY(e.y + 0.5), Z.puff);
-        if (e.t > 0.07 * 3 + 0.05) e.done = true;
+        if (e.t > LIFE.puffFrame * LIFE.puffFrames + LIFE.puffTail) e.done = true;
       } else if (e.kind === 'tracer' || e.kind === 'zap') {
-        v.mat.opacity = Math.max(0, 1 - e.t / (e.kind === 'zap' ? 0.35 : 0.08));
+        v.mat.opacity = Math.max(0, 1 - e.t / (e.kind === 'zap' ? LIFE.zap : LIFE.tracer));
         if (v.mat.opacity <= 0) e.done = true;
       } else if (e.kind === 'scorch') {
-        if (e.t > 20) { v.quad.mat.opacity = Math.max(0, 1 - (e.t - 20) / 5); }
-        if (e.t > 25) e.done = true;
+        if (e.t > LIFE.scorchHold) {
+          v.quad.mat.opacity = Math.max(0, 1 - (e.t - LIFE.scorchHold) / LIFE.scorchFade);
+        }
+        if (e.t > LIFE.scorchHold + LIFE.scorchFade) e.done = true;
       } else if (e.kind === 'smoke') {
-        const frame = Math.min(sprites.smoke.length - 1, Math.floor(e.t / 0.22));
+        const frame = Math.min(sprites.smoke.length - 1, Math.floor(e.t / LIFE.smokeFrame));
         v.quad.setCanvas(sprites.smoke[frame]);
-        v.quad.set(e.x + 0.5, mapY(e.y + 0.5 - e.t * 0.25), Z.smoke);
-        v.quad.mat.opacity = Math.max(0, 1 - e.t / 0.9);
-        if (e.t > 0.9) e.done = true;
+        v.quad.set(e.x + 0.5, mapY(e.y + 0.5 - e.t * LIFE.smokeRise), Z.smoke);
+        v.quad.mat.opacity = Math.max(0, 1 - e.t / LIFE.smokeLife);
+        if (e.t > LIFE.smokeLife) e.done = true;
       } else if (e.kind === 'muzzle') {
-        if (e.t > 0.08) e.done = true;
+        if (e.t > LIFE.muzzle) e.done = true;
       } else if (e.kind === 'emp') {
-        const life = 0.7;
-        const s = 0.35 + (e.t / life) * 1.1;
+        const life = LIFE.empRing;
+        const s = LIFE.empStartScale + (e.t / life) * LIFE.empGrow;
         v.quad.mesh.scale.set(s, s, 1);
         v.quad.mat.opacity = Math.max(0, 1 - e.t / life);
         if (e.t > life) e.done = true;
@@ -156,15 +192,16 @@ export class Fx {
   // Eject a handful of ember chips from a big blast. Each hops on a little arc
   // (a rising then falling height offset) and vanishes when it lands.
   spawnDebris(x, y) {
-    const n = 3 + (Math.random() * 3 | 0);
+    const n = DEBRIS.minCount + (Math.random() * DEBRIS.extraCount | 0);
     for (let i = 0; i < n; i++) {
-      const a = Math.random() * Math.PI * 2, sp = 1.4 + Math.random() * 2.6;
+      const a = Math.random() * Math.PI * 2;
+      const sp = DEBRIS.minSpeed + Math.random() * DEBRIS.extraSpeed;
       const quad = new SpriteQuad(this.scene, this.sprites.debris, 0.16, 0.16, Z.debris);
       this.debris.push({
         quad, x, y,
         vx: Math.cos(a) * sp, vy: Math.sin(a) * sp,
-        hop: 0.2, vh: 1.8 + Math.random() * 1.6,
-        t: 0, life: 0.5 + Math.random() * 0.4,
+        hop: DEBRIS.hop0, vh: DEBRIS.minLift + Math.random() * DEBRIS.extraLift,
+        t: 0, life: DEBRIS.minLife + Math.random() * DEBRIS.extraLife,
       });
     }
   }
@@ -174,8 +211,8 @@ export class Fx {
       const d = this.debris[i];
       d.t += dt;
       d.x += d.vx * dt; d.y += d.vy * dt;
-      d.vx *= 0.9; d.vy *= 0.9;               // air drag
-      d.vh -= 9 * dt; d.hop += d.vh * dt;     // gravity arc
+      d.vx *= DEBRIS.drag; d.vy *= DEBRIS.drag;
+      d.vh -= DEBRIS.gravity * dt; d.hop += d.vh * dt;
       if (d.hop < 0) d.hop = 0;
       d.quad.set(d.x, mapY(d.y) + d.hop, Z.debris);
       d.quad.mat.opacity = Math.max(0, 1 - d.t / d.life);

@@ -7,7 +7,7 @@ import { GameMap } from './map.js';
 import { Game } from './game.js';
 import { AI } from './ai.js';
 import { UI } from './ui.js';
-import { Input } from './input.js';
+import { Input, CAMERA } from './input.js';
 import { AudioSys } from './audio.js';
 import { loadSettings } from './settings.js';
 import { Renderer } from './render/scene.js';
@@ -17,7 +17,11 @@ import { installTestHooks } from './testhooks.js';
 import { writeSave, readSave, clearSave, hasValidSave } from './save.js';
 import { setup, seed, mapSize, startCells, ENEMY_HOUSES } from './setup.js';
 
-const MAP_SIZE = 64;
+// Frame-loop tuning. dt is clamped so a backgrounded tab or a long GC pause
+// can't teleport the sim a second forward in one step; the autosave interval is
+// wall-clock so it doesn't speed up with the game-speed slider.
+const MAX_FRAME_DT = 0.05;
+const AUTOSAVE_EVERY = 30;
 
 // ------------------------------------------------------------------- boot --
 
@@ -35,8 +39,9 @@ const canvas = document.getElementById('game-canvas');
 const renderer = new Renderer(canvas, viewEl, sprites);
 const cursors = new Cursors(viewEl);
 
-// camera state in cell units
-const cam = { x: 12, y: MAP_SIZE - 14, zoom: 2.0 };
+// Camera state in cell units. The starting values only matter until the first
+// match re-centres it — the title screen never draws the world.
+const cam = { x: 12, y: 50, zoom: CAMERA.defaultZoom };
 
 let map, game, ui, input;
 let ais = [];
@@ -108,7 +113,7 @@ function newGame() {
   // neutral supply depots in the contested middle
   game.spawnDepots();
 
-  cam.x = ps.x; cam.y = ps.y; cam.zoom = 2.0;
+  cam.x = ps.x; cam.y = ps.y; cam.zoom = CAMERA.defaultZoom;
   game.recomputeVision();
   ui.setMode('normal');
 }
@@ -136,7 +141,7 @@ function centerCamOnPlayer() {
     }
   }
   if (n) { cam.x = sx / n; cam.y = sy / n; }
-  cam.zoom = 2.0;
+  cam.zoom = CAMERA.defaultZoom;
 }
 
 // rebuild a live match from localStorage; returns false if nothing loadable
@@ -193,7 +198,7 @@ let saveT = 0;
 
 function frame(now) {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, (now - last) / 1000);
+  const dt = Math.min(MAX_FRAME_DT, (now - last) / 1000);
   last = now;
 
   if (screens.state !== 'play') { renderer.clear(); return; }
@@ -201,9 +206,8 @@ function frame(now) {
   const halted = screens.halted;
   if (!halted && !game.over) {
     sim.step(dt * sim.speed, 1);
-    // periodic autosave (wall-clock, so it's independent of game speed)
     saveT += dt;
-    if (saveT >= 30) { saveT = 0; autosave(); }
+    if (saveT >= AUTOSAVE_EVERY) { saveT = 0; autosave(); }
   }
 
   input.tickScroll(dt);
@@ -231,7 +235,7 @@ document.addEventListener('visibilitychange', () => {
   if (!audio.ctx) return;
   if (document.hidden) {
     audio.ctx.suspend();
-    try { speechSynthesis.cancel(); } catch { /* not available */ }
+    audio.stopSpeech();
   } else {
     audio.ctx.resume();
   }

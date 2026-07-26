@@ -219,6 +219,12 @@ export class AudioSys {
       speechSynthesis.speak(u);
     } catch { /* speech not available */ }
   }
+
+  // cut any in-flight advisor line (the tab went away mid-sentence)
+  stopSpeech() {
+    if (!('speechSynthesis' in window)) return;
+    try { speechSynthesis.cancel(); } catch { /* speech not available */ }
+  }
 }
 
 // Prototype mixins rather than subclasses: the groups are peer concerns, and

@@ -8,6 +8,13 @@ import { Layers } from './layers.js';
 import { Views } from './views.js';
 import { Fx } from './fx.js';
 
+// Fog is a map-sized canvas re-blitted wholesale, so it gets its own budget
+// rather than riding the frame rate.
+const FOG_REDRAW_EVERY = 0.2;   // seconds (5 Hz)
+// The backbuffer is half the CSS size and upscaled by the browser: chunky
+// pixels for free, and a quarter of the fragment work.
+const RENDER_SCALE = 2;
+
 export class Renderer {
   constructor(canvas, viewEl, sprites) {
     this.canvas = canvas;
@@ -22,12 +29,12 @@ export class Renderer {
     this.layers = new Layers(this.scene, sprites);
     this.fx = new Fx(this.scene, sprites);
     this.views = new Views(this.scene, sprites, () => this.fx.kickShake());
-    this.fogT = 0;                 // fog redraw is throttled to 5 Hz
+    this.fogT = 0;
   }
 
   resize() {
     const w = this.viewEl.clientWidth, h = this.viewEl.clientHeight;
-    this.gl.setSize(Math.floor(w / 2), Math.floor(h / 2), false);
+    this.gl.setSize(Math.floor(w / RENDER_SCALE), Math.floor(h / RENDER_SCALE), false);
     this.canvas.style.width = '100%';
     this.canvas.style.height = '100%';
   }
@@ -53,7 +60,7 @@ export class Renderer {
     const { game, halted } = ctx;
     if (game.oreDirty) { game.oreDirty = false; this.layers.redrawOre(); }
     this.fogT -= dt;
-    if (this.fogT <= 0) { this.fogT = 0.2; this.layers.redrawFog(game); }
+    if (this.fogT <= 0) { this.fogT = FOG_REDRAW_EVERY; this.layers.redrawFog(game); }
     if (!halted) {
       this.layers.tickWater(dt);
       this.layers.stepClouds(dt);
@@ -69,9 +76,9 @@ export class Renderer {
   // the caller can draw the radar view rectangle
   render(cam) {
     // scene lives at y' = -mapY, camera looks down -z
-    const w = this.viewEl.clientWidth / 2, h = this.viewEl.clientHeight / 2; // render px
-    const cellsW = w / (TILE * cam.zoom / 2);
-    const cellsH = h / (TILE * cam.zoom / 2);
+    const w = this.viewEl.clientWidth / RENDER_SCALE, h = this.viewEl.clientHeight / RENDER_SCALE;
+    const cellsW = w / (TILE * cam.zoom / RENDER_SCALE);
+    const cellsH = h / (TILE * cam.zoom / RENDER_SCALE);
     // building-death shake offsets the render camera only, never the sim
     const [shx, shy] = this.fx.shakeOffset();
     this.camera.position.set(cam.x + shx, -cam.y + shy, 5);

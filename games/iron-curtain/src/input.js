@@ -2,6 +2,28 @@
 // control groups, edge scrolling and radar clicks.
 
 import { BUILDINGS } from './rules.js';
+import { TILE } from './sprites.js';
+import { DEFAULTS } from './settings.js';
+
+// Camera limits. main.js owns the camera object; these are the bounds every
+// path that moves it has to respect, so they live with the code that moves it.
+export const CAMERA = {
+  defaultZoom: 2.0,
+  zoomMin: 1.2,
+  zoomMax: 3.2,
+  zoomStep: 0.25,        // per wheel notch
+  edgeBand: 24,          // screen px from the viewport edge that edge-scrolls
+  clampMargin: 4,        // cells the camera centre keeps away from the map edge
+};
+
+// Pointer slop. Picking is forgiving on purpose: units are ~1 cell across and
+// a pixel-exact hit test at 2x zoom feels broken.
+const PICK = {
+  dragSlop: 6,           // screen px of travel before a click becomes a marquee
+  unitRadius: 0.8,       // cells: click within this of a unit to select/target
+  boxPad: 0.4,           // marquee grown by this so edge units still catch
+  apcRadius: 0.9,        // cells: click within this of an APC to load it
+};
 
 export class Input {
   constructor(game, camera, ui, audio, viewEl) {
@@ -43,7 +65,8 @@ export class Input {
     v.addEventListener('wheel', (e) => {
       e.preventDefault();
       const dir = Math.sign(e.deltaY);
-      this.cam.zoom = Math.max(1.2, Math.min(3.2, this.cam.zoom - dir * 0.25));
+      this.cam.zoom = Math.max(CAMERA.zoomMin,
+        Math.min(CAMERA.zoomMax, this.cam.zoom - dir * CAMERA.zoomStep));
     }, { passive: false });
     // radar click to jump
     const radar = document.getElementById('radar');
@@ -74,7 +97,7 @@ export class Input {
 
   screenToWorld(sx, sy, r = this.view.getBoundingClientRect()) {
     const { x, y, zoom } = this.cam;
-    const TILEPX = 24 * zoom;
+    const TILEPX = TILE * zoom;
     const wx = x + (sx - r.width / 2) / TILEPX;
     const wy = y + (sy - r.height / 2) / TILEPX;
     return [wx, wy];
@@ -138,7 +161,7 @@ export class Input {
     this.mouse.seen = true;
     if (this.mouse.down) {
       const dx = e.clientX - this.mouse.downX, dy = e.clientY - this.mouse.downY;
-      if (!this.mouse.dragging && Math.hypot(dx, dy) > 6) this.mouse.dragging = true;
+      if (!this.mouse.dragging && Math.hypot(dx, dy) > PICK.dragSlop) this.mouse.dragging = true;
       if (this.mouse.dragging) {
         const r = this.view.getBoundingClientRect();
         const x0 = Math.min(this.mouse.downX, e.clientX) - r.left;
@@ -183,10 +206,10 @@ export class Input {
     const g = this.game;
     let picked = null;
     // units first (small radius)
-    let bestD = 0.8;
+    let bestD = PICK.unitRadius;
     for (const u of g.units) {
       if (u.dead || u.boarded) continue;
-      const d = Math.hypot(u.x + 0.0 - wx + 0.0, u.y - wy);
+      const d = Math.hypot(u.x - wx, u.y - wy);
       if (d < bestD) { picked = u; bestD = d; }
     }
     if (!picked) {
@@ -210,7 +233,8 @@ export class Input {
     let any = false;
     for (const u of g.units) {
       if (u.dead || u.boarded || u.house !== 'player') continue;
-      if (u.x >= ax - 0.4 && u.x <= bx + 0.4 && u.y >= ay - 0.4 && u.y <= by + 0.4) {
+      const pad = PICK.boxPad;
+      if (u.x >= ax - pad && u.x <= bx + pad && u.y >= ay - pad && u.y <= by + pad) {
         if (!this.selection.includes(u)) this.selection.push(u);
         any = true;
       }
@@ -251,7 +275,7 @@ export class Input {
     let apc = null;
     for (const u of g.units) {
       if (u.dead || u.boarded || u.house !== 'player' || u.key !== 'apc') continue;
-      if (Math.hypot(u.x - wx, u.y - wy) < 0.9) { apc = u; break; }
+      if (Math.hypot(u.x - wx, u.y - wy) < PICK.apcRadius) { apc = u; break; }
     }
     if (apc) {
       const riders = units.filter((u) => u.def.kind === 'infantry');
@@ -267,7 +291,7 @@ export class Input {
     let target = null;
     for (const u of g.units) {
       if (u.dead || u.house === 'player') continue;
-      if (Math.hypot(u.x - wx, u.y - wy) < 0.8 && g.isVisibleToPlayer(u)) { target = u; break; }
+      if (Math.hypot(u.x - wx, u.y - wy) < PICK.unitRadius && g.isVisibleToPlayer(u)) { target = u; break; }
     }
     if (!target) {
       const b = this.buildingAt(cx, cy, null);
@@ -374,7 +398,7 @@ export class Input {
   // camera scrolling (WASD / arrows, optional screen-edge), from main loop
   tickScroll(dt) {
     if (this.blocked) return;
-    const speed = (this.settings ? this.settings.camSpeed : 22) * dt;
+    const speed = (this.settings ? this.settings.camSpeed : DEFAULTS.camSpeed) * dt;
     let dx = 0, dy = 0;
     if (this.keys.ArrowLeft || this.keys.KeyA) dx -= 1;
     if (this.keys.ArrowRight || this.keys.KeyD) dx += 1;
@@ -382,7 +406,7 @@ export class Input {
     if (this.keys.ArrowDown || this.keys.KeyS) dy += 1;
     if (this.settings && this.settings.edgeScroll && this.mouse.seen) {
       const r = this.view.getBoundingClientRect();
-      const mx = this.mouse.x, my = this.mouse.y, edge = 24;
+      const mx = this.mouse.x, my = this.mouse.y, edge = CAMERA.edgeBand;
       if (mx >= r.left && mx <= r.right && my >= r.top && my <= r.bottom) {
         if (mx - r.left < edge) dx -= 1;
         if (r.right - mx < edge) dx += 1;
@@ -392,9 +416,9 @@ export class Input {
     }
     this.cam.x += dx * speed;
     this.cam.y += dy * speed;
-    const s = this.game.map.size;
-    this.cam.x = Math.max(4, Math.min(s - 4, this.cam.x));
-    this.cam.y = Math.max(4, Math.min(s - 4, this.cam.y));
+    const s = this.game.map.size, m = CAMERA.clampMargin;
+    this.cam.x = Math.max(m, Math.min(s - m, this.cam.x));
+    this.cam.y = Math.max(m, Math.min(s - m, this.cam.y));
   }
 }
 

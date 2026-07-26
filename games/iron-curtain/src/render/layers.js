@@ -11,6 +11,11 @@ import { T, V_ICE } from '../map.js';
 import { SpriteQuad, Z } from './quad.js';
 
 const CHUNK = 16;                  // cells per texture chunk
+const WATER_FRAME_EVERY = 0.5;     // seconds per animated-water frame
+const WATER_FRAMES = 4;
+// Fog is drawn at this many texels per cell and magnified with a linear
+// filter — enough to soften the shroud edges without a map-sized canvas.
+const FOG_TEXELS = 4;
 
 export class Layers {
   constructor(scene, sprites) {
@@ -135,14 +140,14 @@ export class Layers {
   // chunks they live in — no full-map rebake, no map-sized texture upload
   stepWater() {
     if (!this.waterCells.length) return;
-    this.waterFrame = (this.waterFrame + 1) % 4;
+    this.waterFrame = (this.waterFrame + 1) % WATER_FRAMES;
     for (const [x, y] of this.waterCells) this.paintTerrainCell(x, y);
     this.flushChunks(this.terrainChunks);
   }
 
   tickWater(dt) {
     this.waterT += dt;
-    if (this.waterT >= 0.5) { this.waterT = 0; this.stepWater(); }
+    if (this.waterT >= WATER_FRAME_EVERY) { this.waterT = 0; this.stepWater(); }
   }
 
   // -------------------------------------------------------------- ore ------
