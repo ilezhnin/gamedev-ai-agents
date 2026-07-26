@@ -170,7 +170,17 @@ the interface stays real-time.
 | `src/rules.js` | unit/building/weapon stats, armour model, tech tree, economy tuning |
 | `src/map.js` | procedural terrain + ore fields |
 | `src/pathfind.js` | A* (8-dir, corner-cut safe, traffic-aware costs) |
-| `src/game.js` | simulation: movement, combat, harvesting, production, power, fog |
+| `src/game.js` | the `Game` object: world state, tick order, commander powers, win check |
+| `src/sim/entities.js` | `Player` / `Building` / `Unit` state containers, id counter, veterancy scale |
+| `src/sim/angles.js` | angle wrap helpers and the 16-facing sprite index |
+| `src/sim/orders.js` | issuing orders: move/attack/harvest/deploy/capture/board, pathing |
+| `src/sim/unittick.js` | per-order handler table, executed each tick |
+| `src/sim/movement.js` | cell-to-cell stepping, destination reservation, unwedging |
+| `src/sim/combat.js` | targeting, firing, salvos, projectiles, splash, damage, deaths, crushing |
+| `src/sim/economy.js` | ore selection, harvesting, refinery docking, depot income |
+| `src/sim/production.js` | tech gating, build queues, placement, repair, power bookkeeping |
+| `src/sim/fog.js` | vision recompute and visibility queries |
+| `src/sim/persist.js` | save format: serialize a match and rebuild one |
 | `src/ai.js` | skirmish opponent |
 | `src/ui.js` | sidebar, cameo strips, radar, banners, end screens |
 | `src/input.js` | selection, orders, placement, control groups, scrolling |

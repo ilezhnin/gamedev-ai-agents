@@ -9,7 +9,7 @@
 //
 // Determinism: the map, the AI and every in-sim roll go through the seeded
 // game.rng, BUT Unit's constructor takes its initial facing from Math.random()
-// (src/game.js line ~89), and facing gates both firing (angleDiff > 0.3 blocks
+// (src/sim/entities.js), and facing gates both firing (angleDiff > 0.3 blocks
 // a shot) and vehicle departure (> 0.6 blocks a move). So two runs on the same
 // seed drift: units in transit land 1-2 cells apart, and once shooting starts
 // that drift decides who dies. Measured on seed 1337 / 64 'open' forest:

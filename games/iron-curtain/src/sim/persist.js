@@ -6,7 +6,7 @@
 // only moves when a field's meaning changes, and fields are never renamed.
 
 import { UNITS, BUILDINGS } from '../rules.js';
-import { u8ToB64, b64ToU8 } from '../palette.js';
+import { u8ToB64 } from '../palette.js';
 import { GameMap } from '../map.js';
 import { Building, Unit, RANK_HP, MAX_RANK, peekNextId, adoptNextId } from './entities.js';
 import { recomputeVision } from './fog.js';
