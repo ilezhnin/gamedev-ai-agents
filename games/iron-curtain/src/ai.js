@@ -518,12 +518,12 @@ export class AI {
     defenders.sort((a, b) => Math.hypot(a.x - hurt.x, a.y - hurt.y) - Math.hypot(b.x - hurt.x, b.y - hurt.y));
     let sent = 0;
     for (const c of defenders) {
-      if (sent >= 3) break;
-      if (Math.hypot(c.x - hurt.x, c.y - hurt.y) > 40) break;
+      if (sent >= TUNE.harassSquad) break;
+      if (Math.hypot(c.x - hurt.x, c.y - hurt.y) > TUNE.harassRange) break;
       g.orderAttackMove(c, Math.round(hurt.x), Math.round(hurt.y));
       sent++;
     }
-    if (sent > 0) this.harassCd = 5;
+    if (sent > 0) this.harassCd = TUNE.harassCooldown;
   }
 
   manageDefense() {
@@ -535,7 +535,7 @@ export class AI {
     let intruder = null;
     for (const e of g.units) {
       if (e.dead || e.owner === p || !e.def.weapon) continue;
-      if (Math.hypot(e.x - ax, e.y - ay) < 16) { intruder = e; break; }
+      if (Math.hypot(e.x - ax, e.y - ay) < TUNE.intruderRadius) { intruder = e; break; }
     }
     if (!intruder) return;
     for (const u of g.units) {
@@ -559,7 +559,7 @@ export class AI {
       if (b.dead || !b.def.isDepot || b.owner === p) continue;
       const [dx, dy] = b.centre();
       const d = Math.hypot(dx - bx, dy - by);
-      if (d < 55 && d < bd) { bd = d; depot = b; }
+      if (d < TUNE.depotRange && d < bd) { bd = d; depot = b; }
     }
     if (!depot) return;
     // send an idle engineer if we have one
@@ -567,10 +567,11 @@ export class AI {
     if (eng) { g.orderCapture(eng, depot); return; }
     // otherwise train one, throttled, and only if none is already in play
     if (this.depotCd > 0 || p.prod.unit) return;
-    if (!g.canProduce(p, 'unit', 'engineer') || p.credits < UNITS.engineer.cost + 700) return;
+    if (!g.canProduce(p, 'unit', 'engineer') ||
+        p.credits < UNITS.engineer.cost + TUNE.depotEngineerMargin) return;
     if (g.units.some((u) => !u.dead && u.owner === p && u.key === 'engineer')) return;
     g.startProduction(p, 'unit', 'engineer');
-    this.depotCd = 60;
+    this.depotCd = TUNE.depotTrainCooldown;
   }
 
   // APC transport (normal/hard): keep one troop carrier around, load it with a
@@ -587,11 +588,11 @@ export class AI {
     if (apcs.length === 0) {
       const inf = g.units.filter((u) => !u.dead && u.owner === p &&
         u.def.kind === 'infantry' && u.def.weapon && u.key !== 'engineer').length;
-      if (this.apcCd <= 0 && !p.prod.unit && inf >= 3 &&
-          g.canProduce(p, 'unit', 'apc') && p.credits >= UNITS.apc.cost + 500 &&
-          g.rng() < 0.5) {
+      if (this.apcCd <= 0 && !p.prod.unit && inf >= TUNE.apcMinInfantry &&
+          g.canProduce(p, 'unit', 'apc') && p.credits >= UNITS.apc.cost + TUNE.apcMargin &&
+          g.rng() < TUNE.apcBuildChance) {
         g.startProduction(p, 'unit', 'apc');
-        this.apcCd = 100;
+        this.apcCd = TUNE.apcBuildCooldown;
       }
       return;
     }
@@ -600,7 +601,7 @@ export class AI {
     for (const apc of apcs) {
       if (apc.cargoUnits && apc.cargoUnits.length > 0) this.apcEverLoaded = true;
       if (this.attackers.has(apc.id)) continue;
-      const cap = Math.min(apc.def.capacity || 0, 4);
+      const cap = Math.min(apc.def.capacity || 0, TUNE.apcSeats);
       if (!apc.cargoUnits || apc.cargoUnits.length >= cap) continue;
       if (apc.order.type !== 'idle' && apc.order.type !== 'move') continue;
       const riders = [];
@@ -608,7 +609,7 @@ export class AI {
         if (u.dead || u.owner !== p || u.boarded) continue;
         if (u.def.kind !== 'infantry' || !u.def.weapon || u.key === 'engineer') continue;
         if (this.attackers.has(u.id) || u.order.type === 'board') continue;
-        if (Math.hypot(u.x - apc.x, u.y - apc.y) > 20) continue;
+        if (Math.hypot(u.x - apc.x, u.y - apc.y) > TUNE.apcRiderRange) continue;
         riders.push(u);
       }
       riders.sort((a, b) => Math.hypot(a.x - apc.x, a.y - apc.y) - Math.hypot(b.x - apc.x, b.y - apc.y));
@@ -626,13 +627,13 @@ export class AI {
     const [bx, by] = this.baseCentroid();
     for (const u of g.units) {
       if (u.dead || u.owner !== p || u.def.kind !== 'vehicle' || !u.def.weapon || u.def.harvester) continue;
-      if (u.retreating && u.hp > u.maxHp * 0.45) u.retreating = false;   // recovered: rejoin
-      if (u.retreating || u.hp > u.maxHp * 0.25) continue;
-      // locally outnumbered? tally armed units within 8 cells
+      if (u.retreating && u.hp > u.maxHp * TUNE.retreatRecovered) u.retreating = false;
+      if (u.retreating || u.hp > u.maxHp * TUNE.retreatBelow) continue;
+      // locally outnumbered? tally armed units in the immediate neighbourhood
       let foes = 0, friends = 0;
       for (const e of g.units) {
         if (e.dead || !e.def.weapon || e.boarded) continue;
-        if (Math.hypot(e.x - u.x, e.y - u.y) > 8) continue;
+        if (Math.hypot(e.x - u.x, e.y - u.y) > TUNE.retreatScanRadius) continue;
         if (e.owner === p) friends++; else foes++;
       }
       if (foes <= friends) continue;   // holding or winning: stand ground
@@ -653,26 +654,27 @@ export class AI {
       !u.dead && u.owner === p && u.def.weapon && !u.boarded && !u.retreating &&
       !this.attackers.has(u.id) && (u.order.type === 'idle' || u.order.type === 'move'));
     // don't strip the base bare: attack only once there's a real squad
-    if (idle.length < this.waveSize + 2) { this.waveT = 8; return; } // retry soon
+    const squadSize = this.waveSize + TUNE.waveEscort;
+    if (idle.length < squadSize) { this.waveT = TUNE.waveRetryDelay; return; }
 
     const objective = this.pickObjective();
-    if (!objective) { this.waveT = 8; return; }
+    if (!objective) { this.waveT = TUNE.waveRetryDelay; return; }
 
     this.waveT = this.d.waveMin + g.rng() * (this.d.waveMax - this.d.waveMin);
     this.waveSize = Math.min(this.d.waveCap, this.waveSize + 1);
 
     const [tx, ty] = objective.isUnit ? [objective.cellX, objective.cellY] : objective.centre();
-    // staging cell ~10 cells back toward our base, off the target's doorstep
+    // staging cell back toward our base, off the target's doorstep
     const [bx, by] = this.baseCentroid();
     const dx = bx - tx, dy = by - ty;
     const len = Math.hypot(dx, dy) || 1;
-    let sx = Math.round(tx + (dx / len) * 10);
-    let sy = Math.round(ty + (dy / len) * 10);
+    let sx = Math.round(tx + (dx / len) * TUNE.stagingDistance);
+    let sy = Math.round(ty + (dy / len) * TUNE.stagingDistance);
     sx = Math.max(1, Math.min(g.map.size - 2, sx));
     sy = Math.max(1, Math.min(g.map.size - 2, sy));
     const staged = nearestFree(g.map, sx, sy, null) || [sx, sy];
 
-    const squad = idle.slice(0, this.waveSize + 2);
+    const squad = idle.slice(0, squadSize);
     const members = new Set();
     for (const u of squad) {
       members.add(u.id);
@@ -713,9 +715,10 @@ export class AI {
     if (w.phase === 'staging') {
       w.timer += step;
       let arrived = 0;
-      for (const u of alive) if (Math.hypot(u.x - w.sx, u.y - w.sy) <= 3.5) arrived++;
-      const ready = arrived >= Math.ceil(w.n0 * 0.7) || arrived >= Math.ceil(alive.length * 0.9);
-      if (ready || w.timer >= 20) {
+      for (const u of alive) if (Math.hypot(u.x - w.sx, u.y - w.sy) <= TUNE.stagingArrived) arrived++;
+      const ready = arrived >= Math.ceil(w.n0 * TUNE.stagingQuorum)
+        || arrived >= Math.ceil(alive.length * TUNE.stagingLateQuorum);
+      if (ready || w.timer >= TUNE.stagingTimeout) {
         w.phase = 'push';
         for (const u of alive) g.orderAttackMove(u, w.tx, w.ty);
       }
@@ -723,7 +726,7 @@ export class AI {
     }
 
     // push phase
-    if (alive.length < Math.max(1, Math.ceil(w.n0 * 0.4))) {
+    if (alive.length < Math.max(1, Math.ceil(w.n0 * TUNE.waveBrokenAt))) {
       // broke the back of the wave: fall back and rejoin defence
       this.endWave(alive, true);
       return;
@@ -735,7 +738,7 @@ export class AI {
     for (const u of alive) {
       // a laden APC disgorges its troops once it reaches the objective's porch
       if (u.key === 'apc' && u.cargoUnits && u.cargoUnits.length &&
-          Math.hypot(u.x - w.tx, u.y - w.ty) <= 6) {
+          Math.hypot(u.x - w.tx, u.y - w.ty) <= TUNE.apcUnloadRange) {
         g.orderUnload(u);
         this.apcEverUnloaded = true;
         continue;
@@ -758,9 +761,6 @@ export class AI {
     this.wave = null;
   }
 
-  // primary objective: hit the enemy economy/production, not a lone tower.
-  // en-route defences get engaged automatically by attack-move target scans,
-  // which realises the "clear defences blocking the approach first" intent.
   pickObjective() {
     const g = this.game, p = this.p;
     const targets = [];
@@ -772,15 +772,8 @@ export class AI {
   }
 
   targetScore(t) {
-    if (t.isBuilding) {
-      if (t.key === 'refinery') return 6;
-      if (t.key === 'factory' || t.key === 'barracks') return 5;
-      if (t.key === 'conyard') return 4.5;
-      if (t.key === 'techcenter') return 4;
-      if (t.key === 'power') return 3.5;
-      if (t.def.weapon) return 3;      // static defence: dealt with en route
-      return 2;
-    }
-    return t.def.harvester ? 5.5 : 1;
+    if (!t.isBuilding) return t.def.harvester ? SCORE_HARVESTER : SCORE_UNIT;
+    return TARGET_SCORE[t.key]
+      ?? (t.def.weapon ? SCORE_DEFENCE : SCORE_BUILDING);
   }
 }
