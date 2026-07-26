@@ -55,6 +55,96 @@ export const AI_LEVELS = {
 
 const IMPORTANT_BUILDINGS = new Set(['conyard', 'refinery', 'factory', 'techcenter']);
 
+// Opponent policy: the AI's judgement calls, as opposed to the game rules in
+// rules.js. Difficulty and personality scale a handful of knobs (AI_LEVELS /
+// PERSONALITIES above); everything here applies to every opponent at every
+// level, and is grouped by the manage* method that reads it.
+const TUNE = {
+  // construction
+  emergencyPowerCredits: 350,   // low power: rebuy a plant above this balance
+  // Once the factory stands, hold this back from every further structure so
+  // income keeps funding a second ore truck and the army. Plowing greedily
+  // through radar/techcenter/tesla left modest-income seeds with one harvester
+  // and a single soldier.
+  luxuryBuffer: 800,
+  endgameCredits: 2500,         // spare cash above this buys extra defences
+  wallCap: 24,                  // walls per match before turtles switch to towers
+  placeMaxRadius: 24,           // rings searched outward from the base anchor
+  placeTries: 14,               // random offsets tried per ring
+
+  // training
+  harvestersPerRefinery: 2,
+  harvestersPerRefineryEasy: 1,
+  harvesterCap: 6,
+  // Only queue a truck when we can very nearly pay outright: the unit factory
+  // has a SINGLE slot, and a 1100-credit truck thin income can't finish stalls
+  // there forever, locking army production out (the "one harvester, one rifle"
+  // stall). When credits are that tight, build army; a richer field follows.
+  harvesterMargin: 200,
+  earlyGuard: 4,                // bodies kept before the factory is up...
+  earlyGuardTurtle: 3,          // ...turtles keep one fewer
+  minTrainCredits: 300,
+  mcvRedeployRange: 4,          // cells from base centre where an MCV deploys
+
+  // economy upkeep
+  econScanEvery: 6,             // seconds between home-field ore scans
+  homeFieldRadius: 12,          // cells scanned around the refinery
+  homeFieldThin: 1500,          // total ore below which we want to expand
+  expansionMinDistance: 10,     // a new field must be this far from a refinery
+  gemBias: 1.5,                 // gems score this much better when expanding
+  repairCredits: 600,           // start repairing important structures above this
+  repairStopCredits: 250,       // ...and stop below this
+  repairBelow: 0.85,            // hp fraction worth spending on
+
+  // defence and harassment response
+  harassCooldown: 5,            // seconds between harvester-rescue dispatches
+  harassSquad: 3,               // defenders sent to a harvester under fire
+  harassRange: 40,              // cells: further than this and nobody goes
+  intruderRadius: 16,           // enemy this close to base pulls idle army
+
+  // supply-depot grabs
+  depotStartCooldown: 20,
+  depotRange: 55,               // cells: depots further away aren't worth it
+  depotTrainCooldown: 60,       // seconds between engineer builds
+  depotEngineerMargin: 700,     // credits kept spare when buying an engineer
+
+  // APC transport
+  apcStartCooldown: 30,
+  apcBuildCooldown: 100,        // seconds between APC build attempts
+  apcMargin: 500,               // credits kept spare when buying one
+  apcMinInfantry: 3,            // don't buy a bus with nobody to ride it
+  apcBuildChance: 0.5,          // coin flip, so not every AI fields one
+  apcSeats: 4,                  // riders loaded, further capped by def.capacity
+  apcRiderRange: 20,            // cells infantry will walk to board
+  apcUnloadRange: 6,            // cells from the objective where cargo drops
+
+  // retreat (hard only)
+  retreatBelow: 0.25,           // hp fraction that breaks contact...
+  retreatRecovered: 0.45,       // ...and the fraction that re-enlists
+  retreatScanRadius: 8,         // cells counted when judging "outnumbered"
+
+  // waves
+  initialWaveSize: 3,
+  waveRetryDelay: 8,            // seconds before retrying a wave that can't form
+  waveEscort: 2,                // squad size is waveSize + this
+  stagingDistance: 10,          // cells back from the objective units gather
+  stagingArrived: 3.5,          // cells from the staging cell that counts as there
+  stagingQuorum: 0.7,           // fraction of the original squad needed to push...
+  stagingLateQuorum: 0.9,       // ...or this fraction of whoever is still alive
+  stagingTimeout: 20,           // seconds before pushing regardless
+  waveBrokenAt: 0.4,            // fraction of the squad left before falling back
+};
+
+// Wave objective priority: hit the enemy economy and production, not a lone
+// tower. En-route defences get engaged anyway by attack-move target scans.
+const TARGET_SCORE = {
+  refinery: 6, factory: 5, barracks: 5, conyard: 4.5, techcenter: 4, power: 3.5,
+};
+const SCORE_DEFENCE = 3;          // any structure with a weapon
+const SCORE_BUILDING = 2;         // anything else standing
+const SCORE_HARVESTER = 5.5;      // strangling the economy beats trading shots
+const SCORE_UNIT = 1;
+
 export class AI {
   constructor(game, player, level = 'normal', personality = null) {
     this.game = game;
@@ -63,15 +153,15 @@ export class AI {
     this.baseKnobs = AI_LEVELS[level] || AI_LEVELS.normal;
     this.buildIx = 0;
     this.thinkT = 0;
-    this.waveSize = 3;
+    this.waveSize = TUNE.initialWaveSize;
     this.trainIx = 0;
     this.attackers = new Set();     // ids committed to the current wave
     this.wave = null;               // { members, phase, ... } or null
     this.harvHp = new Map();        // harvester id -> hp last seen
     this.harassCd = 0;              // cooldown between harasser dispatches
     this.econT = 0;                 // throttle for the local-ore map scan
-    this.depotCd = 20;              // cooldown between depot-capture pushes
-    this.apcCd = 30;                // cooldown between APC-transport builds
+    this.depotCd = TUNE.depotStartCooldown;
+    this.apcCd = TUNE.apcStartCooldown;
     this.apcEverLoaded = false;     // telemetry: has an APC ever carried troops
     this.apcEverUnloaded = false;   // telemetry: has an APC dropped troops on target
     this.retreatedCount = 0;        // telemetry: low-hp vehicles pulled from a fight
@@ -125,7 +215,7 @@ export class AI {
     if (s.personality) this.applyPersonality(s.personality);
     this.buildIx = s.buildIx || 0;
     this.waveT = s.waveT != null ? s.waveT : this.d.firstWave;
-    this.waveSize = s.waveSize || 3;
+    this.waveSize = s.waveSize || TUNE.initialWaveSize;
     this.trainIx = s.trainIx || 0;
     this.wallsBuilt = s.wallsBuilt || 0;
     this.attackers = new Set(s.attackers || []);
@@ -136,7 +226,7 @@ export class AI {
     this.harassCd = 0;
     this.needRefinery = false;
     this.refineryAnchor = null;
-    this.depotCd = 20;
+    this.depotCd = TUNE.depotStartCooldown;
     this.harvHp = new Map();
   }
 
@@ -173,7 +263,7 @@ export class AI {
     if (!g.buildings.some((b) => !b.dead && b.owner === this.p)) return; // eliminated
 
     this.econT -= step;
-    if (this.econT <= 0) { this.econT = 6; this.scanEconomy(); }
+    if (this.econT <= 0) { this.econT = TUNE.econScanEvery; this.scanEconomy(); }
 
     this.manageConstruction();
     this.placeReadyBuilding();
@@ -198,7 +288,7 @@ export class AI {
     if (!this.base()) return; // no conyard: nothing can be produced here
 
     // emergency: power first
-    if (p.lowPower() && g.canProduce(p, 'building', 'power') && p.credits > 350) {
+    if (p.lowPower() && g.canProduce(p, 'building', 'power') && p.credits > TUNE.emergencyPowerCredits) {
       g.startProduction(p, 'building', 'power');
       return;
     }
@@ -217,13 +307,7 @@ export class AI {
       g.startProduction(p, 'building', 'refinery');
       return;
     }
-    // once the factory is up, hold a buffer back from each further structure so
-    // income keeps funding a second ore truck and the army instead of being
-    // swallowed whole by the tech/defence build order — plowing greedily through
-    // radar/techcenter/tesla was leaving modest-income seeds with one harvester
-    // and a single soldier.
-    const hasFactoryC = count('factory') > 0;
-    const luxuryBuffer = hasFactoryC ? 800 : 0;
+    const luxuryBuffer = count('factory') > 0 ? TUNE.luxuryBuffer : 0;
     // follow the build order
     while (this.buildIx < this.buildOrder.length) {
       const key = this.buildOrder[this.buildIx];
@@ -238,13 +322,13 @@ export class AI {
       return;
     }
     // endgame: extra defences (weighted by personality) or a wall run for turtles
-    if (p.credits > 2500) {
+    if (p.credits > TUNE.endgameCredits) {
       const pool = this.personality === 'turtle'
         ? ['tesla', 'flametower', 'guard', 'wall']
         : (this.personality === 'rusher' ? ['guard'] : ['tesla', 'guard']);
       let extra = pool[Math.floor(this.game.rng() * pool.length)];
       if (extra === 'wall') {
-        if (this.wallsBuilt > 24) extra = 'guard';
+        if (this.wallsBuilt > TUNE.wallCap) extra = 'guard';
         else this.wallsBuilt++;
       }
       if (g.canProduce(p, 'building', extra)) g.startProduction(p, 'building', extra);
@@ -272,8 +356,8 @@ export class AI {
       bias = this.refineryAnchor;
     }
     let best = null, bestD = 1e9;
-    for (let r = 2; r < 24; r++) {
-      for (let attempt = 0; attempt < 14; attempt++) {
+    for (let r = 2; r < TUNE.placeMaxRadius; r++) {
+      for (let attempt = 0; attempt < TUNE.placeTries; attempt++) {
         const ox = Math.round((g.rng() - 0.5) * 2 * r);
         const oy = Math.round((g.rng() - 0.5) * 2 * r);
         const x = Math.round(ax + ox - def.w / 2), y = Math.round(ay + oy - def.h / 2);
@@ -307,17 +391,12 @@ export class AI {
     const harvesters = myUnits.filter((u) => u.def.harvester).length;
     const refineries = g.buildings.filter((b) => !b.dead && b.owner === p && b.key === 'refinery').length;
 
-    // keep the ore trucks stocked: 2 per refinery on normal/hard, 1 on easy.
-    // Only queue an extra truck when we can very nearly pay for it outright —
-    // the unit factory has a SINGLE production slot, and queuing a 1100-credit
-    // truck the thin early income can't finish left it stalled there forever,
-    // locking army production out entirely (the classic "one harvester, one
-    // rifle" stall). When credits are that tight, build army instead; a richer
-    // field will clear the bar and the truck (and its income) follows.
-    const perRef = this.level === 'easy' ? 1 : 2;
-    const wantHarvesters = Math.min(refineries * perRef, 6);
+    const perRef = this.level === 'easy'
+      ? TUNE.harvestersPerRefineryEasy : TUNE.harvestersPerRefinery;
+    const wantHarvesters = Math.min(refineries * perRef, TUNE.harvesterCap);
     if (refineries > 0 && harvesters < wantHarvesters &&
-        g.canProduce(p, 'unit', 'harvester') && p.credits >= UNITS.harvester.cost + 200) {
+        g.canProduce(p, 'unit', 'harvester') &&
+        p.credits >= UNITS.harvester.cost + TUNE.harvesterMargin) {
       g.startProduction(p, 'unit', 'harvester');
       return;
     }
@@ -326,9 +405,9 @@ export class AI {
     // economy-first: keep only a small early guard until the war factory is up,
     // so the opening bank buys the factory rather than a doomed rush of rifles.
     const hasFactory = g.buildings.some((b) => !b.dead && b.owner === p && b.key === 'factory');
-    const earlyGuard = this.personality === 'turtle' ? 3 : 4;
+    const earlyGuard = this.personality === 'turtle' ? TUNE.earlyGuardTurtle : TUNE.earlyGuard;
     if (army >= earlyGuard && !hasFactory) return;   // save the opening bank for the factory
-    if (p.credits < 300) return;
+    if (p.credits < TUNE.minTrainCredits) return;
     // walk the pattern; skip entries we can't build yet
     for (let tries = 0; tries < this.trainPattern.length; tries++) {
       const key = this.trainPattern[this.trainIx % this.trainPattern.length];
@@ -349,7 +428,7 @@ export class AI {
     if (!mcv || mcv.order.type === 'deploy') return;
     const [cx, cy] = this.baseCentroid();
     const d = Math.hypot(mcv.x - cx, mcv.y - cy);
-    if (d > 4) {
+    if (d > TUNE.mcvRedeployRange) {
       if (mcv.order.type === 'idle') {
         const spot = nearestFree(g.map, Math.round(cx), Math.round(cy), mcv) || [Math.round(cx), Math.round(cy)];
         g.orderMove(mcv, spot[0], spot[1]);
@@ -378,14 +457,14 @@ export class AI {
 
     const ref = refineries[0];
     const [rx, ry] = ref.centre();
-    const R = 12;
+    const R = TUNE.homeFieldRadius;
     let local = 0;
     for (let y = Math.max(0, (ry | 0) - R); y <= Math.min(m.size - 1, (ry | 0) + R); y++) {
       for (let x = Math.max(0, (rx | 0) - R); x <= Math.min(m.size - 1, (rx | 0) + R); x++) {
         local += m.ore[m.idx(x, y)];
       }
     }
-    if (local >= 1500) { this.needRefinery = false; return; }
+    if (local >= TUNE.homeFieldThin) { this.needRefinery = false; return; }
 
     // home field is thin: find the richest cell well away from current refineries
     let best = null, bestV = 0;
@@ -396,10 +475,10 @@ export class AI {
         let far = true;
         for (const rf of refineries) {
           const [fx, fy] = rf.centre();
-          if (Math.hypot(x - fx, y - fy) < 10) { far = false; break; }
+          if (Math.hypot(x - fx, y - fy) < TUNE.expansionMinDistance) { far = false; break; }
         }
         if (!far) continue;
-        const score = v * (m.gem[m.idx(x, y)] ? 1.5 : 1);
+        const score = v * (m.gem[m.idx(x, y)] ? TUNE.gemBias : 1);
         if (score > bestV) { bestV = score; best = [x, y]; }
       }
     }
@@ -412,8 +491,8 @@ export class AI {
     const g = this.game, p = this.p;
     for (const b of g.buildings) {
       if (b.dead || b.owner !== p || !IMPORTANT_BUILDINGS.has(b.key)) continue;
-      if (!b.repairing && p.credits > 600 && b.hp < b.maxHp * 0.85) b.repairing = true;
-      else if (b.repairing && (b.hp >= b.maxHp || p.credits < 250)) b.repairing = false;
+      if (!b.repairing && p.credits > TUNE.repairCredits && b.hp < b.maxHp * TUNE.repairBelow) b.repairing = true;
+      else if (b.repairing && (b.hp >= b.maxHp || p.credits < TUNE.repairStopCredits)) b.repairing = false;
     }
   }
 
