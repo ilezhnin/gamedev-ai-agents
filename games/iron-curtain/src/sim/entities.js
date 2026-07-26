@@ -69,14 +69,17 @@ export class Building extends Entity {
 }
 
 export class Unit extends Entity {
-  constructor(owner, key, x, y) {
+  // rng: the game's seeded generator. Passing it keeps spawns reproducible —
+  // a unit's initial facing decides how long it turns before its first step,
+  // which ripples all the way into harvest timings.
+  constructor(owner, key, x, y, rng = Math.random) {
     super(owner, key);
     this.def = UNITS[key];
     this.x = x; this.y = y;           // cell coords (float while moving)
     this.cellX = Math.round(x); this.cellY = Math.round(y);
     this.hp = this.maxHp = this.def.hp;
     this.isUnit = true;
-    this.facing = Math.random() * Math.PI * 2;
+    this.facing = rng() * Math.PI * 2;
     this.turretFacing = this.facing;
     this.path = [];
     this.moveT = 0;

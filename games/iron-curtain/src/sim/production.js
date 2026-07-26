@@ -40,7 +40,7 @@ export function addBuilding(game, owner, key, cx, cy, opts = {}) {
 }
 
 export function addUnit(game, owner, key, x, y) {
-  const u = new Unit(owner, key, x, y);
+  const u = new Unit(owner, key, x, y, game.rng);
   game.units.push(u);
   game.map.occupant[game.map.idx(u.cellX, u.cellY)] = u;
   game.visionDirty = true;
@@ -112,6 +112,8 @@ export function tickProduction(game, owner, dt) {
       p.spent += step;
       p.progress = p.def.cost > 0 ? p.spent / p.def.cost : 1;
       if (owner.isHuman && step > 0) game.audio.sfx('tick');
+    // UI-only nag: deliberately NOT on game.rng, so a cosmetic warning never
+      // perturbs the seeded stream the simulation replays from
     } else if (owner.isHuman && Math.random() < dt * ECONOMY.lowFundsWarnPerSec) {
       game.emit('warn', 'INSUFFICIENT FUNDS');
     }
