@@ -67,7 +67,7 @@ export function tickHarvest(game, u, dt) {
     if (u.harvestTicker >= ECONOMY.harvestTick) {
       u.harvestTicker = 0;
       // gem cells pay double per scoop
-      const mult = game.map.gem[i] ? 2 : 1;
+      const mult = game.map.gem[i] ? ECONOMY.gemMultiplier : 1;
       const room = Math.ceil((ECONOMY.harvesterCapacity - u.cargo) / mult);
       const take = Math.min(ECONOMY.harvestPerTrip, game.map.ore[i], room);
       game.map.ore[i] -= take;
@@ -83,7 +83,7 @@ export function tickHarvest(game, u, dt) {
   if (!u.moving && u.path.length === 0) {
     const cell = findOreCell(game, u);
     if (!cell) {
-      if (u.cargo > 50) { u.order = { type: 'return' }; }
+      if (u.cargo > ECONOMY.minReturnLoad) { u.order = { type: 'return' }; }
       else u.order = { type: 'idle' };
       return;
     }
@@ -111,9 +111,9 @@ export function tickReturn(game, u, dt) {
     u.dockT += dt;
     const rate = ECONOMY.harvesterCapacity / ECONOMY.unloadTime;
     const gain = Math.min(u.cargo, rate * dt);
-    const room = u.owner.storage * 4; // storage is soft in this build
+    const room = u.owner.storage * ECONOMY.storageSoftFactor;
     u.cargo -= gain;
-    u.owner.credits = Math.min(u.owner.credits + gain, room + 100000);
+    u.owner.credits = Math.min(u.owner.credits + gain, room + ECONOMY.creditHeadroom);
     u.owner.stats.harvested += gain;
     if (u.cargo <= 0.5) {
       u.cargo = 0; u.dockT = 0;

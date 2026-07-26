@@ -2,6 +2,7 @@
 // front so two units never converge on the same tile. Every order falls
 // through to tickMovement, which is what lets a unit shoot while driving.
 
+import { COMBAT, UNIT_TIMING } from '../rules.js';
 import { canCrushInto, crushUnit } from './combat.js';
 import { setPath } from './orders.js';
 import { angleDiff, approachAngle } from './angles.js';
@@ -16,10 +17,10 @@ export function tickMovement(game, u, dt) {
     }
     if (!game.map.isFree(nx, ny, u)) {
       u.stuckT += dt;
-      if (u.stuckT > 0.5) {
+      if (u.stuckT > UNIT_TIMING.stuckGrace) {
         u.stuckT = 0;
         u.blockedRepaths = (u.blockedRepaths || 0) + 1;
-        if (u.blockedRepaths > 4) {
+        if (u.blockedRepaths > UNIT_TIMING.stuckGiveUp) {
           // hopelessly wedged: give up on this path instead of looping
           u.blockedRepaths = 0;
           u.path = [];
@@ -53,11 +54,11 @@ export function tickMovement(game, u, dt) {
   if (u.moving) {
     const [nx, ny] = u.reserved;
     const want = Math.atan2(ny - u.fromY, nx - u.fromX) + Math.PI / 2;
-    const turnRate = (u.def.turn || 10) * 2.2;
+    const turnRate = (u.def.turn || COMBAT.driveTurnFallback) * COMBAT.hullTurnRate;
     u.facing = approachAngle(u.facing, want, turnRate * dt);
     if (!u.def.hasTurret) u.turretFacing = u.facing;
     // vehicles wait to face direction before rolling; infantry just walk
-    if (u.def.kind === 'vehicle' && angleDiff(u.facing, want) > 0.6) return;
+    if (u.def.kind === 'vehicle' && angleDiff(u.facing, want) > COMBAT.driveAimTolerance) return;
 
     const stepLen = Math.hypot(nx - u.fromX, ny - u.fromY) || 1;
     u.moveT += (u.def.speed * dt) / stepLen;

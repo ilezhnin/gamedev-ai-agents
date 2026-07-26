@@ -4,7 +4,7 @@
 // adds, removes or transfers a structure has to keep those books straight —
 // that is why spawning and capturing live here next to the queues.
 
-import { UNITS, BUILDINGS, ECONOMY } from '../rules.js';
+import { UNITS, BUILDINGS, ECONOMY, STRUCTURE } from '../rules.js';
 import { nearestFree } from '../pathfind.js';
 import { Building, Unit } from './entities.js';
 import { orderHarvest, orderMove } from './orders.js';
@@ -107,7 +107,7 @@ export function tickProduction(game, owner, dt) {
       p.spent += step;
       p.progress = p.def.cost > 0 ? p.spent / p.def.cost : 1;
       if (owner.isHuman && step > 0) game.audio.sfx('tick');
-    } else if (owner.isHuman && Math.random() < dt * 0.4) {
+    } else if (owner.isHuman && Math.random() < dt * ECONOMY.lowFundsWarnPerSec) {
       game.emit('warn', 'INSUFFICIENT FUNDS');
     }
     if (p.progress >= 0.999) {
@@ -148,12 +148,14 @@ export function placementValid(game, owner, key, cx, cy) {
       if (!game.map.isBuildable(x, y)) return false;
     }
   }
-  // adjacency: within 3 cells of an existing friendly building footprint.
-  // walls are fire-and-forget blockers and never extend the base envelope.
+  // adjacency: within STRUCTURE.baseAdjacency cells of an existing friendly
+  // footprint. Walls are fire-and-forget blockers and never extend the base
+  // envelope, or a wall run would let you creep a base across the map.
+  const R = STRUCTURE.baseAdjacency;
   for (const b of game.buildings) {
     if (b.dead || b.owner !== owner || b.def.isWall) continue;
-    if (cx < b.cx + b.def.w + 3 && cx + def.w > b.cx - 3 &&
-        cy < b.cy + b.def.h + 3 && cy + def.h > b.cy - 3) { nearBase = true; break; }
+    if (cx < b.cx + b.def.w + R && cx + def.w > b.cx - R &&
+        cy < b.cy + b.def.h + R && cy + def.h > b.cy - R) { nearBase = true; break; }
   }
   return nearBase;
 }
@@ -199,16 +201,16 @@ export function captureBuilding(game, b, newOwner) {
 // -------------------------------------------------------- building tick --
 
 export function tickBuilding(game, b, dt) {
-  if (b.buildRise < 1) b.buildRise = Math.min(1, b.buildRise + dt * 1.6);
+  if (b.buildRise < 1) b.buildRise = Math.min(1, b.buildRise + dt * STRUCTURE.riseRate);
   if (b.empT > 0) b.empT -= dt;
 
   tickDepotIncome(game, b, dt);
 
   // battle damage smoke
-  if (b.hp < b.maxHp * 0.5) {
+  if (b.hp < b.maxHp * STRUCTURE.smokeBelow) {
     b.smokeT -= dt;
     if (b.smokeT <= 0) {
-      b.smokeT = 0.5 + game.rng() * 0.8;
+      b.smokeT = STRUCTURE.smokeMin + game.rng() * STRUCTURE.smokeVar;
       game.effects.push({
         kind: 'smoke', t: 0,
         x: b.cx + 0.4 + game.rng() * (b.def.w - 0.8),

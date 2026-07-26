@@ -5,7 +5,7 @@
 // This module sits below the rest of the sim so that any of them can hand a
 // unit a new order without importing a peer.
 
-import { BUILDINGS } from '../rules.js';
+import { BUILDINGS, UNIT_TIMING } from '../rules.js';
 import { findPath } from '../pathfind.js';
 
 export function setPath(game, u, tx, ty) {
@@ -120,7 +120,7 @@ export function unloadUnit(game, passenger, cell) {
 
 // a free cell hugging a unit's own cell (for APC unload spots)
 export function adjacentFreeUnitCell(game, u, ignore) {
-  for (let r = 1; r <= 3; r++) {
+  for (let r = 1; r <= UNIT_TIMING.unloadSearchRadius; r++) {
     for (let dy = -r; dy <= r; dy++)
       for (let dx = -r; dx <= r; dx++) {
         if (Math.max(Math.abs(dx), Math.abs(dy)) !== r) continue;

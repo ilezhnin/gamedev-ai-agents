@@ -4,7 +4,7 @@
 // order in which they run. Rendering never lives here — main.js reads this
 // state every frame.
 
-import { ECONOMY } from './rules.js';
+import { ECONOMY, COMBAT, POWERS } from './rules.js';
 import { makeRng } from './palette.js';
 import { Player } from './sim/entities.js';
 import * as orders from './sim/orders.js';
@@ -13,10 +13,6 @@ import * as combat from './sim/combat.js';
 import { tickUnit } from './sim/unittick.js';
 import { recomputeVision, isVisibleToPlayer } from './sim/fog.js';
 import { serializeGame, loadGame } from './sim/persist.js';
-
-// commander-power tuning (human tech-center abilities)
-export const RECON_CD = 90, RECON_RADIUS = 8, RECON_DUR = 10;
-export const EMP_CD = 150, EMP_RADIUS = 4, EMP_DUR = 8;
 
 export class Game {
   constructor(map, audio, seed = 1234, enemyHouses = ['enemy']) {
@@ -118,15 +114,15 @@ export class Game {
     if (!hasTech) return false;
     if (which === 'recon') {
       if (this.reconCd > 0) return false;
-      this.reconCd = RECON_CD;
-      this.reconSweeps.push({ x: Math.round(x), y: Math.round(y), r: RECON_RADIUS, t: RECON_DUR });
+      this.reconCd = POWERS.reconCd;
+      this.reconSweeps.push({ x: Math.round(x), y: Math.round(y), r: POWERS.reconRadius, t: POWERS.reconDur });
       this.visionDirty = true;
       if (p.isHuman) { this.audio.sfx('ready'); this.audio.say('Recon sweep', true); }
       return true;
     }
     if (which === 'emp') {
       if (this.empCd > 0) return false;
-      this.empCd = EMP_CD;
+      this.empCd = POWERS.empCd;
       this.castEmp(x, y);
       if (p.isHuman) this.audio.say('E M P blast', true);
       return true;
@@ -134,19 +130,20 @@ export class Game {
     return false;
   }
 
-  // disable enemy vehicles + defence buildings inside the blast for EMP_DUR
+  // disable enemy vehicles + defence buildings inside the blast for POWERS.empDur
   castEmp(x, y) {
     const p = this.players.player;
-    const r = EMP_RADIUS;
-    this.empZones.push({ x, y, r, t: EMP_DUR });
+    const r = POWERS.empRadius;
+    this.empZones.push({ x, y, r, t: POWERS.empDur });
     for (const u of this.units) {
       if (u.dead || u.boarded || u.owner === p || u.def.kind !== 'vehicle') continue;
-      if (Math.hypot(u.x - x, u.y - y) <= r) u.empT = EMP_DUR;
+      if (Math.hypot(u.x - x, u.y - y) <= r) u.empT = POWERS.empDur;
     }
     for (const b of this.buildings) {
       if (b.dead || b.owner === p || !b.def.weapon) continue;   // defence buildings only
       const [bx, by] = b.centre();
-      if (Math.hypot(bx - 0.5 - x, by - 0.5 - y) <= r + 0.5) b.empT = EMP_DUR;
+      // building centres sit half a cell off the sprite grid, hence the +0.5
+      if (Math.hypot(bx - 0.5 - x, by - 0.5 - y) <= r + 0.5) b.empT = POWERS.empDur;
     }
     this.effects.push({ kind: 'emp', x, y, r, t: 0 });
     this.audio.sfx('tesla');
@@ -155,7 +152,7 @@ export class Game {
   // ------------------------------------------------------------------ end --
 
   checkEnd() {
-    if (this.over || this.time < 5) return;
+    if (this.over || this.time < COMBAT.endCheckGrace) return;
     // walls and neutral depots don't count as a surviving base — a house with
     // only those is out
     const alive = (house) =>

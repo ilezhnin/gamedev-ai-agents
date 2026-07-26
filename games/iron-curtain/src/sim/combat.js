@@ -50,7 +50,7 @@ export function acquireTargetFor(game, b) {
 export function aimAndFire(game, u, target, tx, ty, dt) {
   if (u.empT > 0) return;                    // EMP'd: weapons offline
   const want = Math.atan2(ty - u.y, tx - u.x) + Math.PI / 2;
-  const turnRate = (u.def.turn || COMBAT.projectileSpeed) * COMBAT.turretTurnRate;
+  const turnRate = (u.def.turn || COMBAT.aimTurnFallback) * COMBAT.turretTurnRate;
   if (u.def.hasTurret) {
     u.turretFacing = approachAngle(u.turretFacing, want, turnRate * dt);
     if (angleDiff(u.turretFacing, want) > COMBAT.turretAimTolerance) return;
@@ -77,12 +77,12 @@ export function tickDefence(game, b, dt) {
   const [bx, by] = b.centre();
   const [tx, ty] = b.target.isUnit ? [b.target.x, b.target.y] : b.target.centre();
   const d = Math.hypot(tx - bx, ty - by);
-  if (d > w.range + 0.5) { b.target = null; return; }
+  if (d > w.range + COMBAT.defenceHoldSlack) { b.target = null; return; }
   const want = Math.atan2(ty - by, tx - bx) + Math.PI / 2;
-  b.turretFacing = approachAngle(b.turretFacing, want, 6 * dt);
-  if (b.cooldown <= 0 && angleDiff(b.turretFacing, want) < 0.3) {
+  b.turretFacing = approachAngle(b.turretFacing, want, COMBAT.defenceTraverse * dt);
+  if (b.cooldown <= 0 && angleDiff(b.turretFacing, want) < COMBAT.hullAimTolerance) {
     b.cooldown = w.rof;
-    b.fireFlash = 0.09;
+    b.fireFlash = COMBAT.fireFlashTime;
     fireWeapon(game, b, b.target, w);
   }
 }
@@ -93,7 +93,7 @@ export function fireWeapon(game, src, target, w) {
   if (salvo <= 1) { spawnProjectile(game, src, target, w); return; }
   const aim = spriteXY(target);   // remembered impact point if the target dies
   for (let i = 0; i < salvo; i++) {
-    game.pendingShots.push({ t: i * (w.stagger || 0.12), src, target, w, aim });
+    game.pendingShots.push({ t: i * (w.stagger || COMBAT.salvoStagger), src, target, w, aim });
   }
 }
 
@@ -140,7 +140,7 @@ export function spawnProjectile(game, src, target, w, aim = null) {
   } else {
     game.projectiles.push({
       x: sx, y: sy, tx, ty, target: live, w, src,
-      speed: w.speed || 8,
+      speed: w.speed || COMBAT.projectileSpeed,
       kind: w.projectile,
       angle: Math.atan2(ty - sy, tx - sx),
     });
@@ -153,8 +153,8 @@ export function spawnProjectile(game, src, target, w, aim = null) {
 // which wrecked AI pushes; sparing allies keeps AoE a clean anti-blob tool.
 export function applySplash(game, x, y, w, src) {
   const rad = w.splash;
-  const inner = 0.7;               // "impact cell" gets full damage
-  const factor = w.splashFactor ?? 0.4;
+  const inner = COMBAT.splashInner;
+  const factor = w.splashFactor ?? COMBAT.splashFactor;
   const hit = (e, ex, ey) => {
     if (e.dead || e.boarded) return;
     if (src && e.owner === src.owner) return;   // no splash on friendlies
@@ -200,7 +200,7 @@ export function dealDamage(game, target, w, src, factor = 1) {
   target.hp -= w.damage * mult * factor * rankMult;
   // human base under attack notification
   if (target.owner.isHuman && game.underAttackCooldown <= 0) {
-    game.underAttackCooldown = 12;
+    game.underAttackCooldown = COMBAT.underAttackCooldown;
     game.audio.sfx('alert');
     game.audio.say(target.isBuilding ? 'Base under attack' : 'Units under attack', true);
     game.emit('warn', target.isBuilding ? 'BASE UNDER ATTACK' : 'UNITS UNDER ATTACK');

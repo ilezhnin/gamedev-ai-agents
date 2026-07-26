@@ -10,6 +10,27 @@ export const LAYOUTS = ['river', 'lakes', 'ridges', 'islands', 'open', 'maze'];
 // variant sentinel: near-shore water rendered as ice (taiga flavour)
 export const V_ICE = 7;
 
+// Flat minimap tint per cell. The sidebar radar and the setup-screen preview
+// have to agree pixel for pixel, so the table lives next to T rather than being
+// copied into both callers.
+const MINIMAP_TERRAIN = {
+  [T.GRASS]: [60, 92, 44],
+  [T.DIRT]: [110, 88, 52],
+  [T.WATER]: [26, 60, 110],
+  [T.ROCK]: [90, 86, 80],
+  [T.TREE]: [30, 62, 26],
+  [T.RUIN]: [78, 72, 66],
+};
+const MINIMAP_ORE = [190, 150, 40];
+const MINIMAP_GEM = [90, 200, 220];
+
+// [r,g,b] for map cell index i. Ore/gems paint over whatever is underneath.
+// The returned array is shared — read it, never write to it.
+export function minimapRGB(m, i) {
+  if (m.ore[i] > 0) return m.gem[i] ? MINIMAP_GEM : MINIMAP_ORE;
+  return MINIMAP_TERRAIN[m.terrain[i]] || MINIMAP_TERRAIN[T.GRASS];
+}
+
 export class GameMap {
   constructor(size = 64, seed = 7, biome = 'forest', starts = null, layout = 'river') {
     this.size = size;

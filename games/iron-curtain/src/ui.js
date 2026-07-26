@@ -3,11 +3,27 @@
 // screen. All plain DOM except the radar and the cameo clocks, which are 2d
 // canvases redrawn a few times per second from game state.
 
-import { BUILDINGS, UNITS, BUILD_ORDER_STRIP, UNIT_STRIP } from './rules.js';
+import { BUILDINGS, UNITS, BUILD_ORDER_STRIP, UNIT_STRIP, POWERS } from './rules.js';
 import { makeCameo } from './sprites.js';
-import { HOUSE_UI } from './palette.js';
-import { T } from './map.js';
-import { RECON_CD, EMP_CD } from './game.js';
+import { HOUSE_UI, makeCanvas } from './palette.js';
+import { minimapRGB } from './map.js';
+
+// HUD refresh cadences and thresholds. The sidebar is DOM + 2d canvas, so
+// everything here is a "how often is often enough" call rather than a game
+// rule — redrawing the radar every frame is pure waste at this resolution.
+const HUD = {
+  selPanelEvery: 0.2,       // seconds between selection-panel rebuilds (~5fps)
+  radarEvery: 0.25,         // seconds between radar repaints (~4fps)
+  bannerTime: 3.2,          // seconds an event banner stays up
+  hpGood: 0.6,              // hp fraction above which bars read green...
+  hpWarn: 0.3,              // ...and above which they read gold
+  powerWarn: 0.8,           // draw/supply ratio that turns the power bar gold
+  powerFloor: 100,          // power bar always scales to at least this much
+  radarBlip: 2.4,           // unit blip size in radar pixels
+  radarUnseen: 0.55,        // explored-but-not-visible cells dim to this
+  clockDim: 'rgba(0,0,0,0.55)',   // cameo build clock wedge
+  powerClockDim: 'rgba(0,0,0,0.62)',
+};
 
 export class UI {
   constructor(game, sprites, audio) {
@@ -133,7 +149,7 @@ export class UI {
     gg.clearRect(0, 0, 48, 36);
     if (cooling) {
       const frac = 1 - cd / max;
-      gg.fillStyle = 'rgba(0,0,0,0.62)';
+      gg.fillStyle = HUD.powerClockDim;
       gg.beginPath();
       gg.moveTo(24, 18);
       const a0 = -Math.PI / 2 + frac * Math.PI * 2;
@@ -290,7 +306,7 @@ export class UI {
       const frac = Math.max(0, e.hp / e.maxHp);
       this.el.selHpFill.style.width = `${frac * 100}%`;
       this.el.selHpFill.style.background =
-        frac > 0.6 ? 'var(--ui-green)' : frac > 0.3 ? 'var(--ui-gold)' : 'var(--ui-red)';
+        frac > HUD.hpGood ? 'var(--ui-green)' : frac > HUD.hpWarn ? 'var(--ui-gold)' : 'var(--ui-red)';
     } else {
       this.el.selSingle.style.display = 'none';
       this.el.selMulti.style.display = 'flex';
@@ -328,18 +344,18 @@ export class UI {
 
     // selection panel (~5fps)
     this.selT -= dt;
-    if (this.selT <= 0) { this.selT = 0.2; this.updateSelPanel(selection); }
+    if (this.selT <= 0) { this.selT = HUD.selPanelEvery; this.updateSelPanel(selection); }
 
     // credits (animated)
     this.el.credits.textContent = Math.round(p.displayCredits).toLocaleString('en-US');
 
     // power bar: fill = made vs used, green/yellow/red
     const made = p.powerMade, used = p.powerUsed;
-    const cap = Math.max(made, used, 100);
+    const cap = Math.max(made, used, HUD.powerFloor);
     const fillH = Math.min(100, (made / cap) * 100);
     this.el.powerFill.style.height = `${fillH}%`;
     this.el.powerFill.style.background = p.lowPower() ? 'var(--ui-red)'
-      : used > made * 0.8 ? 'var(--ui-gold)' : 'var(--ui-green)';
+      : used > made * HUD.powerWarn ? 'var(--ui-gold)' : 'var(--ui-green)';
     this.el.powerPin.style.bottom = `${Math.min(100, (used / cap) * 100)}%`;
 
     // cameo states
@@ -358,7 +374,7 @@ export class UI {
         c.clock.style.display = 'block';
         const gg = c.clockG;
         gg.clearRect(0, 0, 64, 48);
-        gg.fillStyle = 'rgba(0,0,0,0.55)';
+        gg.fillStyle = HUD.clockDim;
         gg.beginPath();
         gg.moveTo(32, 24);
         const a0 = -Math.PI / 2 + prod.progress * Math.PI * 2;
@@ -373,8 +389,8 @@ export class UI {
     const hasTech = g.buildings.some((b) => !b.dead && b.owner === p && b.key === 'techcenter');
     this.el.powers.classList.toggle('hidden', !hasTech);
     if (hasTech) {
-      this.updatePower('recon', g.reconCd, RECON_CD);
-      this.updatePower('emp', g.empCd, EMP_CD);
+      this.updatePower('recon', g.reconCd, POWERS.reconCd);
+      this.updatePower('emp', g.empCd, POWERS.empCd);
     } else if (this.mode === 'power-recon' || this.mode === 'power-emp') {
       this.setMode('normal');   // tech center lost mid-target
     }
@@ -384,7 +400,7 @@ export class UI {
     const radarOn = p.hasRadar && !p.lowPower();
     this.el.radarOff.style.display = radarOn ? 'none' : 'flex';
     if (radarOn && this.radarT <= 0) {
-      this.radarT = 0.25;
+      this.radarT = HUD.radarEvery;
       this.drawRadar();
     }
 
@@ -405,7 +421,7 @@ export class UI {
   banner(text) {
     this.el.banner.textContent = text;
     this.el.banner.style.display = 'block';
-    this.bannerT = 3.2;
+    this.bannerT = HUD.bannerTime;
   }
 
   drawRadar() {
@@ -419,25 +435,15 @@ export class UI {
       for (let x = 0; x < s; x++) {
         const i = m.idx(x, y), o = i * 4;
         if (!g.explored[i]) { d[o + 3] = 255; continue; }
-        const t = m.terrain[i];
-        let r = 60, gg = 92, b = 44;                    // grass
-        if (t === T.WATER) { r = 26; gg = 60; b = 110; }
-        else if (t === T.ROCK) { r = 90; gg = 86; b = 80; }
-        else if (t === T.TREE) { r = 30; gg = 62; b = 26; }
-        else if (t === T.RUIN) { r = 78; gg = 72; b = 66; }
-        else if (t === T.DIRT) { r = 110; gg = 88; b = 52; }
-        if (m.ore[i] > 0) {
-          if (m.gem[i]) { r = 90; gg = 200; b = 220; }
-          else { r = 190; gg = 150; b = 40; }
-        }
-        if (!g.visible[i]) { r *= 0.55; gg *= 0.55; b *= 0.55; }
+        let [r, gg, b] = minimapRGB(m, i);
+        // explored but out of sight: remembered, so shown dimmed
+        if (!g.visible[i]) { r *= HUD.radarUnseen; gg *= HUD.radarUnseen; b *= HUD.radarUnseen; }
         d[o] = r; d[o + 1] = gg; d[o + 2] = b; d[o + 3] = 255;
       }
     }
     // blit scaled
-    const off = document.createElement('canvas');
-    off.width = s; off.height = s;
-    off.getContext('2d').putImageData(img, 0, 0);
+    const [off, offG] = makeCanvas(s, s);
+    offG.putImageData(img, 0, 0);
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(off, 0, 0, this.el.radar.width, this.el.radar.height);
     // entities
@@ -453,7 +459,7 @@ export class UI {
       if (u.dead) continue;
       if (u.house !== 'player' && !g.isVisibleToPlayer(u)) continue;
       ctx.fillStyle = (HOUSE_UI[u.house] || HOUSE_UI.enemy).unit;
-      ctx.fillRect(u.x * scale - 1, u.y * scale - 1, 2.4, 2.4);
+      ctx.fillRect(u.x * scale - 1, u.y * scale - 1, HUD.radarBlip, HUD.radarBlip);
     }
   }
 

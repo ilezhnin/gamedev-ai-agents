@@ -205,6 +205,10 @@ export const COMBAT = {
   defenceHoldSlack: 0.5,    // a tower drops a target this far past its range
   hullTurnRate: 2.2,        // def.turn multiplier while driving
   turretTurnRate: 1.6,      // def.turn multiplier while aiming
+  // infantry carry no def.turn (they pivot on the spot), so they fall back to
+  // these — snappier than any vehicle, which is the point
+  driveTurnFallback: 10,
+  aimTurnFallback: 8,
   defenceTraverse: 6,       // towers have no def.turn: fixed radians/sec
   turretAimTolerance: 0.25, // radians of aim error a turret will fire through
   hullAimTolerance: 0.3,    // ditto for hull-mounted weapons and for towers

@@ -2,8 +2,8 @@
 // size, biome, layout), the seed shared between the preview and the match, and
 // the radar-style battlefield preview drawn on the setup screen.
 
-import { GameMap, T, LAYOUTS } from './map.js';
-import { HOUSE_UI } from './palette.js';
+import { GameMap, LAYOUTS, minimapRGB } from './map.js';
+import { HOUSE_UI, makeCanvas } from './palette.js';
 
 export const SIZES = { small: 48, medium: 64, large: 96 };
 const SIZE_LABEL = { small: 'SMALL 48×48', medium: 'MEDIUM 64×64', large: 'LARGE 96×96' };
@@ -70,34 +70,17 @@ export function briefingText() {
 const PV = document.getElementById('su-preview');
 const PVG = PV.getContext('2d');
 
-function previewTerrainRGB(m, i) {
-  const t = m.terrain[i];
-  let r = 60, g = 92, b = 44;                 // grass
-  if (t === T.WATER) { r = 26; g = 60; b = 110; }
-  else if (t === T.ROCK) { r = 90; g = 86; b = 80; }
-  else if (t === T.TREE) { r = 30; g = 62; b = 26; }
-  else if (t === T.RUIN) { r = 78; g = 72; b = 66; }
-  else if (t === T.DIRT) { r = 110; g = 88; b = 52; }
-  if (m.ore[i] > 0) {
-    if (m.gem[i]) { r = 90; g = 200; b = 220; }
-    else { r = 190; g = 150; b = 40; }
-  }
-  return [r, g, b];
-}
-
 export function drawSetupPreview() {
   const size = mapSize();
   const starts = startCells(size);
   const m = new GameMap(size, previewSeed, setup.biome, starts, setup.layout || 'random');
-  const off = document.createElement('canvas');
-  off.width = size; off.height = size;
-  const og = off.getContext('2d');
+  const [off, og] = makeCanvas(size, size);
   const img = og.createImageData(size, size);
   const d = img.data;
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size; x++) {
       const i = m.idx(x, y), o = i * 4;
-      const [r, g, b] = previewTerrainRGB(m, i);
+      const [r, g, b] = minimapRGB(m, i);
       d[o] = r; d[o + 1] = g; d[o + 2] = b; d[o + 3] = 255;
     }
   }

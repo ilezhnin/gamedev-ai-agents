@@ -6,7 +6,7 @@
 // afterwards. Every other order falls through to tickMovement, which is what
 // lets a unit shoot, harvest or chase while still rolling along its path.
 
-import { WEAPONS, BUILDINGS } from '../rules.js';
+import { WEAPONS, BUILDINGS, UNIT_TIMING } from '../rules.js';
 import { nearestFree } from '../pathfind.js';
 import { setPath, boardUnit, unloadUnit, adjacentFreeCell, adjacentFreeUnitCell,
   orderHarvest } from './orders.js';
@@ -28,7 +28,7 @@ function tickAttack(game, u, dt) {
     u.repathT -= dt;
     if (u.path.length === 0 || u.repathT <= 0) {
       setPath(game, u, Math.round(tx), Math.round(ty));
-      u.repathT = 1.2;
+      u.repathT = UNIT_TIMING.chaseRepath;
     }
   }
 }
@@ -48,7 +48,7 @@ function tickAttackMove(game, u, dt) {
     }
   }
   if (u.path.length === 0 && u.destX != null) {
-    if (Math.hypot(u.destX - u.x, u.destY - u.y) > 1.5) setPath(game, u, u.destX, u.destY);
+    if (Math.hypot(u.destX - u.x, u.destY - u.y) > UNIT_TIMING.arriveSlack) setPath(game, u, u.destX, u.destY);
     else u.order = { type: 'idle' };
   }
 }
@@ -110,14 +110,14 @@ function tickBoard(game, u, dt) {
       (apc.cargoUnits && apc.cargoUnits.length >= (apc.def.capacity || 0))) {
     u.order = { type: 'idle' }; u.target = null; return;
   }
-  if (!u.moving && Math.hypot(apc.x - u.x, apc.y - u.y) <= 1.6) {
+  if (!u.moving && Math.hypot(apc.x - u.x, apc.y - u.y) <= UNIT_TIMING.boardRange) {
     boardUnit(game, apc, u);
     return true;
   }
   // chase the APC (it may be moving); repath periodically
   u.repathT -= dt;
   if (!u.moving && (u.path.length === 0 || u.repathT <= 0)) {
-    u.repathT = 0.6;
+    u.repathT = UNIT_TIMING.boardRepath;
     const spot = nearestFree(game.map, apc.cellX, apc.cellY, u) || [apc.cellX, apc.cellY];
     setPath(game, u, spot[0], spot[1]);
   }
@@ -143,7 +143,7 @@ function tickMove(game, u, dt) {
   if (u.def.weapon) {
     u.scanT = (u.scanT || 0) - dt;
     if (u.scanT <= 0) {
-      u.scanT = 0.3;
+      u.scanT = UNIT_TIMING.marchScan;
       const t = acquireTarget(game, u);
       if (t) { u.order = { type: 'attackmove' }; u.target = t; return; }
     }
@@ -164,7 +164,7 @@ function tickIdle(game, u, dt) {
   if (u.def.harvester && !u.moving) {
     // idle harvesters go back to work after a beat
     u.idleT = (u.idleT || 0) + dt;
-    if (u.idleT > 2) { u.idleT = 0; orderHarvest(game, u); }
+    if (u.idleT > UNIT_TIMING.idleHarvestDelay) { u.idleT = 0; orderHarvest(game, u); }
   }
 }
 
