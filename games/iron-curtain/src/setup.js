@@ -5,6 +5,7 @@
 import { GameMap, LAYOUTS, minimapRGB } from './map.js';
 import { HOUSE_UI, makeCanvas } from './palette.js';
 import { readJSON, writeText, stringifyJSON } from './storage.js';
+import { byId, onClick } from './dom.js';
 
 export const SIZES = { small: 48, medium: 64, large: 96 };
 const SIZE_LABEL = { small: 'SMALL 48×48', medium: 'MEDIUM 64×64', large: 'LARGE 96×96' };
@@ -17,6 +18,8 @@ const LAYOUT_LABEL = {
 };
 const DIFF_ORDER = ['easy', 'normal', 'hard'];
 export const ENEMY_HOUSES = ['enemy', 'enemy2', 'enemy3'];
+// one CPU slot per enemy house, and index.html has exactly that many rows
+const MAX_OPPONENTS = ENEMY_HOUSES.length;
 
 // spawn corners as map fractions: human SW, then NE / NW / SE for CPUs
 const START_SPOTS = [
@@ -68,7 +71,7 @@ export function briefingText() {
 
 // Renders a radar-style minimap of the exact map the current setup + seed
 // will generate. Cheap enough to regenerate on every option change.
-const PV = document.getElementById('su-preview');
+const PV = byId('su-preview');
 const PVG = PV.getContext('2d');
 
 export function drawSetupPreview() {
@@ -104,47 +107,43 @@ export function drawSetupPreview() {
 // ---- setup screen wiring -------------------------------------------------
 
 export function syncSetupWidgets() {
-  for (let n = 1; n <= 3; n++) {
-    document.getElementById(`su-n${n}`).classList.toggle('on', setup.opponents === n);
-    document.getElementById(`su-cpu${n}`).classList.toggle('su-hidden', n > setup.opponents);
-    document.getElementById(`su-diff${n}`).textContent = (setup.diffs[n - 1] || 'normal').toUpperCase();
+  for (let n = 1; n <= MAX_OPPONENTS; n++) {
+    byId(`su-n${n}`).classList.toggle('on', setup.opponents === n);
+    byId(`su-cpu${n}`).classList.toggle('su-hidden', n > setup.opponents);
+    byId(`su-diff${n}`).textContent = (setup.diffs[n - 1] || 'normal').toUpperCase();
   }
-  document.getElementById('su-size').textContent = SIZE_LABEL[setup.size];
-  document.getElementById('su-biome').textContent = BIOME_LABEL[setup.biome];
-  document.getElementById('su-layout').textContent = LAYOUT_LABEL[setup.layout] || 'RANDOM';
+  byId('su-size').textContent = SIZE_LABEL[setup.size];
+  byId('su-biome').textContent = BIOME_LABEL[setup.biome];
+  byId('su-layout').textContent = LAYOUT_LABEL[setup.layout] || 'RANDOM';
 }
 
 export function wireSetupScreen(audio, { onStart, onBack }) {
-  for (let n = 1; n <= 3; n++) {
-    document.getElementById(`su-n${n}`).addEventListener('click', () => {
-      setup.opponents = n;
-      saveSetup(); syncSetupWidgets(); drawSetupPreview(); audio.sfx('select');
-    });
-    document.getElementById(`su-diff${n}`).addEventListener('click', () => {
+  // every option button cycles a value, then repaints; the preview only needs
+  // redrawing for the options that change the generated map
+  const chose = (redrawPreview) => {
+    saveSetup();
+    syncSetupWidgets();
+    if (redrawPreview) drawSetupPreview();
+    audio.sfx('select');
+  };
+  // cycle `setup[field]` to the next entry of `keys`
+  const cycler = (field, keys) => () => {
+    setup[field] = keys[(keys.indexOf(setup[field]) + 1) % keys.length];
+    chose(true);
+  };
+
+  for (let n = 1; n <= MAX_OPPONENTS; n++) {
+    onClick(`su-n${n}`, () => { setup.opponents = n; chose(true); });
+    onClick(`su-diff${n}`, () => {
       const cur = DIFF_ORDER.indexOf(setup.diffs[n - 1] || 'normal');
       setup.diffs[n - 1] = DIFF_ORDER[(cur + 1) % DIFF_ORDER.length];
-      saveSetup(); syncSetupWidgets(); audio.sfx('select');
+      chose(false);
     });
   }
-  document.getElementById('su-size').addEventListener('click', () => {
-    const keys = Object.keys(SIZES);
-    setup.size = keys[(keys.indexOf(setup.size) + 1) % keys.length];
-    saveSetup(); syncSetupWidgets(); drawSetupPreview(); audio.sfx('select');
-  });
-  document.getElementById('su-biome').addEventListener('click', () => {
-    const keys = Object.keys(BIOME_LABEL);
-    setup.biome = keys[(keys.indexOf(setup.biome) + 1) % keys.length];
-    saveSetup(); syncSetupWidgets(); drawSetupPreview(); audio.sfx('select');
-  });
-  document.getElementById('su-layout').addEventListener('click', () => {
-    const cur = LAYOUT_KEYS.indexOf(setup.layout);
-    setup.layout = LAYOUT_KEYS[(cur + 1) % LAYOUT_KEYS.length];
-    saveSetup(); syncSetupWidgets(); drawSetupPreview(); audio.sfx('select');
-  });
-  document.getElementById('su-regen').addEventListener('click', () => {
-    rerollSeed();
-    drawSetupPreview(); audio.sfx('select');
-  });
-  document.getElementById('su-start').addEventListener('click', () => { audio.sfx('ack'); onStart(); });
-  document.getElementById('su-back').addEventListener('click', () => { audio.sfx('select'); onBack(); });
+  onClick('su-size', cycler('size', Object.keys(SIZES)));
+  onClick('su-biome', cycler('biome', Object.keys(BIOME_LABEL)));
+  onClick('su-layout', cycler('layout', LAYOUT_KEYS));
+  onClick('su-regen', () => { rerollSeed(); drawSetupPreview(); audio.sfx('select'); });
+  onClick('su-start', () => { audio.sfx('ack'); onStart(); });
+  onClick('su-back', () => { audio.sfx('select'); onBack(); });
 }

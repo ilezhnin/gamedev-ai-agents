@@ -6,27 +6,56 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <link rel="icon" href="data:,">
 <style>
+  /* ============================================================ tokens ====
+     One palette, used by everything below. --ui-edge-l / --ui-edge-d are the
+     two halves of every bevel in the game: light where the light hits, dark
+     where it doesn't. */
   :root{
     --ui-bg:#4a4238; --ui-panel:#6b5f4e; --ui-light:#8f8065; --ui-dark:#2e2921;
     --ui-edge-l:#a99a7c; --ui-edge-d:#1d1913; --ui-text:#e8dcc0; --ui-red:#b8362a;
     --ui-green:#3f9e4d; --ui-gold:#e0a83a;
   }
+
+  /* ============================================================= reset ==== */
   *{margin:0;padding:0;box-sizing:border-box;-webkit-user-select:none;user-select:none}
   html,body{width:100%;height:100%;overflow:hidden;background:#000}
   body{font-family:'ic-font',monospace;color:var(--ui-text);image-rendering:pixelated}
+
+  /* =========================================================== chrome ====
+     The two shared surface treatments. Every panel, button and frame in the
+     UI is one of these two, so the border quads live here once instead of
+     being retyped per component; components below add only their own fill,
+     size and type. */
+
+  /* raised: catches the light on top/left */
+  .bevel,.menu-btn,#cameo-tip{
+    border-top:2px solid var(--ui-edge-l);border-left:2px solid var(--ui-edge-l);
+    border-bottom:2px solid var(--ui-edge-d);border-right:2px solid var(--ui-edge-d)}
+  /* sunken: the same bevel inverted — used for wells, and for "pressed"
+     or latched-on states of anything raised */
+  .bevel-in,.cycle,.tgl,.menu-btn:active,.side-btn:active,.side-btn.on{
+    border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
+    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l)}
+  .bevel{background:var(--ui-panel)}
+  .bevel-in{background:var(--ui-dark)}
+
+  /* every clickable in the retro chrome shares its type treatment */
+  .side-btn,.menu-btn,.cycle,.tgl{
+    font-family:inherit;letter-spacing:1px;cursor:pointer;text-shadow:1px 1px 0 #000}
+
+  /* the 2px inset frame + 1px outline used by both cameo-style tiles */
+  .cameo,.power-btn{border:2px solid var(--ui-edge-d);outline:1px solid var(--ui-edge-l)}
+
+  /* ========================================================== viewport ==== */
   #app{display:flex;width:100vw;height:100vh}
   #viewport{position:relative;flex:1;min-width:0;height:100%;background:#000;overflow:hidden;cursor:crosshair}
   #game-canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
   #marquee{position:absolute;border:1px solid #eaeaea;background:rgba(255,255,255,.08);display:none;pointer-events:none;z-index:5}
 
-  /* ---------- sidebar (RA1-style strip) ---------- */
+  /* =========================================== sidebar (RA1-style strip) ==== */
   #sidebar{width:196px;flex:none;height:100%;display:flex;flex-direction:column;background:var(--ui-bg);
     border-left:3px solid var(--ui-edge-d);z-index:10;position:relative}
   #sidebar.hidden{display:none}
-  .bevel{border-top:2px solid var(--ui-edge-l);border-left:2px solid var(--ui-edge-l);
-    border-bottom:2px solid var(--ui-edge-d);border-right:2px solid var(--ui-edge-d);background:var(--ui-panel)}
-  .bevel-in{border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
-    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l);background:var(--ui-dark)}
   #credits-bar{height:30px;margin:4px;display:flex;align-items:center;justify-content:center;
     font-size:16px;letter-spacing:1px;color:var(--ui-gold);text-shadow:1px 1px 0 #000}
   #radar-box{margin:0 4px;position:relative}
@@ -39,16 +68,13 @@
   #power-fill{position:absolute;left:0;right:0;bottom:0;background:var(--ui-green)}
   #power-pin{position:absolute;left:-2px;right:-2px;height:3px;background:#fff;box-shadow:0 0 2px #000}
   #btn-col{flex:1;display:flex;flex-direction:column;gap:4px}
-  .side-btn{flex:1;font-family:inherit;font-size:12px;letter-spacing:1px;color:var(--ui-text);
-    cursor:pointer;text-shadow:1px 1px 0 #000}
-  .side-btn:active,.side-btn.on{border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
-    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l);background:var(--ui-dark)}
+  .side-btn{flex:1;font-size:12px;color:var(--ui-text)}
+  .side-btn:active,.side-btn.on{background:var(--ui-dark)}
   .side-btn.on{color:var(--ui-gold)}
   #strips{flex:1;display:flex;margin:0 4px 4px;gap:4px;min-height:0}
   .strip{flex:1;display:flex;flex-direction:column;gap:3px;padding:3px;overflow-y:auto;scrollbar-width:none}
   .strip::-webkit-scrollbar{display:none}
-  .cameo{position:relative;width:100%;aspect-ratio:64/48;flex:none;cursor:pointer;
-    border:2px solid var(--ui-edge-d);outline:1px solid var(--ui-edge-l);background:#222}
+  .cameo{position:relative;width:100%;aspect-ratio:64/48;flex:none;cursor:pointer;background:#222}
   .cameo img,.cameo canvas{display:block;width:100%;height:100%;image-rendering:pixelated}
   .cameo .shade{position:absolute;inset:0;background:rgba(0,0,0,.65);display:none}
   .cameo .tag{position:absolute;left:0;right:0;bottom:0;font-size:9px;text-align:center;
@@ -61,18 +87,18 @@
   #eva-line{height:18px;margin:0 4px 4px;font-size:10px;color:var(--ui-gold);
     text-align:center;overflow:hidden;white-space:nowrap;text-shadow:1px 1px 0 #000}
 
-  /* ---------- commander powers (tech-center abilities) ---------- */
+  /* ============================ commander powers (tech-center abilities) ==== */
   #powers{display:flex;gap:4px;margin:0 4px 4px;height:36px}
   #powers.hidden{display:none}
-  .power-btn{position:relative;flex:1;cursor:pointer;background:#161a20;overflow:hidden;
-    border:2px solid var(--ui-edge-d);outline:1px solid var(--ui-edge-l)}
+  .power-btn{position:relative;flex:1;cursor:pointer;background:#161a20;overflow:hidden}
   .power-btn canvas{position:absolute;inset:0;width:100%;height:100%;image-rendering:pixelated}
   .power-btn .pw-tag{position:absolute;left:0;right:0;bottom:0;font-size:8px;text-align:center;
     color:#fff;background:rgba(0,0,0,.6);letter-spacing:1px;pointer-events:none}
   .power-btn.on{outline:1px solid var(--ui-gold);box-shadow:0 0 5px var(--ui-gold)}
   .power-btn.cooling{filter:grayscale(.6) brightness(.62);cursor:default}
 
-  /* ---------- overlay screens ---------- */
+  /* ================================================== overlay screens ====
+     title / setup / briefing / end all share the same full-bleed card. */
   .screen{position:absolute;inset:0;z-index:40;display:flex;flex-direction:column;
     align-items:center;justify-content:center;background:#0b0b0f;text-align:center}
   .screen.hidden{display:none}
@@ -88,13 +114,13 @@
   #end-title.win{color:var(--ui-gold)} #end-title.lose{color:var(--ui-red)}
   #end-stats{margin-top:18px;font-size:13px;line-height:2.2;color:var(--ui-text)}
 
-  /* scanlines + vignette for CRT/SNES vibe */
+  /* ====================== scanlines + vignette for CRT/SNES vibe ==== */
   #crt{position:absolute;inset:0;pointer-events:none;z-index:30;
     background:repeating-linear-gradient(to bottom,rgba(0,0,0,0) 0 2px,rgba(0,0,0,.13) 2px 4px)}
   #vignette{position:absolute;inset:0;pointer-events:none;z-index:29;
     background:radial-gradient(ellipse at center,transparent 62%,rgba(0,0,0,.35) 100%)}
 
-  /* ---------- title menu & operation setup ---------- */
+  /* ======================================= title menu & operation setup ==== */
   #title-menu{margin-top:72px;display:flex;flex-direction:column;gap:9px;width:min(80vw,270px)}
   .menu-btn.disabled{opacity:.4;pointer-events:none}
   #setup-box{width:min(90vw,420px);padding:16px;display:flex;flex-direction:column;gap:7px}
@@ -102,10 +128,7 @@
   .su-row label{flex:none;width:118px;text-shadow:1px 1px 0 #000;text-align:left}
   .seg{display:flex;flex:1;gap:4px}
   .seg .tgl{flex:1;width:auto}
-  .cycle{flex:1;height:26px;font-family:inherit;font-size:11px;letter-spacing:1px;cursor:pointer;
-    color:var(--ui-gold);background:var(--ui-dark);text-shadow:1px 1px 0 #000;
-    border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
-    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l)}
+  .cycle{flex:1;height:26px;font-size:11px;color:var(--ui-gold);background:var(--ui-dark)}
   .cycle:hover{color:#fff}
   .chip{flex:none;width:12px;height:12px;border:1px solid #000;outline:1px solid var(--ui-edge-l)}
   .su-hidden{display:none}
@@ -117,33 +140,29 @@
   #su-pv-label{font-size:9px;letter-spacing:1px;color:#9a9078}
   #su-regen{height:26px}
 
-  /* ---------- pause menu ---------- */
+  /* ================================================ pause / settings menu ==== */
   #menu{position:absolute;inset:0;z-index:45;display:none;align-items:center;justify-content:center;
     background:rgba(6,6,9,.72)}
   #menu.open{display:flex}
   #menu-box{width:min(88vw,340px);padding:14px;display:flex;flex-direction:column;gap:8px}
   .menu-title{font-size:14px;letter-spacing:3px;text-align:center;color:var(--ui-gold);
     text-shadow:1px 1px 0 #000;padding:4px 0 8px}
-  .menu-btn{height:36px;font-family:inherit;font-size:13px;letter-spacing:2px;color:var(--ui-text);
-    cursor:pointer;text-shadow:1px 1px 0 #000;
-    border-top:2px solid var(--ui-edge-l);border-left:2px solid var(--ui-edge-l);
-    border-bottom:2px solid var(--ui-edge-d);border-right:2px solid var(--ui-edge-d);
+  .menu-btn{height:36px;font-size:13px;letter-spacing:2px;color:var(--ui-text);
     background:var(--ui-panel)}
   .menu-btn:hover{color:var(--ui-gold)}
-  .menu-btn:active{border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
-    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l);background:var(--ui-dark)}
+  .menu-btn:active{background:var(--ui-dark)}
   .set-group{font-size:10px;letter-spacing:2px;color:#a99a7c;padding:6px 2px 0}
   .set-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
     font-size:11px;letter-spacing:1px;padding:3px 2px}
   .set-row label{flex:none;width:120px;text-shadow:1px 1px 0 #000}
   .set-row input[type=range]{flex:1;accent-color:var(--ui-gold);height:18px;cursor:pointer}
-  .tgl{width:64px;height:24px;font-family:inherit;font-size:11px;letter-spacing:1px;cursor:pointer;
-    color:var(--ui-text);background:var(--ui-dark);text-shadow:1px 1px 0 #000;
-    border-top:2px solid var(--ui-edge-d);border-left:2px solid var(--ui-edge-d);
-    border-bottom:2px solid var(--ui-edge-l);border-right:2px solid var(--ui-edge-l)}
+  .tgl{width:64px;height:24px;font-size:11px;color:var(--ui-text);background:var(--ui-dark)}
   .tgl.on{color:#7fe08a;background:#22301f}
+  /* the settings pane hides via display:none but must reappear as a column,
+     so it can't share .hidden (which the screens use) */
   .hidden2{display:none}
 
+  /* ============================================ in-viewport HUD overlays ==== */
   #banner{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:20;font-size:13px;
     letter-spacing:2px;color:#fff;background:rgba(90,10,10,.8);padding:4px 14px;display:none;
     border:1px solid #d33;text-shadow:1px 1px 0 #000}
@@ -153,7 +172,7 @@
     background:rgba(20,18,14,.75);padding:6px 10px;border:1px solid #55503f;display:none}
   #fps{position:absolute;left:8px;top:8px;z-index:20;font-size:10px;color:#9a9;display:none}
 
-  /* ---------- in-game selection panel (bottom-left overlay) ---------- */
+  /* ==================== in-game selection panel (bottom-left overlay) ==== */
   #sel-panel{position:absolute;left:8px;bottom:8px;z-index:22;display:none;
     min-width:150px;max-width:230px;padding:6px 8px}
   #sel-single{display:flex;align-items:center;gap:8px}
@@ -172,12 +191,10 @@
   #sel-multi .sel-row .sel-n{color:var(--ui-gold)}
   #sel-multi .sel-head{color:var(--ui-gold);letter-spacing:2px;font-size:9px;padding-bottom:2px}
 
-  /* ---------- cameo tooltip ---------- */
+  /* ==================================================== cameo tooltip ==== */
   #cameo-tip{position:fixed;z-index:50;display:none;pointer-events:none;
     min-width:120px;max-width:200px;padding:6px 8px;font-size:10px;letter-spacing:1px;
     line-height:1.5;background:#14120e;color:var(--ui-text);
-    border-top:2px solid var(--ui-edge-l);border-left:2px solid var(--ui-edge-l);
-    border-bottom:2px solid var(--ui-edge-d);border-right:2px solid var(--ui-edge-d);
     box-shadow:0 2px 6px rgba(0,0,0,.6)}
   #cameo-tip .tip-name{color:var(--ui-gold);letter-spacing:2px;text-shadow:1px 1px 0 #000}
   #cameo-tip .tip-cost{color:#8fc2ff}
@@ -187,7 +204,7 @@
   #cameo-tip .tip-have{color:#7fe08a}
   #cameo-tip .tip-miss{color:#d66a5a}
 
-  /* ---------- loading flash ---------- */
+  /* ==================================================== loading flash ==== */
   #loading{position:absolute;inset:0;z-index:46;display:none;align-items:center;justify-content:center;
     background:#0b0b0f;color:var(--ui-gold);font-size:18px;letter-spacing:6px;text-shadow:1px 1px 0 #000}
   #loading.on{display:flex}

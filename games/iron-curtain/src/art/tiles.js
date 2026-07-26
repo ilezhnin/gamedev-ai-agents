@@ -301,3 +301,55 @@ export function scorchDecal() {
   }
   return c;
 }
+
+// Road overlay: a graded track drawn ON TOP of whatever ground tile is
+// underneath, autotiled from its neighbours so segments join up. Mask bits
+// match shoreTile (1=N, 2=E, 4=S, 8=W road neighbour). A cell with no
+// neighbours reads as a lone patch of hardpack rather than a floating stub.
+const ROAD_TONE = {
+  forest: { bed: '#8a7f68', worn: '#9c9078', rut: '#6f6551', edge: '#5d5545' },
+  taiga:  { bed: '#8d8f92', worn: '#a3a5a8', rut: '#70737a', edge: '#5c5f66' },
+  // desert sand is already pale, so its road is packed DARK earth or it
+  // vanishes into the ground
+  desert: { bed: '#9a8153', worn: '#ab9163', rut: '#786139', edge: '#63502f' },
+};
+
+export function roadTile(base, mask, biome) {
+  const t = ROAD_TONE[biome] || ROAD_TONE.forest;
+  const [c, g] = makeCanvas(TILE, TILE);
+  g.drawImage(base, 0, 0);
+  const w = TILE, half = w / 2, band = 10, lo = half - band / 2;
+
+  // the surface: a band toward every connected neighbour, plus the junction
+  const paveH = (x0, x1) => { px(g, x0, lo, t.bed, x1 - x0, band); };
+  const paveV = (y0, y1) => { px(g, lo, y0, t.bed, band, y1 - y0); };
+  paveH(lo, lo + band);                        // junction square (always)
+  if (mask & 1) paveV(0, half);
+  if (mask & 4) paveV(half, w);
+  if (mask & 8) paveH(0, half);
+  if (mask & 2) paveH(half, w);
+
+  // worn crown + wheel ruts along whichever axes carry traffic
+  const rutH = (x0, x1) => {
+    px(g, x0, lo + 2, t.rut, x1 - x0, 1);
+    px(g, x0, lo + band - 3, t.rut, x1 - x0, 1);
+    for (let x = x0; x < x1; x += 2) px(g, x, half - 1, t.worn, 1, 1);
+  };
+  const rutV = (y0, y1) => {
+    px(g, lo + 2, y0, t.rut, 1, y1 - y0);
+    px(g, lo + band - 3, y0, t.rut, 1, y1 - y0);
+    for (let y = y0; y < y1; y += 2) px(g, half - 1, y, t.worn, 1, 1);
+  };
+  if (mask & 8) rutH(0, half + 1);
+  if (mask & 2) rutH(half - 1, w);
+  if (mask & 1) rutV(0, half + 1);
+  if (mask & 4) rutV(half - 1, w);
+  if (!mask) { rutH(lo, lo + band); }           // isolated patch still reads as road
+
+  // packed shoulders where the surface meets open ground
+  if (!(mask & 1)) px(g, lo, lo, t.edge, band, 1);
+  if (!(mask & 4)) px(g, lo, lo + band - 1, t.edge, band, 1);
+  if (!(mask & 8)) px(g, lo, lo, t.edge, 1, band);
+  if (!(mask & 2)) px(g, lo + band - 1, lo, t.edge, 1, band);
+  return c;
+}

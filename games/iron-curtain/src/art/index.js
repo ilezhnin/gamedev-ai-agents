@@ -9,7 +9,7 @@
 import { HOUSE, houseRecolor } from '../palette.js';
 import { TILE, FACINGS } from './consts.js';
 import {
-  BIOMES, groundTile, dirtTile, waterTile, shoreTile, edgeTile,
+  BIOMES, groundTile, dirtTile, waterTile, shoreTile, edgeTile, roadTile,
   rockTile, treeTile, ruinTile, iceTile, oreOverlay, gemOverlay, scorchDecal,
 } from './tiles.js';
 import { VEHICLE_PARTS, facingsOf, treadShift, harvSpinFrames } from './vehicles.js';
@@ -57,6 +57,7 @@ export function buildSprites() {
   S.scorch = scorchDecal();
   S.shore = (base, mask, biome) => shoreTile(base, mask, biome);
   S.edge = (base, mask, biome) => edgeTile(base, mask, biome);
+  S.road = (base, mask, biome) => roadTile(base, mask, biome);
 
   // faction-tinted body sets
   const factions = {

@@ -278,6 +278,42 @@ export function installTestHooks(ctx) {
       }
       return null;
     },
+    // --- roads ---
+    roadCount: () => {
+      const m = game().map;
+      let n = 0;
+      for (let i = 0; i < m.road.length; i++) n += m.road[i];
+      return n;
+    },
+    isRoad: (x, y) => game().map.isRoad(x, y),
+    // longest straight paved run of at least minLen cells, as {x,y,dx,dy,len}
+    longestRoadRun: (minLen = 6) => {
+      const m = game().map;
+      let best = null;
+      const axes = [[1, 0], [0, 1]];
+      for (const [dx, dy] of axes) {
+        for (let y = 3; y < m.size - 3; y++) {
+          for (let x = 3; x < m.size - 3; x++) {
+            if (!m.isRoad(x, y) || !m.isFree(x, y)) continue;
+            let len = 0;
+            while (m.isRoad(x + dx * (len + 1), y + dy * (len + 1)) &&
+                   m.isFree(x + dx * (len + 1), y + dy * (len + 1))) len++;
+            if (len >= minLen && (!best || len > best.len)) best = { x, y, dx, dy, len };
+          }
+        }
+      }
+      return best;
+    },
+    // a free road cell with open ground around it, for movement races
+    findRoadCell: () => {
+      const m = game().map;
+      for (let y = 4; y < m.size - 12; y++) {
+        for (let x = 4; x < m.size - 12; x++) {
+          if (m.road[m.idx(x, y)] && m.isFree(x, y)) return [x, y];
+        }
+      }
+      return null;
+    },
     // top-left of a (2r+1) square whose cells are all buildable, edge-safe
     findOpen: (r) => {
       const m = game().map;
@@ -286,7 +322,8 @@ export function installTestHooks(ctx) {
           let ok = true;
           for (let dy = -r; dy <= r && ok; dy++)
             for (let dx = -r; dx <= r && ok; dx++)
-              if (!m.isBuildable(x + dx, y + dy)) ok = false;
+              // roads speed movement up, which would skew timing measurements
+              if (!m.isBuildable(x + dx, y + dy) || m.road[m.idx(x + dx, y + dy)]) ok = false;
           if (ok) return [x, y];
         }
       }

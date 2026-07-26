@@ -166,6 +166,14 @@ export const BUILDINGS = {
 export const BUILD_ORDER_STRIP = ['power', 'refinery', 'barracks', 'factory', 'radar', 'techcenter', 'silo', 'guard', 'flametower', 'tesla', 'wall'];
 export const UNIT_STRIP = ['rifle', 'engineer', 'rocket', 'lightTank', 'apc', 'artillery', 'rocketTruck', 'heavyTank', 'behemoth', 'harvester', 'mcv'];
 
+// Roads: a surface bonus, not a separate movement mode. Vehicles gain the
+// most (tracks like a graded surface), infantry a little.
+export const ROADS = {
+  vehicleSpeed: 1.4,      // speed multiplier for vehicles on a road cell
+  infantrySpeed: 1.15,    // ...and for foot soldiers
+  pathCostFactor: 0.65,   // A* step cost multiplier, so routes prefer roads
+};
+
 export const ECONOMY = {
   startCredits: 5000,
   aiStartCredits: 5000,

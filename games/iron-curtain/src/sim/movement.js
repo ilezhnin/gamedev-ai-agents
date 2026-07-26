@@ -2,7 +2,7 @@
 // front so two units never converge on the same tile. Every order falls
 // through to tickMovement, which is what lets a unit shoot while driving.
 
-import { COMBAT, UNIT_TIMING } from '../rules.js';
+import { COMBAT, UNIT_TIMING, ROADS } from '../rules.js';
 import { canCrushInto, crushUnit } from './combat.js';
 import { setPath } from './orders.js';
 import { angleDiff, approachAngle } from './angles.js';
@@ -61,7 +61,11 @@ export function tickMovement(game, u, dt) {
     if (u.def.kind === 'vehicle' && angleDiff(u.facing, want) > COMBAT.driveAimTolerance) return;
 
     const stepLen = Math.hypot(nx - u.fromX, ny - u.fromY) || 1;
-    u.moveT += (u.def.speed * dt) / stepLen;
+    // a road speeds up the step it is driven on (destination cell decides)
+    const onRoad = game.map.road && game.map.road[game.map.idx(nx, ny)];
+    const surface = !onRoad ? 1
+      : (u.def.kind === 'vehicle' ? ROADS.vehicleSpeed : ROADS.infantrySpeed);
+    u.moveT += (u.def.speed * surface * dt) / stepLen;
     if (u.moveT >= 1) {
       // arrive
       game.map.occupant[game.map.idx(u.cellX, u.cellY)] = null;

@@ -111,6 +111,17 @@ export class Layers {
         if (map.terrainAt(x - 1, y) === T.DIRT) dmask |= 8;
         if (dmask) g.drawImage(sprites.edge(tile, dmask, map.biome), lx, ly);
       }
+      // roads pave over the finished ground tile, autotiled from neighbours
+      if (map.road && map.road[i]) {
+        let rmask = 0;
+        if (map.isRoad(x, y - 1)) rmask |= 1;
+        if (map.isRoad(x + 1, y)) rmask |= 2;
+        if (map.isRoad(x, y + 1)) rmask |= 4;
+        if (map.isRoad(x - 1, y)) rmask |= 8;
+        const paved = sprites.road(tile, rmask, map.biome);
+        g.clearRect(lx, ly, TILE, TILE);
+        g.drawImage(paved, lx, ly);
+      }
     }
     ch.dirty = true;
   }

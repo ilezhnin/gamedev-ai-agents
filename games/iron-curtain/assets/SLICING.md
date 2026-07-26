@@ -94,8 +94,10 @@ matching how the era's games treated them.
 Two mechanics the engine does not have yet, both worth building once the art
 lands (they change the map generator, not just the renderer):
 
-- **Roads** — autotiled like the existing shore/dirt fringes, and a natural
-  place to hang a vehicle speed bonus.
+- **Roads** — DONE (procedural art for now): the generator links every start
+  to a central junction, tiles autotile off their neighbours, vehicles gain
+  40% speed on them and infantry 15%, and pathfinding prefers them. Swapping
+  in the drawn road tiles from the snow sheet is a manifest entry.
 - **Hill levels** — the cliff-edge tiles imply elevation: a higher plateau
   reachable only via ramps, blocking movement (and, if wanted, sight) at the
   cliff line. That is a terrain-layer change: the map needs a height field

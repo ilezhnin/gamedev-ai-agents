@@ -1,3 +1,5 @@
+import { ROADS } from './rules.js';
+
 // A* over the tile grid, 8-directional with corner-cut prevention.
 // Units treat other stationary units as soft obstacles (cost bump) so
 // traffic flows around parked vehicles instead of failing outright.
@@ -48,7 +50,8 @@ export function findPath(map, sx, sy, tx, ty, unit, maxExpand = 2600) {
         if (!map.isPassableTerrain(cx + dx, cy) || map.blocked[map.idx(cx + dx, cy)]) continue;
         if (!map.isPassableTerrain(cx, cy + dy) || map.blocked[map.idx(cx, cy + dy)]) continue;
       }
-      let stepCost = cost;
+      // roads are cheaper, so paths gravitate onto them when it isn't a detour
+      let stepCost = map.road && map.road[ni] ? cost * ROADS.pathCostFactor : cost;
       const occ = map.occupant[ni];
       if (occ && occ !== unit) {
         const crushable = unit && unit.def && unit.def.crusher &&

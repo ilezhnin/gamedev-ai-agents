@@ -7,6 +7,7 @@ import { BUILDINGS, UNITS, BUILD_ORDER_STRIP, UNIT_STRIP, POWERS } from './rules
 import { makeCameo, unitBodyFrame } from './sprites.js';
 import { HOUSE_UI, makeCanvas } from './palette.js';
 import { minimapRGB } from './map.js';
+import { byId } from './dom.js';
 
 // HUD refresh cadences and thresholds. The sidebar is DOM + 2d canvas, so
 // everything here is a "how often is often enough" call rather than a game

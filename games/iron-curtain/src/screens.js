@@ -54,12 +54,12 @@ export class Screens {
   // with the occasional lightning flicker, redrawn ~10fps only while visible.
   startTitleAnim() {
     if (this.titleRaf) return;
-    const el = document.getElementById('title-logo');
+    const el = byId('title-logo');
     this.titleT0 = performance.now();
     this.titleLastDraw = 0;
     const step = (now) => {
       if (this.state !== 'title') { this.titleRaf = 0; return; }
-      if (now - this.titleLastDraw >= 100) {
+      if (now - this.titleLastDraw >= TITLE_FRAME_MS) {
         this.titleLastDraw = now;
         drawTitleLogo(el, (now - this.titleT0) / 1000);
       }
@@ -76,7 +76,7 @@ export class Screens {
 
   // the command sidebar exists only inside a running match
   setSidebar(visible) {
-    document.getElementById('sidebar').classList.toggle('hidden', !visible);
+    byId('sidebar').classList.toggle('hidden', !visible);
     this.deps.resize(); // viewport width changed — rescale the render buffer
   }
 
@@ -86,7 +86,7 @@ export class Screens {
     this.state = 'title';
     this.setSidebar(false);
     const canContinue = !!(game && !game.over && !this.endShown) || this.deps.hasValidSave();
-    document.getElementById('tb-continue').classList.toggle('disabled', !canContinue);
+    byId('tb-continue').classList.toggle('disabled', !canContinue);
     this.elTitle.classList.remove('hidden');
     this.startTitleAnim();
     // resume the ominous menu march (only once audio has been unlocked by a
@@ -115,15 +115,15 @@ export class Screens {
   }
 
   typeBriefing() {
-    const el = document.getElementById('briefing-text');
+    const el = byId('briefing-text');
     const text = briefingText();
     el.textContent = '';
     let i = 0;
     const tick = () => {
       if (this.state !== 'brief') return;
-      i += 2;
+      i += BRIEF_CHARS_PER_TICK;
       el.textContent = text.slice(0, i);
-      if (i < text.length) setTimeout(tick, 16);
+      if (i < text.length) setTimeout(tick, BRIEF_TICK_MS);
     };
     tick();
   }
@@ -207,7 +207,7 @@ export class Screens {
       // end-screen stinger: victory fanfare or defeat dirge, then silence
       if (this.audio.musicOn) this.audio.playJingle(game.won);
       else { this.audio.stopMusic(); this.audio.sfx(game.won ? 'ready' : 'zapdown'); }
-    }, 1800);
+    }, END_SCREEN_DELAY);
   }
 
   // ----------------------------------------------------------- pause menu --
@@ -215,7 +215,7 @@ export class Screens {
   showMenuPane(pane) {
     this.elMenuMain.style.display = pane === 'main' ? 'flex' : 'none';
     this.elMenuSettings.style.display = pane === 'settings' ? 'flex' : 'none';
-    document.querySelector('#menu-box .menu-title').textContent =
+    byId('menu-box').querySelector('.menu-title').textContent =
       this.menuContext === 'title' ? 'SETTINGS' : 'OPERATION PAUSED';
   }
 
@@ -252,21 +252,15 @@ export class Screens {
 
   syncSettingsWidgets() {
     const settings = this.settings;
-    document.getElementById('set-master').value = settings.master;
-    document.getElementById('set-music').value = settings.musicVol;
-    document.getElementById('set-sfx').value = settings.sfxVol;
-    document.getElementById('set-camspeed').value = settings.camSpeed;
-    document.getElementById('set-gamespeed').value = settings.gameSpeed;
-    document.getElementById('set-gamespeed-val').textContent = `${settings.gameSpeed.toFixed(1)}×`;
-    const m = document.getElementById('set-musicon');
-    m.textContent = this.audio.musicOn ? 'ON' : 'OFF';
-    m.classList.toggle('on', this.audio.musicOn);
-    const v = document.getElementById('set-voice');
-    v.textContent = settings.voice ? 'ON' : 'OFF';
-    v.classList.toggle('on', settings.voice);
-    const eg = document.getElementById('set-edge');
-    eg.textContent = settings.edgeScroll ? 'ON' : 'OFF';
-    eg.classList.toggle('on', settings.edgeScroll);
+    byId('set-master').value = settings.master;
+    byId('set-music').value = settings.musicVol;
+    byId('set-sfx').value = settings.sfxVol;
+    byId('set-camspeed').value = settings.camSpeed;
+    byId('set-gamespeed').value = settings.gameSpeed;
+    byId('set-gamespeed-val').textContent = `${settings.gameSpeed.toFixed(1)}×`;
+    setToggle('set-musicon', this.audio.musicOn);
+    setToggle('set-voice', settings.voice);
+    setToggle('set-edge', settings.edgeScroll);
   }
 
   // ---------------------------------------------------------------- wiring --
@@ -279,69 +273,69 @@ export class Screens {
       onBack: () => this.showTitle(),
     });
 
-    document.getElementById('tb-new').addEventListener('click', () => this.showSetup());
-    document.getElementById('tb-continue').addEventListener('click', () => {
+    onClick('tb-new', () => this.showSetup());
+    onClick('tb-continue', () => {
       audio.ensure(); audio.resume();
       this.continueMatch();
     });
-    document.getElementById('tb-settings').addEventListener('click', () => {
+    onClick('tb-settings', () => {
       audio.ensure(); audio.resume();
       this.openMenu('title');
     });
 
-    document.getElementById('mb-resume').addEventListener('click', () => this.closeMenu());
-    document.getElementById('mb-quit').addEventListener('click', () => this.quitToTitle());
-    document.getElementById('mb-settings').addEventListener('click', () => {
+    onClick('mb-resume', () => this.closeMenu());
+    onClick('mb-quit', () => this.quitToTitle());
+    onClick('mb-settings', () => {
       this.syncSettingsWidgets();
       this.showMenuPane('settings');
     });
-    document.getElementById('mb-back').addEventListener('click', () => {
+    onClick('mb-back', () => {
       if (this.menuContext === 'title') this.closeMenu();
       else this.showMenuPane('main');
     });
     // clicking the dark backdrop resumes; clicks inside the box stay put
     this.elMenu.addEventListener('click', (e) => { if (e.target === this.elMenu) this.closeMenu(); });
 
-    document.getElementById('set-master').addEventListener('input', (e) => {
+    onInput('set-master', (e) => {
       settings.master = parseFloat(e.target.value);
       audio.ensure(); audio.setMaster(settings.master);
       audio.sfx('tick');
       saveSettings(settings);
     });
-    document.getElementById('set-music').addEventListener('input', (e) => {
+    onInput('set-music', (e) => {
       settings.musicVol = parseFloat(e.target.value);
       audio.ensure(); audio.setMusicVol(settings.musicVol);
       saveSettings(settings);
     });
-    document.getElementById('set-sfx').addEventListener('input', (e) => {
+    onInput('set-sfx', (e) => {
       settings.sfxVol = parseFloat(e.target.value);
       audio.ensure(); audio.setSfxVol(settings.sfxVol);
       audio.sfx('tick');
       saveSettings(settings);
     });
-    document.getElementById('set-musicon').addEventListener('click', () => {
+    onClick('set-musicon', () => {
       audio.ensure();
       audio.toggleMusic();
       this.syncSettingsWidgets();
     });
-    document.getElementById('set-voice').addEventListener('click', () => {
+    onClick('set-voice', () => {
       settings.voice = !settings.voice;
       audio.voiceOn = settings.voice;
       if (settings.voice) audio.say('Voice online', true);
       this.syncSettingsWidgets();
       saveSettings(settings);
     });
-    document.getElementById('set-camspeed').addEventListener('input', (e) => {
+    onInput('set-camspeed', (e) => {
       settings.camSpeed = parseFloat(e.target.value);
       saveSettings(settings);
     });
-    document.getElementById('set-gamespeed').addEventListener('input', (e) => {
+    onInput('set-gamespeed', (e) => {
       settings.gameSpeed = parseFloat(e.target.value);
       this.deps.setSpeed(settings.gameSpeed);
-      document.getElementById('set-gamespeed-val').textContent = `${settings.gameSpeed.toFixed(1)}×`;
+      byId('set-gamespeed-val').textContent = `${settings.gameSpeed.toFixed(1)}×`;
       saveSettings(settings);
     });
-    document.getElementById('set-edge').addEventListener('click', () => {
+    onClick('set-edge', () => {
       settings.edgeScroll = !settings.edgeScroll;
       this.syncSettingsWidgets();
       saveSettings(settings);

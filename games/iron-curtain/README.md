@@ -163,10 +163,25 @@ the interface stays real-time.
 
 ## Code map
 
+Layered **data → sim → render/UI**, imports one way only. See
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the layering rules and where
+to add a new unit, building, biome, song or map layout.
+
+**Foundations** — no game logic, imported by everything above.
+
 | File | Role |
 |---|---|
-| `src/palette.js` | SNES-flavoured palette, pixel-drawing toolkit, house-colour remap |
-| `src/sprites.js` | re-export of the art package (kept as the stable import path) |
+| `src/palette.js` | SNES-flavoured palette, pixel-drawing toolkit, house-colour remap, seeded RNG, base64 grid codec |
+| `src/storage.js` | the one `localStorage` wrapper: read/write/parse, never throws |
+| `src/dom.js` | `byId` / `onClick` / `onInput` / `setToggle` for the screen wiring |
+| `src/settings.js` | persisted player settings and their defaults |
+| `src/rules.js` | **all gameplay tunables**: unit/building/weapon stats, armour model, tech tree, economy, combat feel, unit timings, structure and commander-power constants |
+
+**Art** — every pixel is generated at boot; no image files.
+
+| File | Role |
+|---|---|
+| `src/sprites.js` | re-export of the art package (the stable import path) |
 | `src/art/consts.js` | `TILE`, `FACINGS` and the house-colour placeholders |
 | `src/art/tiles.js` | biome tile sets, ore/gem overlays, shore + dirt fringes, ruins, decals |
 | `src/art/buildings.js` | structure sprites, radar dish frames, battle-damage cracks |
@@ -174,11 +189,15 @@ the interface stays real-time.
 | `src/art/infantry.js` | soldier frame sets from shared torso/leg rows |
 | `src/art/effects.js` | explosions, flame, smoke, muzzle, debris, shadows, clouds |
 | `src/art/ui-art.js` | cameos, rank chevrons, power glyphs, animated title logo |
-| `src/art/index.js` | assembles the sprite atlas (`buildSprites`) |
-| `src/rules.js` | unit/building/weapon stats, armour model, tech tree, economy tuning |
-| `src/map.js` | procedural terrain + ore fields |
+| `src/art/index.js` | assembles the sprite atlas (`buildSprites`), `unitBodyFrame` |
+
+**Simulation** — the rules. Knows nothing about Three.js or the DOM.
+
+| File | Role |
+|---|---|
+| `src/map.js` | procedural terrain, ore/gem fields, depots, connectivity, minimap tints |
 | `src/pathfind.js` | A* (8-dir, corner-cut safe, traffic-aware costs) |
-| `src/game.js` | the `Game` object: world state, tick order, commander powers, win check |
+| `src/game.js` | the `Game` object: world state, tick order, commander powers, win check, and the façade the UI/AI/tests call |
 | `src/sim/entities.js` | `Player` / `Building` / `Unit` state containers, id counter, veterancy scale |
 | `src/sim/angles.js` | angle wrap helpers and the 16-facing sprite index |
 | `src/sim/orders.js` | issuing orders: move/attack/harvest/deploy/capture/board, pathing |
@@ -189,25 +208,41 @@ the interface stays real-time.
 | `src/sim/production.js` | tech gating, build queues, placement, repair, power bookkeeping |
 | `src/sim/fog.js` | vision recompute and visibility queries |
 | `src/sim/persist.js` | save format: serialize a match and rebuild one |
-| `src/ai.js` | skirmish opponent |
-| `src/ui.js` | sidebar, cameo strips, radar, banners, end screens |
-| `src/input.js` | selection, orders, placement, control groups, scrolling |
-| `src/audio.js` | re-export of the audio package (kept as the stable import path) |
-| `src/audio/synth.js` | FM / PSG / noise voices and the envelope helper |
-| `src/audio/songs.js` | the four original songs as plain pattern data |
-| `src/audio/sequencer.js` | lookahead pattern player: steps to voices |
-| `src/audio/index.js` | `AudioSys`: mixer buses, sfx bank, speech advisor |
+| `src/ai.js` | skirmish opponent: build orders, personalities, waves, and the `TUNE` policy table |
+
+**Render** — reads sim state, never writes it.
+
+| File | Role |
+|---|---|
 | `src/render/quad.js` | textured billboard quad + the z-layer table |
 | `src/render/layers.js` | chunked terrain/ore textures, fog overlay, cloud shadows |
 | `src/render/views.js` | per-entity quads: bodies, turrets, health bars, decals |
 | `src/render/fx.js` | explosions, debris, projectiles, placement ghost, rally flags, shake |
 | `src/render/scene.js` | renderer facade: owns the Three.js scene/camera, drives the above |
+
+**Audio** — synthesized from scratch; no sample files.
+
+| File | Role |
+|---|---|
+| `src/audio.js` | re-export of the audio package (the stable import path) |
+| `src/audio/synth.js` | FM / PSG / noise voices and the envelope helper |
+| `src/audio/songs.js` | the four original songs as plain pattern data |
+| `src/audio/sequencer.js` | lookahead pattern player: steps to voices |
+| `src/audio/index.js` | `AudioSys`: mixer buses, sfx bank, speech advisor |
+
+**Interface & boot.**
+
+| File | Role |
+|---|---|
+| `src/ui.js` | in-match HUD: credits/power, radar, cameo strips, powers, selection panel, banners, end screen |
+| `src/input.js` | selection, orders, placement, control groups, camera scrolling and limits |
+| `src/cursors.js` | generated crosshair cursors and the hover test that picks one |
 | `src/screens.js` | title/setup/briefing/play/end flow, pause menu, settings pane |
 | `src/setup.js` | operation options + seed, battlefield preview |
-| `src/cursors.js` | generated crosshair cursors and the hover test that picks one |
-| `src/save.js` | localStorage save slot: write, validate, clear |
+| `src/save.js` | the save slot: write, validate, clear (format lives in `sim/persist.js`) |
 | `src/testhooks.js` | `window.__game_test` / `__game_debug` automation surface |
 | `src/main.js` | composition root: boot, match construction, frame loop |
+| `index.html` | the DOM and all CSS, grouped by concern with two shared bevel treatments |
 
 Headless tests live in `tests/` (playwright-core + chromium):
 `smoke.js` (boots a match, runs the sim), `content.js` (roster/tech checks),

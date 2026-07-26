@@ -21,6 +21,7 @@ const MINIMAP_TERRAIN = {
   [T.TREE]: [30, 62, 26],
   [T.RUIN]: [78, 72, 66],
 };
+const MINIMAP_ROAD = [122, 112, 92];
 const MINIMAP_ORE = [190, 150, 40];
 const MINIMAP_GEM = [90, 200, 220];
 
@@ -28,6 +29,7 @@ const MINIMAP_GEM = [90, 200, 220];
 // The returned array is shared — read it, never write to it.
 export function minimapRGB(m, i) {
   if (m.ore[i] > 0) return m.gem[i] ? MINIMAP_GEM : MINIMAP_ORE;
+  if (m.road && m.road[i]) return MINIMAP_ROAD;
   return MINIMAP_TERRAIN[m.terrain[i]] || MINIMAP_TERRAIN[T.GRASS];
 }
 
@@ -48,6 +50,7 @@ export class GameMap {
     this.ore = new Uint16Array(size * size);        // remaining ore value
     this.gem = new Uint8Array(size * size);         // 1 = gem cell (pays double, no regrowth)
     this.oreMax = 280;
+    this.road = new Uint8Array(size * size);        // 1 = road (faster, preferred)
     this.blocked = new Uint8Array(size * size);     // 1 = building/static blocker
     this.occupant = new Array(size * size).fill(null); // moving unit reservation
     this.depots = [];                               // {x,y} neutral supply depots
@@ -71,6 +74,8 @@ export class GameMap {
     const oreBytes = b64ToU8(md.ore);
     m.ore = new Uint16Array(oreBytes.buffer, oreBytes.byteOffset, oreBytes.byteLength / 2);
     m.gem = b64ToU8(md.gem);
+    // roads arrived after the first save format; older saves simply have none
+    m.road = md.road ? b64ToU8(md.road) : new Uint8Array(m.size * m.size);
     m.blocked = new Uint8Array(m.size * m.size);
     m.occupant = new Array(m.size * m.size).fill(null);
     m.depots = [];   // depots are restored as neutral buildings, not from the map
@@ -173,6 +178,9 @@ export class GameMap {
 
     // neutral supply depots in the contested middle (never in start zones)
     this.placeDepots(rng);
+
+    // a road network linking the bases through the middle
+    this.layRoads(rng);
 
     // map edges: rocks to frame the world
     for (let x = 0; x < s; x++) {
@@ -557,6 +565,49 @@ export class GameMap {
     if (v < this.oreMax * 0.67) return 2;
     return 3;
   }
+
+  // Lay a road network: every start is linked to a central junction, so the
+  // fast lanes converge where the fighting happens instead of giving one
+  // player a private motorway. Roads only sit on passable ground; water,
+  // rock, trees and ruins interrupt them (a road is a surface, not a bridge).
+  layRoads(rng) {
+    const s = this.size;
+    const hub = { x: (s / 2 + (rng() - 0.5) * s * 0.12) | 0, y: (s / 2 + (rng() - 0.5) * s * 0.12) | 0 };
+    for (const st of this.starts) this.carveRoad(st.x, st.y, hub.x, hub.y, rng);
+  }
+
+  // Drive from a to b in straight segments rather than a diagonal staircase:
+  // pick the axis with the most distance left, run several cells along it,
+  // then re-decide. The result reads as a road with long straights and
+  // occasional turns, and gives vehicles something worth driving on.
+  carveRoad(ax, ay, bx, by, rng) {
+    let x = ax, y = ay;
+    let guard = this.size * 6;
+    const pave = (px_, py_) => {
+      if (!this.inBounds(px_, py_)) return;
+      const i = this.idx(px_, py_);
+      // pave only what can carry a road; ore fields stay minable
+      if (this.isPassableTerrain(px_, py_) && this.ore[i] === 0) this.road[i] = 1;
+    };
+    pave(x, y);
+    while ((x !== bx || y !== by) && guard-- > 0) {
+      const dx = bx - x, dy = by - y;
+      // follow the longer remaining axis, with an occasional early turn so
+      // the network doesn't collapse into a perfect L
+      const horizontal = Math.abs(dx) > Math.abs(dy)
+        ? rng() > 0.15
+        : rng() < 0.15;
+      const step = horizontal ? Math.sign(dx) : Math.sign(dy);
+      if (!step) continue;
+      const run = 3 + ((rng() * 5) | 0);
+      for (let n = 0; n < run; n++) {
+        if (horizontal) { if (x === bx) break; x += step; } else { if (y === by) break; y += step; }
+        pave(x, y);
+      }
+    }
+  }
+
+  isRoad(x, y) { return this.inBounds(x, y) && this.road[this.idx(x, y)] === 1; }
 
   // ore regrows like in the classics: existing cells thicken and rich
   // cells occasionally seed a fresh neighbour, so fields sustain mining

@@ -78,6 +78,7 @@ export function serializeGame(game) {
       variant: u8ToB64(m.variant),
       ore: u8ToB64(new Uint8Array(m.ore.buffer, m.ore.byteOffset, m.ore.byteLength)),
       gem: u8ToB64(m.gem),
+      road: u8ToB64(m.road),
     },
     players,
     buildings,
