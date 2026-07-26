@@ -6,6 +6,13 @@
 //   node games/iron-curtain/tests/characterize.js
 //   node games/iron-curtain/tests/characterize.js --seed 1337 --secs 120 --out fp.json
 //   node games/iron-curtain/tests/characterize.js --once     # skip the repeat run
+//   node games/iron-curtain/tests/characterize.js --rebaseline   # intentional change
+//
+// tests/artifacts/characterize-baseline.json holds the STABLE block of a known
+// build. Comparing two runs of the SAME build only proves determinism — it goes
+// green after any reproducible behaviour change — so the committed baseline is
+// what actually pins behaviour across a refactor. Rewrite it only when a
+// behaviour change is deliberate.
 //
 // Determinism: the map, the AI and every in-sim roll go through the seeded
 // game.rng, BUT Unit's constructor takes its initial facing from Math.random()
@@ -24,8 +31,9 @@
 // covers only the STABLE block (economy, counts, power, map). Positions are
 // printed separately as advisory.
 //
-// Exit 0 = fingerprints produced and the stable block reproduced. Exit 1 = the
-// stable block moved (a real regression signal). Exit 2 = harness fault.
+// Exit 0 = the stable block reproduced run-to-run AND matched the stored
+// baseline. Exit 1 = either moved (a real regression signal). Exit 2 = harness
+// fault.
 
 const http = require('http');
 const fs = require('fs');
@@ -48,6 +56,8 @@ const SEED = Number(flag('seed', 1337));
 const SECS = Number(flag('secs', 120));
 const OUT = flag('out', null);
 const ONCE = argv.includes('--once');
+const REBASELINE = argv.includes('--rebaseline');
+const BASELINE = path.resolve(flag('baseline', path.join(__dirname, 'artifacts', 'characterize-baseline.json')));
 
 // Same fixed timestep the duel harness uses, so combat resolves identically
 // regardless of headless frame pacing.
@@ -197,14 +207,39 @@ function firstDiff(a, b) {
     if (!posSame) console.log('  run B unitList: ' + JSON.stringify(b.unitList));
   }
 
+  // The real drift guard: this build against a stored one. Only comparable when
+  // the stored run used the same seed/horizon/setup, so mismatched knobs are
+  // reported rather than silently "passing".
+  let baseOK = true;
+  const bl = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : null;
+  console.log('\n=== BASELINE (' + path.relative(process.cwd(), BASELINE) + ') ===');
+  if (REBASELINE) {
+    fs.writeFileSync(BASELINE, JSON.stringify({
+      note: bl && bl.note ? bl.note : 'Regenerate ONLY when a behaviour change is intended.',
+      seed: SEED, simSecs: SECS, dt: DT, setup: SETUP, stable: stable(a),
+    }, null, 2) + '\n');
+    console.log('  rewritten from this run (--rebaseline)');
+  } else if (!bl) {
+    console.log('  none stored - run with --rebaseline to pin the current behaviour');
+  } else if (bl.seed !== SEED || bl.simSecs !== SECS || bl.dt !== DT ||
+             JSON.stringify(bl.setup) !== JSON.stringify(SETUP)) {
+    console.log(`  SKIPPED: stored run is seed ${bl.seed}/${bl.simSecs}s/dt ${bl.dt}, this one is ` +
+      `seed ${SEED}/${SECS}s/dt ${DT} - not comparable`);
+  } else {
+    baseOK = JSON.stringify(stable(a)) === JSON.stringify(bl.stable);
+    console.log('  stable block matches baseline : ' + baseOK);
+    if (!baseOK) console.log('  first baseline diff: ' + firstDiff(bl.stable, stable(a)));
+  }
+
   if (OUT) {
     fs.writeFileSync(path.resolve(OUT), JSON.stringify({ a, b }, null, 2));
     console.log('\nwrote ' + path.resolve(OUT));
   }
   if (errors.length) console.log('\nERRORS:\n' + errors.slice(0, 6).join('\n'));
-  console.log('\n' + (stableOK && !errors.length ? 'PASS' : 'FAIL'));
+  const ok = stableOK && baseOK && !errors.length;
+  console.log('\n' + (ok ? 'PASS' : 'FAIL'));
 
   await browser.close();
   server.close();
-  process.exit(stableOK && !errors.length ? 0 : 1);
+  process.exit(ok ? 0 : 1);
 })().catch((e) => { console.error('FAIL (harness):', e.message); process.exit(2); });

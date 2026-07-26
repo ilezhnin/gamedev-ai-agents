@@ -1,0 +1,68 @@
+{
+  "note": "Captured from the pre-refactor tree (commit 7a318c5) with tests/characterize.js. Regenerate ONLY when a behaviour change is intended, and say so in the commit.",
+  "seed": 1337,
+  "simSecs": 120,
+  "dt": 0.05,
+  "setup": {
+    "opponents": 1,
+    "size": 64,
+    "biome": "forest",
+    "layout": "open"
+  },
+  "stable": {
+    "time": 120,
+    "over": false,
+    "map": {
+      "size": 64,
+      "biome": "forest",
+      "layout": "open",
+      "oreTotal": 125646,
+      "gemCells": 24
+    },
+    "totals": {
+      "units": 16,
+      "buildings": 9,
+      "conyards": 2
+    },
+    "players": {
+      "player": {
+        "credits": 5000,
+        "buildings": 1,
+        "army": 4,
+        "harvesters": 0,
+        "built": 0,
+        "armyBuilt": 0,
+        "killed": 0,
+        "lost": 0,
+        "powerMade": 0,
+        "powerUsed": 0,
+        "radar": 0,
+        "units": {
+          "lightTank": 1,
+          "rifle": 2,
+          "rocket": 1
+        }
+      },
+      "enemy": {
+        "credits": 231,
+        "buildings": 6,
+        "army": 11,
+        "harvesters": 1,
+        "built": 9,
+        "armyBuilt": 8,
+        "killed": 0,
+        "lost": 0,
+        "powerMade": 100,
+        "powerUsed": 80,
+        "radar": 0,
+        "units": {
+          "harvester": 1,
+          "heavyTank": 1,
+          "lightTank": 2,
+          "rifle": 7,
+          "rocket": 1
+        }
+      }
+    }
+  }
+}

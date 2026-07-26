@@ -653,9 +653,12 @@ export class AI {
     const idle = g.units.filter((u) =>
       !u.dead && u.owner === p && u.def.weapon && !u.boarded && !u.retreating &&
       !this.attackers.has(u.id) && (u.order.type === 'idle' || u.order.type === 'move'));
-    // don't strip the base bare: attack only once there's a real squad
-    const squadSize = this.waveSize + TUNE.waveEscort;
-    if (idle.length < squadSize) { this.waveT = TUNE.waveRetryDelay; return; }
+    // don't strip the base bare: attack only once there's a real squad. The
+    // gate reads the CURRENT waveSize; the squad below is cut after the
+    // increment, so a wave that forms is always one unit larger than the bar
+    // it had to clear. Hoisting this into a shared constant shrinks every
+    // wave by one.
+    if (idle.length < this.waveSize + TUNE.waveEscort) { this.waveT = TUNE.waveRetryDelay; return; }
 
     const objective = this.pickObjective();
     if (!objective) { this.waveT = TUNE.waveRetryDelay; return; }
@@ -674,7 +677,7 @@ export class AI {
     sy = Math.max(1, Math.min(g.map.size - 2, sy));
     const staged = nearestFree(g.map, sx, sy, null) || [sx, sy];
 
-    const squad = idle.slice(0, squadSize);
+    const squad = idle.slice(0, this.waveSize + TUNE.waveEscort);
     const members = new Set();
     for (const u of squad) {
       members.add(u.id);

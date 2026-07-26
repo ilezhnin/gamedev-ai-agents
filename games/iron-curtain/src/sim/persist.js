@@ -83,6 +83,9 @@ export function serializeGame(game) {
     players,
     buildings,
     units,
+    // KNOWN GAP: loadGame never reads this back, so CONTINUE re-fogs every
+    // scouted cell and the field is ~1.4 KB of dead payload. Left as-is
+    // deliberately — restoring it is a gameplay change, not a refactor.
     explored: u8ToB64(game.explored),
   };
 }

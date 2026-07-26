@@ -263,7 +263,10 @@ then `--compare before after` must report 0 differing pixels.
 `node tests/run-all.js` runs every suite and prints a PASS/FAIL summary
 (`node tests/run-all.js save duels` filters by name). `node tests/characterize.js`
 is not a suite: it fingerprints a fixed-seed match (economy, unit/building
-counts, positions) so a refactor can be checked for behaviour drift.
+counts, positions) and diffs it against the stored
+`tests/artifacts/characterize-baseline.json`, so a refactor that changes
+behaviour fails instead of quietly re-fingerprinting itself. Deliberate
+balance changes re-pin it with `--rebaseline`.
 
 This is an original homage: game rules and art were written for this
 project and no assets, names, or content from any commercial game are used.
