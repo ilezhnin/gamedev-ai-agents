@@ -180,4 +180,64 @@ export const ECONOMY = {
   repairCostFactor: 0.25,   // fraction of unit cost to fully repair
   repairHpPerSec: 40,
   sellRefund: 0.5,
+  gemMultiplier: 2,         // gem cells pay this many times a normal scoop
+  minReturnLoad: 50,        // with no ore left, a truck this laden still docks
+  // Storage is deliberately soft in this build: silos widen the credit ceiling
+  // but the headroom is large enough that it never actually binds. Kept as
+  // named numbers so a future hard cap has an obvious place to start.
+  storageSoftFactor: 4,
+  creditHeadroom: 100000,
+  lowFundsWarnPerSec: 0.4,  // chance/second of the "insufficient funds" nag
+};
+
+// Commander powers: the human's tech-center abilities. Cooldowns and durations
+// in seconds, radii in cells.
+export const POWERS = {
+  reconCd: 90, reconRadius: 8, reconDur: 10,
+  empCd: 150, empRadius: 4, empDur: 8,
+};
+
+// Combat feel: the slack, tolerances and cadences that decide when something
+// commits to a fight. Weapon damage/range/rof live in WEAPONS above — these are
+// the rules *around* a weapon and are shared by every unit that carries one.
+export const COMBAT = {
+  acquireSlack: 1.5,        // units look this far past weapon range for targets
+  defenceHoldSlack: 0.5,    // a tower drops a target this far past its range
+  hullTurnRate: 2.2,        // def.turn multiplier while driving
+  turretTurnRate: 1.6,      // def.turn multiplier while aiming
+  defenceTraverse: 6,       // towers have no def.turn: fixed radians/sec
+  turretAimTolerance: 0.25, // radians of aim error a turret will fire through
+  hullAimTolerance: 0.3,    // ditto for hull-mounted weapons and for towers
+  driveAimTolerance: 0.6,   // a vehicle waits until this square-on before rolling
+  fireFlashTime: 0.09,      // seconds the muzzle-flash pose is held
+  splashInner: 0.7,         // inside this radius a blast deals full damage
+  splashFactor: 0.4,        // fraction dealt from there out to w.splash
+  salvoStagger: 0.12,       // default gap between salvo shots
+  projectileSpeed: 8,       // default cells/sec when a weapon omits speed
+  underAttackCooldown: 12,  // seconds between "base under attack" warnings
+  endCheckGrace: 5,         // no win/lose verdict before this much match time
+};
+
+// How often a unit re-evaluates the world, and how much slack it allows itself.
+// Every entry is a cost/feel trade: looking more often reacts sooner and costs
+// more per tick.
+export const UNIT_TIMING = {
+  marchScan: 0.3,           // units on a move order look for targets this often
+  chaseRepath: 1.2,         // attack orders re-path this often while closing
+  boardRepath: 0.6,         // infantry chasing an APC re-paths this often
+  boardRange: 1.6,          // ...and climbs aboard within this many cells
+  stuckGrace: 0.5,          // seconds blocked before routing around
+  stuckGiveUp: 4,           // consecutive re-paths before abandoning the order
+  idleHarvestDelay: 2,      // an idle ore truck goes back to work after this
+  arriveSlack: 1.5,         // attack-move counts as arrived within this distance
+  unloadSearchRadius: 3,    // rings searched around an APC for a drop cell
+};
+
+// Structures: build-up, battle damage and where you're allowed to put them.
+export const STRUCTURE = {
+  riseRate: 1.6,            // build-up animation progress per second
+  smokeBelow: 0.5,          // hp fraction under which a structure smokes
+  smokeMin: 0.5,            // seconds between damage puffs, plus up to...
+  smokeVar: 0.8,            // ...this much jitter
+  baseAdjacency: 3,         // cells from a friendly structure you may build
 };

@@ -86,8 +86,8 @@ export function serializeGame(game) {
   };
 }
 
-// rebuild a live Game from a serialized snapshot. Renderer state is rebuilt
-// lazily by main.js (buildTerrain/Ore/Fog after this returns).
+// rebuild a live Game from a serialized snapshot. The renderer knows nothing
+// about this: main.js calls renderer.build() on the restored map afterwards.
 //
 // The Game constructor arrives as an argument rather than an import so the
 // dependency stays one-way: game.js knows about persist.js, not the reverse.

@@ -1,10 +1,9 @@
-// Mouse cursors: three crosshairs baked to data-URIs at boot, plus the
-// hover test that decides which one the viewport wears.
+// Mouse cursors: three 16x16 crosshairs baked to data-URIs at boot (hot spot
+// at the centre, 8,8), plus the hover test that decides which one the viewport
+// wears. Kept subtle: thin strokes in the retro palette's muted colours.
 
 import { makeCanvas } from './palette.js';
 
-// 16x16 crosshair cursors baked to data-URIs at boot. Hot spot at the centre
-// (8,8). Kept subtle: thin strokes, muted colours matching the retro palette.
 function makeCursor(draw) {
   const [c, g] = makeCanvas(16, 16);
   draw(g);

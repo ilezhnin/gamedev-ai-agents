@@ -1,6 +1,8 @@
-// SNES-flavoured master palette + tiny pixel-drawing toolkit.
-// Every sprite in the game is painted through these helpers onto small
-// canvases, then uploaded to THREE textures with nearest-neighbour filtering.
+// SNES-flavoured master palette + the tiny pixel-drawing toolkit every sprite
+// is painted with (onto small canvases, later uploaded to THREE textures with
+// nearest-neighbour filtering). Also home to the seeded RNG and the base64
+// grid codec, because they are the other zero-dependency primitives the layers
+// above share and neither warrants a module of its own.
 
 export const PAL = {
   // terrain
@@ -69,7 +71,6 @@ export function px(g, x, y, color, w = 1, h = 1) {
   g.fillRect(x | 0, y | 0, w, h);
 }
 
-// deterministic pseudo-random for stable art / maps
 // typed-array <-> base64 helpers for save/load (browser btoa/atob, chunked
 // so large maps don't blow the argument stack)
 export function u8ToB64(u8) {
@@ -88,6 +89,7 @@ export function b64ToU8(b64) {
   return u8;
 }
 
+// deterministic pseudo-random for stable art / maps
 export function makeRng(seed) {
   let s = seed >>> 0;
   return () => {
@@ -186,10 +188,4 @@ export function houseRecolor(src, houseColors) {
 export function hexToRgb(hex) {
   const n = parseInt(hex.slice(1), 16);
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-}
-
-export function shadeColor(hex, f) {
-  const [r, g, b] = hexToRgb(hex);
-  const c = (v) => Math.max(0, Math.min(255, Math.round(v * f)));
-  return `rgb(${c(r)},${c(g)},${c(b)})`;
 }

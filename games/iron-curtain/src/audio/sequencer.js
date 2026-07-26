@@ -32,7 +32,8 @@ export const SEQUENCER = {
   playMenu() { this.playSong('menu', true); },
   playBattle() { this.playSong('battle', true); },
   playJingle(win) { this.playSong(win ? 'victory' : 'defeat', false); },
-  // back-compat: default in-match music is the battle theme
+  // "start the in-match music": unmutes and plays the battle theme, which is
+  // the only track a live match ever wants
   startMusic() { if (!this.ensure()) return; this.musicOn = true; this.playBattle(); },
 
   _scheduler() {

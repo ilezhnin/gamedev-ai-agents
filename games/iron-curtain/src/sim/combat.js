@@ -2,7 +2,7 @@
 // salvos, projectiles, splash, damage resolution, veterancy and the two ways a
 // unit can be removed from the field (destroyed, or crushed under treads).
 
-import { WEAPONS, WARHEADS } from '../rules.js';
+import { WEAPONS, WARHEADS, COMBAT } from '../rules.js';
 import { RANK_DMG, RANK_HP, MAX_RANK } from './entities.js';
 import { angleDiff, approachAngle } from './angles.js';
 import { orderAttack } from './orders.js';
@@ -16,7 +16,7 @@ const spriteXY = (e) => e.isUnit ? [e.x, e.y] : [e.centre()[0] - 0.5, e.centre()
 export function acquireTarget(game, u) {
   if (!u.def.weapon) return null;
   const w = WEAPONS[u.def.weapon];
-  const range = w.range + 1.5;
+  const range = w.range + COMBAT.acquireSlack;
   let best = null, bestD = 1e9;
   for (const e of game.units) {
     if (e.dead || e.boarded || e.owner === u.owner) continue;
@@ -50,19 +50,19 @@ export function acquireTargetFor(game, b) {
 export function aimAndFire(game, u, target, tx, ty, dt) {
   if (u.empT > 0) return;                    // EMP'd: weapons offline
   const want = Math.atan2(ty - u.y, tx - u.x) + Math.PI / 2;
-  const turnRate = (u.def.turn || 8) * 1.6;
+  const turnRate = (u.def.turn || COMBAT.projectileSpeed) * COMBAT.turretTurnRate;
   if (u.def.hasTurret) {
     u.turretFacing = approachAngle(u.turretFacing, want, turnRate * dt);
-    if (angleDiff(u.turretFacing, want) > 0.25) return;
+    if (angleDiff(u.turretFacing, want) > COMBAT.turretAimTolerance) return;
   } else {
     u.facing = approachAngle(u.facing, want, turnRate * dt);
     u.turretFacing = u.facing;
-    if (angleDiff(u.facing, want) > 0.3) return;
+    if (angleDiff(u.facing, want) > COMBAT.hullAimTolerance) return;
   }
   if (u.cooldown > 0) return;
   const w = WEAPONS[u.def.weapon];
   u.cooldown = w.rof;
-  u.fireFlash = 0.09;
+  u.fireFlash = COMBAT.fireFlashTime;
   fireWeapon(game, u, target, w);
 }
 

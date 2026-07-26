@@ -1,6 +1,7 @@
-// Sidebar, radar minimap, cameo strips, banners and end screens.
-// The sidebar is plain DOM; the radar is a 2d canvas redrawn a few times
-// per second from game state.
+// The in-match HUD: credits/power readouts, radar minimap, cameo build strips,
+// commander-power buttons, the selection panel, event banners and the end
+// screen. All plain DOM except the radar and the cameo clocks, which are 2d
+// canvases redrawn a few times per second from game state.
 
 import { BUILDINGS, UNITS, BUILD_ORDER_STRIP, UNIT_STRIP } from './rules.js';
 import { makeCameo } from './sprites.js';

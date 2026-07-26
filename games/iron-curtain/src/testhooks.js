@@ -7,11 +7,11 @@ import { findPath } from './pathfind.js';
 import { AI_LEVELS } from './ai.js';
 import { setup, SIZES, setSeed } from './setup.js';
 
-// ctx: audio, cam, sim, screens, renderer, game()/ais()/input() live getters,
+// ctx: audio, cam, sim, screens, renderer, game()/ais() live getters,
 // autosave(), hasValidSave()
 export function installTestHooks(ctx) {
   const { audio, cam, sim, screens, renderer } = ctx;
-  const game = ctx.game, ais = ctx.ais, input = ctx.input;
+  const game = ctx.game, ais = ctx.ais;
 
   // audio-test hooks: let headless checks drive the sound engine
   window.__audio_test = {
@@ -39,7 +39,6 @@ export function installTestHooks(ctx) {
     spawn: (house, key, x, y) => game().addUnit(game().players[house], key, x, y),
     build: (house, key, x, y) => game().addBuilding(game().players[house], key, x, y, { instant: true }),
     credits: (house, n) => { game().players[house].credits = n; },
-    placeReady: (x, y) => game().placeBuilding(game().players.player, x, y),
     // force an autosave to localStorage (drives the save/load test)
     save: () => { ctx.autosave(); return true; },
     hasSave: () => ctx.hasValidSave(),
@@ -168,7 +167,7 @@ export function installTestHooks(ctx) {
         harvesters: game().units.filter((u) => !u.dead && u.owner === p && u.def.harvester).length,
       };
     },
-    // per-AI live wave/apc snapshot (extends aiInfo for the mechanics test)
+    // per-AI live wave/apc snapshot for the transport-mechanics test
     aiApcInfo: () => ais().map((a) => {
       const apcs = game().units.filter((u) => !u.dead && u.owner === a.p && u.key === 'apc');
       return {
@@ -185,32 +184,6 @@ export function installTestHooks(ctx) {
         if (u.house !== 'player' || !u.def.weapon) continue;
         game().orderAttackMove(u, game().map.size - 14, 10);
       }
-    },
-    moveOrder: (unit, x, y) => game().orderMove(unit, x, y),
-    harvestOrder: (unit, cell) => game().orderHarvest(unit, cell),
-    // select a player building by key and give it a rally point (drives the
-    // rally-flag marker); returns how many rally flags are currently visible
-    selectAndRally: (key, rx, ry) => {
-      const b = game().buildings.find((b) => !b.dead && b.house === 'player' && b.key === key);
-      if (!b) return false;
-      input().selection = [b];
-      b.rally = [rx, ry];
-      return true;
-    },
-    rallyFlagCount: () => renderer.visibleRallyFlags(),
-    findCells: () => {
-      // first free gem cell and non-gem ore cell, for balance tests
-      const m = game().map;
-      let gem = null, ore = null;
-      for (let y = 1; y < m.size - 1 && (!gem || !ore); y++) {
-        for (let x = 1; x < m.size - 1 && (!gem || !ore); x++) {
-          const i = m.idx(x, y);
-          if (m.ore[i] <= 0 || m.blocked[i] || m.occupant[i]) continue;
-          if (m.gem[i] && !gem) gem = [x, y];
-          if (!m.gem[i] && !ore && m.ore[i] > 150) ore = [x, y];
-        }
-      }
-      return gem && ore ? { gem, ore } : null;
     },
     wipe: (house) => {
       for (const u of game().units) if (u.house === house) u.hp = -1;
@@ -238,34 +211,6 @@ export function installTestHooks(ctx) {
       b.hp = Math.max(1, Math.round(b.maxHp * frac));
       return { id: b.id, hp: Math.round(b.hp), maxHp: b.maxHp };
     },
-    // drain ore around a house's refinery (drives the expansion-refinery test)
-    drainOre: (house, r) => {
-      const b = game().buildings.find((b) => !b.dead && b.house === house && b.key === 'refinery');
-      if (!b) return 0;
-      const [cx, cy] = b.centre();
-      const m = game().map;
-      let n = 0;
-      for (let y = Math.max(0, (cy | 0) - r); y <= Math.min(m.size - 1, (cy | 0) + r); y++) {
-        for (let x = Math.max(0, (cx | 0) - r); x <= Math.min(m.size - 1, (cx | 0) + r); x++) {
-          const i = m.idx(x, y);
-          if (m.ore[i]) { m.ore[i] = 0; m.gem[i] = 0; n++; }
-        }
-      }
-      game().oreDirty = true;
-      return n;
-    },
-    // per-AI snapshot: personality, difficulty and live wave state
-    aiInfo: () => ais().map((a) => ({
-      house: a.p.house,
-      level: a.level,
-      personality: a.personality,
-      firstWave: Math.round(a.d.firstWave),
-      waveT: Math.round(a.waveT * 10) / 10,
-      wavePhase: a.wave ? a.wave.phase : null,
-      waveN: a.wave ? a.wave.members.size : 0,
-      needRefinery: a.needRefinery,
-      buildings: game().buildings.filter((b) => !b.dead && b.owner === a.p).map((b) => b.key),
-    })),
     // force a difficulty level on an AI (drives the hard-only retreat test)
     setAiLevel: (house, level) => {
       const a = ais().find((x) => x.p.house === house);
@@ -282,18 +227,6 @@ export function installTestHooks(ctx) {
       a.applyPersonality(name);
       a.waveT = a.d.firstWave;
       return a.personality;
-    },
-    // count enemy combat units within r cells of the player's conyard
-    enemyNearBase: (r) => {
-      const c = game().buildings.find((b) => !b.dead && b.house === 'player' && b.key === 'conyard');
-      if (!c) return 0;
-      const [cx, cy] = c.centre();
-      let n = 0;
-      for (const u of game().units) {
-        if (u.dead || u.house === 'player' || !u.def.weapon) continue;
-        if (Math.hypot(u.x - cx, u.y - cy) <= r) n++;
-      }
-      return n;
     },
     unitStats: (house, key) => {
       let min = Infinity, maxHp = 0, count = 0;
@@ -316,13 +249,6 @@ export function installTestHooks(ctx) {
     ownerAt: (x, y) => {
       const b = game().buildings.find((b) => !b.dead && x >= b.cx && y >= b.cy && x < b.cx + b.def.w && y < b.cy + b.def.h);
       return b ? b.house : null;
-    },
-    captureOrder: (uHouse, uKey, tHouse, tKey) => {
-      const b = game().buildings.find((b) => !b.dead && b.house === tHouse && b.key === tKey);
-      const u = game().units.find((u) => !u.dead && u.house === uHouse && u.key === uKey);
-      if (!u || !b) return false;
-      game().orderCapture(u, b);
-      return true;
     },
     // capture the specific structure covering (tx,ty) — avoids matching the
     // wrong same-keyed building elsewhere on the map (e.g. the AI's own base)
@@ -367,11 +293,6 @@ export function installTestHooks(ctx) {
       return null;
     },
     // --- depth-mechanic test helpers (veterancy / APC / depots / powers) ---
-    // first live matching unit's id (skips boarded riders)
-    unitId: (house, key) => {
-      const u = game().units.find((u) => !u.dead && !u.boarded && u.house === house && u.key === key);
-      return u ? u.id : 0;
-    },
     countUnits: (house, key) =>
       game().units.filter((u) => !u.dead && !u.boarded && u.house === house && u.key === key).length,
     // read a numeric field off a unit by id (hp, maxHp, xp, rank, empT, x, y, boarded)
@@ -418,7 +339,6 @@ export function installTestHooks(ctx) {
     // fire a commander power at a world cell; returns whether it fired
     castPower: (which, x, y) => game().castPower(which, x, y),
     powerCd: (which) => (which === 'recon' ? game().reconCd : game().empCd),
-    explored: (x, y) => !!game().explored[game().map.idx(x, y)],
     // findPath result: {len, ex, ey} end cell, or null when unreachable
     path: (sx, sy, tx, ty) => {
       const p = findPath(game().map, sx, sy, tx, ty, null);

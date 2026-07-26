@@ -38,8 +38,6 @@ export class Renderer {
 
   redrawFog(game) { this.layers.redrawFog(game); }
 
-  visibleRallyFlags() { return this.fx.visibleRallyFlags(); }
-
   // drop every view: safe for both quad- and line-based fx, and safe to call
   // with no game yet (first match). The final sweep is the backstop for
   // anything a subsystem forgot to remove from the scene.

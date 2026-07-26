@@ -35,7 +35,7 @@ export const Z = {
   fog: 3,
 };
 
-export function texFromCanvas(c) {
+function texFromCanvas(c) {
   const t = new THREE.CanvasTexture(c);
   t.magFilter = THREE.NearestFilter;
   t.minFilter = THREE.NearestFilter;

@@ -241,7 +241,6 @@ installTestHooks({
   audio, cam, sim, screens, renderer,
   game: () => game,
   ais: () => ais,
-  input: () => input,
   autosave,
   hasValidSave,
 });

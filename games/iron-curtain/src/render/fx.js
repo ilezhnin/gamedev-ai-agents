@@ -244,10 +244,6 @@ export class Fx {
     }
   }
 
-  visibleRallyFlags() {
-    return this.rallyFlags.filter((q) => q.mesh.visible).length;
-  }
-
   // -------------------------------------------------------------- shake ----
 
   kickShake() { this.shakeT = SHAKE_TIME; this.shakeMag = SHAKE_MAG; }
