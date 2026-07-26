@@ -7,6 +7,7 @@
 
 import * as THREE from '../../lib/three.module.min.js';
 import { TILE } from '../sprites.js';
+import { makeCanvas } from '../palette.js';
 import { T, V_ICE } from '../map.js';
 import { SpriteQuad, Z } from './quad.js';
 
@@ -47,10 +48,7 @@ export class Layers {
       for (let cx = 0; cx < this.chunksX; cx++) {
         const cw = Math.min(CHUNK, s - cx * CHUNK);
         const ch = Math.min(CHUNK, s - cy * CHUNK);
-        const canvas = document.createElement('canvas');
-        canvas.width = cw * TILE; canvas.height = ch * TILE;
-        const g = canvas.getContext('2d');
-        g.imageSmoothingEnabled = false;
+        const [canvas, g] = makeCanvas(cw * TILE, ch * TILE);
         const quad = new SpriteQuad(this.scene, canvas, cw, ch, z);
         quad.mesh.position.set(cx * CHUNK + cw / 2, -(cy * CHUNK + ch / 2), z);
         grid.push({ canvas, g, quad, dirty: false });
@@ -196,9 +194,9 @@ export class Layers {
 
   buildFog(game) {
     const s = this.map.size;
-    this.fogCanvas = document.createElement('canvas');
-    this.fogCanvas.width = s * 4; this.fogCanvas.height = s * 4;
-    this.fogG = this.fogCanvas.getContext('2d');
+    const [canvas, g] = makeCanvas(s * FOG_TEXELS, s * FOG_TEXELS);
+    this.fogCanvas = canvas;
+    this.fogG = g;
     this.fogQuad = new SpriteQuad(this.scene, this.fogCanvas, s, s, Z.fog);
     this.fogQuad.mesh.position.set(s / 2, -s / 2, Z.fog);
     this.fogQuad.tex.magFilter = THREE.LinearFilter; // soft-ish shroud edges
@@ -209,17 +207,20 @@ export class Layers {
     const map = this.map;
     const s = map.size;
     const fogG = this.fogG;
+    const F = FOG_TEXELS;
     fogG.clearRect(0, 0, this.fogCanvas.width, this.fogCanvas.height);
     fogG.fillStyle = '#000';
     for (let y = 0; y < s; y++) {
       for (let x = 0; x < s; x++) {
         const i = map.idx(x, y);
         if (!game.explored[i]) {
+          // unexplored cells overspill by a texel each way so neighbouring
+          // black squares meet with no seam under the linear filter
           fogG.globalAlpha = 1;
-          fogG.fillRect(x * 4 - 1, y * 4 - 1, 6, 6);
+          fogG.fillRect(x * F - 1, y * F - 1, F + 2, F + 2);
         } else if (!game.visible[i]) {
           fogG.globalAlpha = 0.45;
-          fogG.fillRect(x * 4, y * 4, 4, 4);
+          fogG.fillRect(x * F, y * F, F, F);
         }
       }
     }

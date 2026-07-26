@@ -3,31 +3,34 @@
 // demand and disposed when the entity leaves the field.
 
 import { TILE } from '../sprites.js';
+import { makeCanvas } from '../palette.js';
 import { facingIndex } from '../sim/angles.js';
 import { SpriteQuad, Z, mapY } from './quad.js';
+
+// Health bar geometry, in canvas pixels. BAR_STEPS also sets the cache
+// granularity: a bar only redraws when it crosses a step boundary.
+const BAR_W = 26, BAR_H = 4, BAR_STEPS = 24;
+const BAR_GOOD = 0.6, BAR_WARN = 0.3;    // fractions where the colour changes
 
 // health bars are bucketed and cached: one shared canvas per width step, so
 // per-frame updates cost nothing unless the bucket (and thus canvas) changes
 const healthBarCache = [];
 function healthBarCanvas(frac) {
-  const bucket = Math.max(0, Math.min(24, Math.round(frac * 24)));
+  const bucket = Math.max(0, Math.min(BAR_STEPS, Math.round(frac * BAR_STEPS)));
   if (healthBarCache[bucket]) return healthBarCache[bucket];
-  const f = bucket / 24;
-  const c = document.createElement('canvas');
-  c.width = 26; c.height = 4;
-  const ctx = c.getContext('2d');
-  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, 26, 4);
-  const w = Math.max(1, Math.round(24 * f));
-  ctx.fillStyle = f > 0.6 ? '#3fbf4d' : f > 0.3 ? '#e0c53a' : '#d64f2a';
+  const f = bucket / BAR_STEPS;
+  const [c, ctx] = makeCanvas(BAR_W, BAR_H);
+  ctx.fillStyle = '#111'; ctx.fillRect(0, 0, BAR_W, BAR_H);
+  const w = Math.max(1, Math.round(BAR_STEPS * f));
+  ctx.fillStyle = f > BAR_GOOD ? '#3fbf4d' : f > BAR_WARN ? '#e0c53a' : '#d64f2a';
   ctx.fillRect(1, 1, w, 2);
   healthBarCache[bucket] = c;
   return c;
 }
 
+// selection reticle: four corner brackets, no full box
 function selBoxCanvas(sizePx) {
-  const c = document.createElement('canvas');
-  c.width = sizePx; c.height = sizePx;
-  const g = c.getContext('2d');
+  const [c, g] = makeCanvas(sizePx, sizePx);
   g.strokeStyle = '#eaeaea';
   const L = Math.max(3, sizePx / 5);
   g.lineWidth = 1;
