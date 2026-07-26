@@ -175,7 +175,17 @@ the interface stays real-time.
 | `src/ui.js` | sidebar, cameo strips, radar, banners, end screens |
 | `src/input.js` | selection, orders, placement, control groups, scrolling |
 | `src/audio.js` | WebAudio sfx synth, chiptune sequencer, speech advisor |
-| `src/main.js` | Three.js renderer (ortho camera, canvas-texture layers) + game loop |
+| `src/render/quad.js` | textured billboard quad + the z-layer table |
+| `src/render/layers.js` | chunked terrain/ore textures, fog overlay, cloud shadows |
+| `src/render/views.js` | per-entity quads: bodies, turrets, health bars, decals |
+| `src/render/fx.js` | explosions, debris, projectiles, placement ghost, rally flags, shake |
+| `src/render/scene.js` | renderer facade: owns the Three.js scene/camera, drives the above |
+| `src/screens.js` | title/setup/briefing/play/end flow, pause menu, settings pane |
+| `src/setup.js` | operation options + seed, battlefield preview |
+| `src/cursors.js` | generated crosshair cursors and the hover test that picks one |
+| `src/save.js` | localStorage save slot: write, validate, clear |
+| `src/testhooks.js` | `window.__game_test` / `__game_debug` automation surface |
+| `src/main.js` | composition root: boot, match construction, frame loop |
 
 Headless tests live in `tests/` (playwright-core + chromium):
 `smoke.js` (boots a match, runs the sim), `content.js` (roster/tech checks),
@@ -184,6 +194,11 @@ CONTINUE resume), `depth.js` (veterancy / APC / depots / EMP) and `duels.js`
 (a unit-vs-unit balance matrix with role-expectation asserts, plus AI-vs-AI
 soak, idle-player economy and APC/retreat AI-mechanics checks). Run e.g.
 `node tests/duels.js` — each prints `PASS`.
+
+`node tests/run-all.js` runs every suite and prints a PASS/FAIL summary
+(`node tests/run-all.js save duels` filters by name). `node tests/characterize.js`
+is not a suite: it fingerprints a fixed-seed match (economy, unit/building
+counts, positions) so a refactor can be checked for behaviour drift.
 
 This is an original homage: game rules and art were written for this
 project and no assets, names, or content from any commercial game are used.

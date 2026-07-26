@@ -53,6 +53,16 @@ const server = http.createServer((req, res) => {
   await page.click('#screen-brief');
   await page.waitForTimeout(1500);
 
+  // Re-roll onto a fixed 'open' arena: a random layout can be a maze with no
+  // 3-radius clearing, and then findOpen returns null and the forced battle
+  // never happens (flaky FAIL). Same deterministic-arena trick as content.js;
+  // the click-through above still covers the screen flow. A fixed seed also
+  // makes the two screenshots comparable from run to run.
+  await page.evaluate(() => window.__game_test.startWith({
+    opponents: 1, size: 'medium', biome: 'forest', layout: 'open', seed: 1337,
+  }));
+  await page.waitForTimeout(1200);
+
   // reveal the map and centre on the player base for a clean baseline shot
   await page.evaluate(() => {
     const t = window.__game_test;
