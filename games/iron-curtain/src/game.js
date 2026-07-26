@@ -110,8 +110,7 @@ export class Game {
   // human tech-center abilities. Returns true if fired (starts the cooldown).
   castPower(which, x, y) {
     const p = this.players.player;
-    const hasTech = this.buildings.some((b) => !b.dead && b.owner === p && b.key === 'techcenter');
-    if (!hasTech) return false;
+    if (!production.ownsBuilding(this, p, 'techcenter')) return false;
     if (which === 'recon') {
       if (this.reconCd > 0) return false;
       this.reconCd = POWERS.reconCd;
@@ -174,6 +173,7 @@ export class Game {
   addUnit(owner, key, x, y) { return production.addUnit(this, owner, key, x, y); }
   spawnDepots() { return production.spawnDepots(this); }
 
+  ownsBuilding(owner, key) { return production.ownsBuilding(this, owner, key); }
   canProduce(owner, kind, key) { return production.canProduce(this, owner, kind, key); }
   startProduction(owner, kind, key) { return production.startProduction(this, owner, kind, key); }
   cancelProduction(owner, slot) { return production.cancelProduction(this, owner, slot); }

@@ -2,7 +2,7 @@
 // shadow, health bar, selection box, rank chevrons, damage decal), created on
 // demand and disposed when the entity leaves the field.
 
-import { TILE } from '../sprites.js';
+import { TILE, unitBodyFrame } from '../sprites.js';
 import { makeCanvas } from '../palette.js';
 import { facingIndex } from '../sim/angles.js';
 import { SpriteQuad, Z, mapY } from './quad.js';
@@ -70,8 +70,7 @@ export class Views {
     const shScale = set.hull ? scale * 0.85 : scale * 0.55;
     v.quads.shadow = new SpriteQuad(this.scene, sprites.unitShadow, shScale, shScale * 0.55, Z.shadow);
     v.quads.shadow.mat.opacity = 0.25;
-    const body = set.hull ? set.hull[0] : set.frames[0][0];
-    v.quads.body = new SpriteQuad(this.scene, body, scale, scale, Z.unit);
+    v.quads.body = new SpriteQuad(this.scene, unitBodyFrame(set), scale, scale, Z.unit);
     if (set.turret) v.quads.turret = new SpriteQuad(this.scene, set.turret[0], scale, scale, Z.turret);
     // harvester intake spinner (shown only while scooping ore)
     if (u.def.harvester) v.quads.spin = new SpriteQuad(this.scene, sprites.harvSpin[0], 0.42, 0.42, Z.harvSpin);

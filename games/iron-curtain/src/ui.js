@@ -4,7 +4,7 @@
 // canvases redrawn a few times per second from game state.
 
 import { BUILDINGS, UNITS, BUILD_ORDER_STRIP, UNIT_STRIP, POWERS } from './rules.js';
-import { makeCameo } from './sprites.js';
+import { makeCameo, unitBodyFrame } from './sprites.js';
 import { HOUSE_UI, makeCanvas } from './palette.js';
 import { minimapRGB } from './map.js';
 
@@ -192,8 +192,7 @@ export class UI {
       mk(key, BUILDINGS[key], spr, this.el.stripB, 'building');
     }
     for (const key of UNIT_STRIP) {
-      const set = this.sprites.units.player[key];
-      const spr = set.hull ? set.hull[0] : set.frames[0][0];
+      const spr = unitBodyFrame(this.sprites.units.player[key]);
       mk(key, UNITS[key], spr, this.el.stripU, 'unit');
     }
   }
@@ -258,7 +257,7 @@ export class UI {
     const reqs = def.requires || [];
     if (reqs.length) {
       const parts = reqs.map((k) => {
-        const have = g.buildings.some((b) => !b.dead && b.owner === p && b.key === k);
+        const have = g.ownsBuilding(p, k);
         return `<span class="${have ? 'tip-have' : 'tip-miss'}">${BUILDINGS[k].name}</span>`;
       });
       html += `<div class="tip-req">NEEDS ${parts.join(', ')}</div>`;
@@ -324,12 +323,9 @@ export class UI {
     const g = this.selIconG, W = this.el.selIcon.width, H = this.el.selIcon.height;
     g.clearRect(0, 0, W, H);
     g.fillStyle = '#181c22'; g.fillRect(0, 0, W, H);
-    let spr = null;
-    if (e.isBuilding) spr = this.sprites.buildings[e.house]?.[e.key];
-    else {
-      const set = this.sprites.units[e.house]?.[e.key];
-      if (set) spr = set.hull ? set.hull[0] : set.frames[0][0];
-    }
+    const spr = e.isBuilding
+      ? this.sprites.buildings[e.house]?.[e.key]
+      : unitBodyFrame(this.sprites.units[e.house]?.[e.key]);
     if (spr) {
       const fit = Math.min((W - 6) / spr.width, (H - 6) / spr.height, 2.4);
       const w = Math.max(6, Math.round(spr.width * fit)), h = Math.max(6, Math.round(spr.height * fit));
@@ -386,7 +382,7 @@ export class UI {
     }
 
     // commander powers: only while a tech center stands
-    const hasTech = g.buildings.some((b) => !b.dead && b.owner === p && b.key === 'techcenter');
+    const hasTech = g.ownsBuilding(p, 'techcenter');
     this.el.powers.classList.toggle('hidden', !hasTech);
     if (hasTech) {
       this.updatePower('recon', g.reconCd, POWERS.reconCd);

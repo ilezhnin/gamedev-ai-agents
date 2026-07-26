@@ -2,4 +2,6 @@
 // effects, ui-art). This file stays as the stable import path everyone else
 // already uses.
 
-export { TILE, FACINGS, BIOMES, buildSprites, drawTitleLogo, makeCameo } from './art/index.js';
+export {
+  TILE, FACINGS, BIOMES, buildSprites, drawTitleLogo, makeCameo, unitBodyFrame,
+} from './art/index.js';

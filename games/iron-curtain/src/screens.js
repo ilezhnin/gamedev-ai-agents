@@ -5,9 +5,15 @@
 
 import { drawTitleLogo } from './sprites.js';
 import { saveSettings } from './settings.js';
+import { byId, onClick, onInput, setToggle } from './dom.js';
 import {
   briefingText, drawSetupPreview, rerollSeed, syncSetupWidgets, wireSetupScreen,
 } from './setup.js';
+
+const BRIEF_CHARS_PER_TICK = 2;   // typewriter speed for the briefing text
+const BRIEF_TICK_MS = 16;
+const TITLE_FRAME_MS = 100;       // title sky redraws at ~10fps
+const END_SCREEN_DELAY = 1800;    // ms between the last shot and the verdict
 
 export class Screens {
   // deps: getGame/getUI/getInput (live, may be undefined before the first
@@ -28,15 +34,15 @@ export class Screens {
     this.titleLastDraw = 0;
     this.audioArmed = false;
 
-    this.elTitle = document.getElementById('screen-title');
-    this.elSetup = document.getElementById('screen-setup');
-    this.elBrief = document.getElementById('screen-brief');
-    this.elEnd = document.getElementById('screen-end');
-    this.elPaused = document.getElementById('paused');
-    this.elLoading = document.getElementById('loading');
-    this.elMenu = document.getElementById('menu');
-    this.elMenuMain = document.getElementById('menu-main');
-    this.elMenuSettings = document.getElementById('menu-settings');
+    this.elTitle = byId('screen-title');
+    this.elSetup = byId('screen-setup');
+    this.elBrief = byId('screen-brief');
+    this.elEnd = byId('screen-end');
+    this.elPaused = byId('paused');
+    this.elLoading = byId('loading');
+    this.elMenu = byId('menu');
+    this.elMenuMain = byId('menu-main');
+    this.elMenuSettings = byId('menu-settings');
   }
 
   // the sim only advances when no screen is sitting on top of it

@@ -26,6 +26,15 @@ import { rankChevrons, powerIcon, drawTitleLogo, makeCameo } from './ui-art.js';
 
 export { TILE, FACINGS, BIOMES, drawTitleLogo, makeCameo };
 
+// A unit's atlas entry is shaped one of two ways: vehicles carry `hull` (one
+// canvas per facing), infantry carry `frames` (pose -> facing). Anything that
+// just wants "a picture of this unit" — cameo strips, the selection panel, the
+// first frame of a new view — goes through here instead of re-deriving it.
+export function unitBodyFrame(set) {
+  if (!set) return null;
+  return set.hull ? set.hull[0] : set.frames[0][0];
+}
+
 export function buildSprites() {
   const S = {};
 

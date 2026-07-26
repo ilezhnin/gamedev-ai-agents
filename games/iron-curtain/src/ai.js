@@ -404,7 +404,7 @@ export class AI {
     if (army >= this.d.armyCap) return; // cap the horde
     // economy-first: keep only a small early guard until the war factory is up,
     // so the opening bank buys the factory rather than a doomed rush of rifles.
-    const hasFactory = g.buildings.some((b) => !b.dead && b.owner === p && b.key === 'factory');
+    const hasFactory = g.ownsBuilding(p, 'factory');
     const earlyGuard = this.personality === 'turtle' ? TUNE.earlyGuardTurtle : TUNE.earlyGuard;
     if (army >= earlyGuard && !hasFactory) return;   // save the opening bank for the factory
     if (p.credits < TUNE.minTrainCredits) return;

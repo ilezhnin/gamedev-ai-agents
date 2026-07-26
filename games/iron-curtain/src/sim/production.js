@@ -57,22 +57,27 @@ export function spawnDepots(game) {
 
 // ------------------------------------------------------------- queues ----
 
+// "does this house have a live one of these?" — the tech question every gate,
+// tooltip and AI decision in the game asks. Owner comparison is by identity,
+// so a captured structure counts for its new owner immediately.
+export function ownsBuilding(game, owner, key) {
+  return game.buildings.some((b) => !b.dead && b.owner === owner && b.key === key);
+}
+
 export function techSatisfied(game, owner, def) {
   if (!def.requires) return true;
-  return def.requires.every((k) => game.buildings.some(
-    (b) => !b.dead && b.owner === owner && b.key === k));
+  return def.requires.every((k) => ownsBuilding(game, owner, k));
 }
 
 export function canProduce(game, owner, kind, key) {
   if (kind === 'building') {
     const def = BUILDINGS[key];
     if (def.unbuildable) return false;
-    if (!game.buildings.some((b) => !b.dead && b.owner === owner && b.key === 'conyard')) return false;
+    if (!ownsBuilding(game, owner, 'conyard')) return false;
     return techSatisfied(game, owner, def);
   }
   const def = UNITS[key];
-  const fac = def.producedAt;
-  if (!game.buildings.some((b) => !b.dead && b.owner === owner && b.key === fac)) return false;
+  if (!ownsBuilding(game, owner, def.producedAt)) return false;
   return techSatisfied(game, owner, def);
 }
 
