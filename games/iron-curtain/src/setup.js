@@ -4,6 +4,7 @@
 
 import { GameMap, LAYOUTS, minimapRGB } from './map.js';
 import { HOUSE_UI, makeCanvas } from './palette.js';
+import { readJSON, writeText, stringifyJSON } from './storage.js';
 
 export const SIZES = { small: 48, medium: 64, large: 96 };
 const SIZE_LABEL = { small: 'SMALL 48×48', medium: 'MEDIUM 64×64', large: 'LARGE 96×96' };
@@ -25,17 +26,17 @@ const START_SPOTS = [
   { x: 0.84, y: 0.80 },  // cpu 3
 ];
 
+const SETUP_KEY = 'iron-curtain-setup';
+
 function loadSetup() {
   const def = { opponents: 1, diffs: ['normal', 'normal', 'normal'], size: 'medium', biome: 'forest', layout: 'random' };
-  try {
-    const raw = localStorage.getItem('iron-curtain-setup');
-    return raw ? { ...def, ...JSON.parse(raw) } : def;
-  } catch { return def; }
+  return { ...def, ...(readJSON(SETUP_KEY) || {}) };
 }
 export const setup = loadSetup();
 
-export function saveSetup() {
-  try { localStorage.setItem('iron-curtain-setup', JSON.stringify(setup)); } catch { /* ok */ }
+function saveSetup() {
+  const str = stringifyJSON(setup);
+  if (str != null) writeText(SETUP_KEY, str);
 }
 
 // The seed lives outside `setup` so it never lands in the persisted options.

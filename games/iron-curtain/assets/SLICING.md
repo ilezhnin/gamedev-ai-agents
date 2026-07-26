@@ -80,9 +80,27 @@ finishes, run the release frames once, then return to idle.
 | rest of 3 + 4 | fences |
 | 5 | water, and water/land border (shore) tiles |
 
+**Desert tileset sheet**, by row:
+
+| Row | Content |
+|---|---|
+| 1 | decorations |
+| 2–3 | cliff-edge tiles marking the boundary between hill levels |
+
 Fences are obstacles, not crossings — they block movement like walls rather
 than bridging terrain. Planned as destructible (armour can shell them down),
 matching how the era's games treated them.
+
+Two mechanics the engine does not have yet, both worth building once the art
+lands (they change the map generator, not just the renderer):
+
+- **Roads** — autotiled like the existing shore/dirt fringes, and a natural
+  place to hang a vehicle speed bonus.
+- **Hill levels** — the cliff-edge tiles imply elevation: a higher plateau
+  reachable only via ramps, blocking movement (and, if wanted, sight) at the
+  cliff line. That is a terrain-layer change: the map needs a height field
+  alongside the terrain array, and pathfinding has to treat cliff edges as
+  impassable except at ramps.
 
 ## Faction mapping
 

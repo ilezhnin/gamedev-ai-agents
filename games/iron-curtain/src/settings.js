@@ -1,5 +1,7 @@
 // Player settings: audio levels and camera controls, persisted locally.
 
+import { readJSON, writeText, stringifyJSON } from './storage.js';
+
 const KEY = 'iron-curtain-settings';
 
 export const DEFAULTS = {
@@ -12,17 +14,12 @@ export const DEFAULTS = {
   gameSpeed: 1      // sim speed multiplier 0.5..2 (UI stays real-time)
 };
 
+// unknown keys in the stored blob are harmless; missing ones fall back
 export function loadSettings() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return { ...DEFAULTS };
-    const data = JSON.parse(raw);
-    return { ...DEFAULTS, ...data };
-  } catch {
-    return { ...DEFAULTS };
-  }
+  return { ...DEFAULTS, ...(readJSON(KEY) || {}) };
 }
 
 export function saveSettings(s) {
-  try { localStorage.setItem(KEY, JSON.stringify(s)); } catch { /* private mode */ }
+  const str = stringifyJSON(s);
+  if (str != null) writeText(KEY, str);
 }
