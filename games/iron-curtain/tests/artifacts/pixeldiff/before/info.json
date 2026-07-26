@@ -1,0 +1,16 @@
+{
+ "started": {
+  "opponents": 1,
+  "size": 64,
+  "biome": "forest",
+  "layout": "open"
+ },
+ "ok": true,
+ "built": 12,
+ "mine": 11,
+ "foes": 4,
+ "cam": [
+  14,
+  54
+ ]
+}

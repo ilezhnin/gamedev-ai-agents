@@ -166,7 +166,15 @@ the interface stays real-time.
 | File | Role |
 |---|---|
 | `src/palette.js` | SNES-flavoured palette, pixel-drawing toolkit, house-colour remap |
-| `src/sprites.js` | all procedural art: tiles, buildings, vehicles (16 facings), infantry, fx, cameos |
+| `src/sprites.js` | re-export of the art package (kept as the stable import path) |
+| `src/art/consts.js` | `TILE`, `FACINGS` and the house-colour placeholders |
+| `src/art/tiles.js` | biome tile sets, ore/gem overlays, shore + dirt fringes, ruins, decals |
+| `src/art/buildings.js` | structure sprites, radar dish frames, battle-damage cracks |
+| `src/art/vehicles.js` | hulls/turrets, the facing bake and the tread-shift frame |
+| `src/art/infantry.js` | soldier frame sets from shared torso/leg rows |
+| `src/art/effects.js` | explosions, flame, smoke, muzzle, debris, shadows, clouds |
+| `src/art/ui-art.js` | cameos, rank chevrons, power glyphs, animated title logo |
+| `src/art/index.js` | assembles the sprite atlas (`buildSprites`) |
 | `src/rules.js` | unit/building/weapon stats, armour model, tech tree, economy tuning |
 | `src/map.js` | procedural terrain + ore fields |
 | `src/pathfind.js` | A* (8-dir, corner-cut safe, traffic-aware costs) |
@@ -184,7 +192,11 @@ the interface stays real-time.
 | `src/ai.js` | skirmish opponent |
 | `src/ui.js` | sidebar, cameo strips, radar, banners, end screens |
 | `src/input.js` | selection, orders, placement, control groups, scrolling |
-| `src/audio.js` | WebAudio sfx synth, chiptune sequencer, speech advisor |
+| `src/audio.js` | re-export of the audio package (kept as the stable import path) |
+| `src/audio/synth.js` | FM / PSG / noise voices and the envelope helper |
+| `src/audio/songs.js` | the four original songs as plain pattern data |
+| `src/audio/sequencer.js` | lookahead pattern player: steps to voices |
+| `src/audio/index.js` | `AudioSys`: mixer buses, sfx bank, speech advisor |
 | `src/render/quad.js` | textured billboard quad + the z-layer table |
 | `src/render/layers.js` | chunked terrain/ore textures, fog overlay, cloud shadows |
 | `src/render/views.js` | per-entity quads: bodies, turrets, health bars, decals |
@@ -204,6 +216,14 @@ CONTINUE resume), `depth.js` (veterancy / APC / depots / EMP) and `duels.js`
 (a unit-vs-unit balance matrix with role-expectation asserts, plus AI-vs-AI
 soak, idle-player economy and APC/retreat AI-mechanics checks). Run e.g.
 `node tests/duels.js` — each prints `PASS`.
+
+`pixeldiff.js` is the art guard: it hashes every canvas `buildSprites()`
+produces (all biomes, all house tints, all 16 facings) and screenshots a fixed
+scene plus the title logo, then compares two independent captures. Determinism
+comes from an init script — a hand-pumped `requestAnimationFrame`, a virtual
+clock and a seeded `Math.random` — so a run is a pure function of the pump
+schedule. `node tests/pixeldiff.js --save before`, refactor, `--save after`,
+then `--compare before after` must report 0 differing pixels.
 
 `node tests/run-all.js` runs every suite and prints a PASS/FAIL summary
 (`node tests/run-all.js save duels` filters by name). `node tests/characterize.js`
