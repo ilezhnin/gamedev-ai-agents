@@ -61,8 +61,8 @@ export function buildSprites() {
 
   // faction-tinted body sets
   const factions = {
-    player: HOUSE.player, enemy: HOUSE.enemy,
-    enemy2: HOUSE.enemy2, enemy3: HOUSE.enemy3,
+    blue: HOUSE.blue, red: HOUSE.red,
+    amber: HOUSE.amber, violet: HOUSE.violet,
   };
 
   S.units = {};

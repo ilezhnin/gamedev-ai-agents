@@ -85,7 +85,7 @@ function newGame() {
   const houses = ENEMY_HOUSES.slice(0, setup.opponents);
 
   map = new GameMap(size, mapSeed, setup.biome, starts, setup.layout || 'random');
-  game = new Game(map, audio, mapSeed ^ 0x9e37, houses);
+  game = new Game(map, audio, mapSeed ^ 0x9e37, houses, setup.colour);
   ais = houses.map((h, i) => new AI(game, game.players[h], setup.diffs[i] || 'normal'));
   bindMatch();
 

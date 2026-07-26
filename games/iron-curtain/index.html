@@ -284,6 +284,8 @@
     <div id="screen-setup" class="screen hidden">
       <div id="setup-box" class="bevel">
         <div class="menu-title">OPERATION SETUP</div>
+        <div class="su-row"><span class="chip" id="su-colour-chip"></span>
+          <label>YOUR ARMY</label><button class="cycle" id="su-colour">BLUE COALITION</button></div>
         <div class="su-row"><label>ENEMY ARMIES</label>
           <div class="seg">
             <button class="tgl" id="su-n1">1</button>
@@ -291,12 +293,12 @@
             <button class="tgl" id="su-n3">3</button>
           </div>
         </div>
-        <div class="su-row" id="su-cpu1"><span class="chip" style="background:#cf3f3f"></span>
-          <label>CPU 1 · CRIMSON</label><button class="cycle" id="su-diff1">NORMAL</button></div>
-        <div class="su-row" id="su-cpu2"><span class="chip" style="background:#cf853c"></span>
-          <label>CPU 2 · AMBER</label><button class="cycle" id="su-diff2">NORMAL</button></div>
-        <div class="su-row" id="su-cpu3"><span class="chip" style="background:#8a3fcf"></span>
-          <label>CPU 3 · VIOLET</label><button class="cycle" id="su-diff3">NORMAL</button></div>
+        <div class="su-row" id="su-cpu1"><span class="chip" id="su-chip1"></span>
+          <label id="su-lbl1">CPU 1</label><button class="cycle" id="su-diff1">NORMAL</button></div>
+        <div class="su-row" id="su-cpu2"><span class="chip" id="su-chip2"></span>
+          <label id="su-lbl2">CPU 2</label><button class="cycle" id="su-diff2">NORMAL</button></div>
+        <div class="su-row" id="su-cpu3"><span class="chip" id="su-chip3"></span>
+          <label id="su-lbl3">CPU 3</label><button class="cycle" id="su-diff3">NORMAL</button></div>
         <div class="su-hint"><b>EASY</b> relaxed &nbsp;·&nbsp; <b>NORMAL</b> fair &nbsp;·&nbsp; <b>HARD</b> relentless</div>
         <div class="su-row"><label>MAP SIZE</label><button class="cycle" id="su-size">MEDIUM 64×64</button></div>
         <div class="su-row"><label>BIOME</label><button class="cycle" id="su-biome">GREEN FOREST</button></div>

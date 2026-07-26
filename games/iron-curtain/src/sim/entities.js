@@ -16,8 +16,9 @@ export function peekNextId() { return NEXT_ID; }
 export function adoptNextId(n) { NEXT_ID = Math.max(NEXT_ID, n || 1); }
 
 export class Player {
-  constructor(house, isHuman) {
-    this.house = house;               // 'player' | 'enemy' | 'neutral'
+  constructor(house, isHuman, colour = 'blue') {
+    this.house = house;               // identity: 'player' | 'enemy' | 'neutral'
+    this.colour = colour;             // army colour worn by this house
     this.isHuman = isHuman;
     this.isNeutral = false;           // neutral supply-depot owner (no AI, no win goal)
     this.credits = isHuman ? ECONOMY.startCredits : ECONOMY.aiStartCredits;
@@ -36,6 +37,9 @@ export class Player {
 }
 
 export class Entity {
+  // art and radar blips key off the colour the owner wears, not its identity
+  get colour() { return this.owner.colour; }
+
   constructor(owner, key) {
     this.id = NEXT_ID++;
     this.owner = owner;               // Player

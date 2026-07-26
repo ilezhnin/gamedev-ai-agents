@@ -181,10 +181,10 @@ const ATLAS_PROBE = `
   }
   // cameos over a representative slice of the atlas, incl. the scale argument
   const cameoSrc = [
-    ['tank', S.units.player.heavyTank.hull[0], 1],
-    ['inf', S.units.player.rifle.frames[0][0], 2],
-    ['conyard', S.buildings.player.conyard, 1],
-    ['power', S.buildings.enemy.power, 1],
+    ['tank', S.units.blue.heavyTank.hull[0], 1],
+    ['inf', S.units.blue.rifle.frames[0][0], 2],
+    ['conyard', S.buildings.blue.conyard, 1],
+    ['power', S.buildings.red.power, 1],
     ['recon', S.powerIcons.recon, 1],
     ['empty', null, 1],
   ];

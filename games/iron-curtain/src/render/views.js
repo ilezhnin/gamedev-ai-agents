@@ -63,7 +63,7 @@ export class Views {
     let v = this.views.get(u.id);
     if (v) return v;
     const sprites = this.sprites;
-    const set = sprites.units[u.house][u.key];
+    const set = sprites.units[u.colour][u.key];
     const scale = (u.def.size + 4) / TILE;
     v = { kind: 'unit', quads: {} };
     // soft ground shadow, wider than tall, sitting just above the terrain
@@ -86,11 +86,11 @@ export class Views {
     let v = this.views.get(b.id);
     if (v) return v;
     const sprites = this.sprites;
-    const spr = sprites.buildings[b.house][b.key];
+    const spr = sprites.buildings[b.colour][b.key];
     v = { kind: 'building', house: b.house, quads: {}, puffT: 1 + Math.random() * 2, hvySmokeT: 0 };
     v.quads.body = new SpriteQuad(this.scene, spr, b.def.w, b.def.h, Z.building);
     if (b.def.weapon && b.key === 'guard') {
-      v.quads.turret = new SpriteQuad(this.scene, sprites.guardGun[b.house][0], 1, 1, Z.guardGun);
+      v.quads.turret = new SpriteQuad(this.scene, sprites.guardGun[b.colour][0], 1, 1, Z.guardGun);
     }
     // rotating radar dish overlay
     if (b.key === 'radar') {
@@ -136,7 +136,7 @@ export class Views {
       v.quads.body.mat.opacity = rise < 1 ? 0.55 + rise * 0.45 : 1;
       if (v.quads.turret) {
         v.quads.turret.mesh.visible = true;
-        const set = sprites.guardGun[b.house];
+        const set = sprites.guardGun[b.colour];
         v.quads.turret.setCanvas(set[facingIndex(b.turretFacing)]);
         v.quads.turret.set(cx, mapY(cy), Z.guardGun);
       }
@@ -202,7 +202,7 @@ export class Views {
         v.quads.shadow.set(u.x + 0.58, mapY(u.y + 0.62), Z.shadow);
       }
 
-      const set = sprites.units[u.house][u.key];
+      const set = sprites.units[u.colour][u.key];
       const f = facingIndex(u.facing);
       let bodyCanvas;
       if (set.hull) {

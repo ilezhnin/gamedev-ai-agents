@@ -23,7 +23,8 @@ runs fully offline.
 ## What's in the game
 
 - **Main menu & skirmish setup**: NEW OPERATION opens a setup screen —
-  1–3 CPU opponents (each with its own colour and EASY/NORMAL/HARD
+  **pick your army** (blue coalition, crimson, amber or violet; the CPUs wear
+  whatever you leave), 1–3 CPU opponents (each with its own colour and EASY/NORMAL/HARD
   brain), map size (48/64/96), biome (green forest, snow taiga,
   desert waste) and map layout (RANDOM / river / lakes / rock ridges /
   central-lake islands / open steppe / deep-woods maze). A live

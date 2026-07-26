@@ -24,6 +24,7 @@ export function serializeGame(game) {
       ? { key: pr.key, spent: pr.spent, progress: pr.progress, hold: !!pr.hold } : null;
     players[house] = {
       house,
+      colour: p.colour,
       credits: p.credits,
       storage: p.storage,
       stats: { ...p.stats },
@@ -110,6 +111,8 @@ export function loadGame(GameCtor, data, audio) {
   for (const [house, pd] of Object.entries(data.players)) {
     const p = game.players[house];
     if (!p) continue;
+    // colour is cosmetic but must survive: a red army must reload red
+    if (pd.colour) p.colour = pd.colour;
     p.credits = pd.credits;
     p.displayCredits = pd.credits;
     p.storage = pd.storage;

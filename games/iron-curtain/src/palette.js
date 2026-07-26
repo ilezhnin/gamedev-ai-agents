@@ -40,20 +40,30 @@ export const PAL = {
   houseNone:['#5a5a5a','#787878','#9a9a9a','#c0c0c0'],
 };
 
+// Army colours are a SLOT, not an identity: any house can wear any of them,
+// so the player picks a side in the setup screen and the CPUs take the rest.
+// Sprite sets are built once per colour and looked up through owner.colour.
 export const HOUSE = {
-  player:['#1e3f7c','#2d5aa8','#3f78cf','#7fb0ef'],   // allied blue
-  enemy: ['#7c1e1e','#a82d2d','#cf3f3f','#ef7f7f'],   // crimson army
-  enemy2:['#7c4a12','#a8662a','#cf853c','#efb77c'],   // amber legion
-  enemy3:['#4a1e7c','#6b2da8','#8a3fcf','#b77fef'],   // violet pact
+  blue:  ['#1e3f7c','#2d5aa8','#3f78cf','#7fb0ef'],   // allied blue
+  red:   ['#7c1e1e','#a82d2d','#cf3f3f','#ef7f7f'],   // crimson army
+  amber: ['#7c4a12','#a8662a','#cf853c','#efb77c'],   // amber legion
+  violet:['#4a1e7c','#6b2da8','#8a3fcf','#b77fef'],   // violet pact
   neutral:['#5a5f52','#767b6e','#94998b','#b8bdaf'],
 };
 
-// flat UI colours per house (radar blips, minimap footprints)
+// flat UI colours per army colour (radar blips, minimap footprints)
 export const HOUSE_UI = {
-  player: { building: '#4f86e8', unit: '#8fc2ff' },
-  enemy:  { building: '#e04a3a', unit: '#ff7a66' },
-  enemy2: { building: '#e0923a', unit: '#ffbf66' },
-  enemy3: { building: '#9a4ae0', unit: '#c98fff' },
+  blue:   { building: '#4f86e8', unit: '#8fc2ff' },
+  red:    { building: '#e04a3a', unit: '#ff7a66' },
+  amber:  { building: '#e0923a', unit: '#ffbf66' },
+  violet: { building: '#9a4ae0', unit: '#c98fff' },
+};
+
+// pickable sides, in setup-screen order
+export const ARMY_COLOURS = ['blue', 'red', 'amber', 'violet'];
+export const ARMY_NAMES = {
+  blue: 'BLUE COALITION', red: 'CRIMSON ARMY',
+  amber: 'AMBER LEGION', violet: 'VIOLET PACT',
 };
 
 // ---------------------------------------------------------------------------

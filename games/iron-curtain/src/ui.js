@@ -73,8 +73,12 @@ export class UI {
       'ESC menu &amp; settings &nbsp; Click cameo to build, again to place';
   }
 
+  // the colour the human wears — sidebar cameos are drawn in it
+  playerColour() { return this.game.players.player.colour; }
+
   reset(game) {
     this.game = game;
+    if (this.lastColour !== this.playerColour()) { this.rebuildStrips(); this.lastColour = this.playerColour(); }
     this.bannerT = 0;
     this.el.banner.style.display = 'none';
     this.el.selPanel.style.display = 'none';
@@ -165,6 +169,15 @@ export class UI {
 
   // ------------------------------------------------------------- cameos ---
 
+  // the sidebar cameos are tinted in the player's colour, so a match played
+  // as another army needs them redrawn
+  rebuildStrips() {
+    this.el.stripB.innerHTML = '';
+    this.el.stripU.innerHTML = '';
+    this.cameos = {};
+    this.buildStrips();
+  }
+
   buildStrips() {
     const mk = (key, def, sprite, strip, kind) => {
       const root = document.createElement('div');
@@ -189,11 +202,11 @@ export class UI {
       this.cameos[key] = { root, clock, clockG: clock.getContext('2d'), tag, badge, shade, def, kind };
     };
     for (const key of BUILD_ORDER_STRIP) {
-      const spr = this.sprites.buildings.player[key];
+      const spr = this.sprites.buildings[this.playerColour()][key];
       mk(key, BUILDINGS[key], spr, this.el.stripB, 'building');
     }
     for (const key of UNIT_STRIP) {
-      const spr = unitBodyFrame(this.sprites.units.player[key]);
+      const spr = unitBodyFrame(this.sprites.units[this.playerColour()][key]);
       mk(key, UNITS[key], spr, this.el.stripU, 'unit');
     }
   }
@@ -325,8 +338,8 @@ export class UI {
     g.clearRect(0, 0, W, H);
     g.fillStyle = '#181c22'; g.fillRect(0, 0, W, H);
     const spr = e.isBuilding
-      ? this.sprites.buildings[e.house]?.[e.key]
-      : unitBodyFrame(this.sprites.units[e.house]?.[e.key]);
+      ? this.sprites.buildings[e.colour]?.[e.key]
+      : unitBodyFrame(this.sprites.units[e.colour]?.[e.key]);
     if (spr) {
       const fit = Math.min((W - 6) / spr.width, (H - 6) / spr.height, 2.4);
       const w = Math.max(6, Math.round(spr.width * fit)), h = Math.max(6, Math.round(spr.height * fit));
@@ -449,13 +462,13 @@ export class UI {
       if (b.house !== 'player' && !b.seen && !g.isVisibleToPlayer(b)) continue;
       // neutral supply depots blip white; owned ones take the owner's colour
       ctx.fillStyle = (b.def.isDepot && b.house === 'neutral')
-        ? '#dfe6ea' : (HOUSE_UI[b.house] || HOUSE_UI.enemy).building;
+        ? '#dfe6ea' : (HOUSE_UI[b.colour] || HOUSE_UI.red).building;
       ctx.fillRect(b.cx * scale, b.cy * scale, Math.max(2, b.def.w * scale), Math.max(2, b.def.h * scale));
     }
     for (const u of g.units) {
       if (u.dead) continue;
       if (u.house !== 'player' && !g.isVisibleToPlayer(u)) continue;
-      ctx.fillStyle = (HOUSE_UI[u.house] || HOUSE_UI.enemy).unit;
+      ctx.fillStyle = (HOUSE_UI[u.colour] || HOUSE_UI.red).unit;
       ctx.fillRect(u.x * scale - 1, u.y * scale - 1, HUD.radarBlip, HUD.radarBlip);
     }
   }

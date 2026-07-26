@@ -3,7 +3,7 @@
 // the radar-style battlefield preview drawn on the setup screen.
 
 import { GameMap, LAYOUTS, minimapRGB } from './map.js';
-import { HOUSE_UI, makeCanvas } from './palette.js';
+import { ARMY_COLOURS, ARMY_NAMES, HOUSE_UI, makeCanvas } from './palette.js';
 import { readJSON, writeText, stringifyJSON } from './storage.js';
 import { byId, onClick } from './dom.js';
 
@@ -18,6 +18,13 @@ const LAYOUT_LABEL = {
 };
 const DIFF_ORDER = ['easy', 'normal', 'hard'];
 export const ENEMY_HOUSES = ['enemy', 'enemy2', 'enemy3'];
+
+// the colours each start position wears: the human's pick first, then the
+// spares in ARMY_COLOURS order — the same rule Game applies
+export function previewColours() {
+  const spare = ARMY_COLOURS.filter((c) => c !== setup.colour);
+  return [setup.colour, ...spare];
+}
 // one CPU slot per enemy house, and index.html has exactly that many rows
 const MAX_OPPONENTS = ENEMY_HOUSES.length;
 
@@ -32,7 +39,8 @@ const START_SPOTS = [
 const SETUP_KEY = 'iron-curtain-setup';
 
 function loadSetup() {
-  const def = { opponents: 1, diffs: ['normal', 'normal', 'normal'], size: 'medium', biome: 'forest', layout: 'random' };
+  const def = { opponents: 1, diffs: ['normal', 'normal', 'normal'], size: 'medium',
+    biome: 'forest', layout: 'random', colour: 'blue' };
   return { ...def, ...(readJSON(SETUP_KEY) || {}) };
 }
 export const setup = loadSetup();
@@ -96,7 +104,7 @@ export function drawSetupPreview() {
   const scale = PV.width / size;
   const houses = ['player', ...ENEMY_HOUSES.slice(0, setup.opponents)];
   starts.forEach((st, i) => {
-    const col = (HOUSE_UI[houses[i]] || HOUSE_UI.enemy).building;
+    const col = (HOUSE_UI[previewColours()[i]] || HOUSE_UI.red).building;
     PVG.fillStyle = '#000';
     PVG.fillRect(st.x * scale - 3, st.y * scale - 3, 6, 6);
     PVG.fillStyle = col;
@@ -110,9 +118,15 @@ export function syncSetupWidgets() {
   for (let n = 1; n <= MAX_OPPONENTS; n++) {
     byId(`su-n${n}`).classList.toggle('on', setup.opponents === n);
     byId(`su-cpu${n}`).classList.toggle('su-hidden', n > setup.opponents);
+    // each CPU wears one of the colours the human left on the table
+    const cpuColour = previewColours()[n];
+    byId(`su-chip${n}`).style.background = (HOUSE_UI[cpuColour] || HOUSE_UI.red).building;
+    byId(`su-lbl${n}`).textContent = `CPU ${n} · ${ARMY_NAMES[cpuColour].split(' ')[0]}`;
     byId(`su-diff${n}`).textContent = (setup.diffs[n - 1] || 'normal').toUpperCase();
   }
   byId('su-size').textContent = SIZE_LABEL[setup.size];
+  byId('su-colour').textContent = ARMY_NAMES[setup.colour];
+  byId('su-colour-chip').style.background = (HOUSE_UI[setup.colour] || HOUSE_UI.blue).building;
   byId('su-biome').textContent = BIOME_LABEL[setup.biome];
   byId('su-layout').textContent = LAYOUT_LABEL[setup.layout] || 'RANDOM';
 }
@@ -141,6 +155,7 @@ export function wireSetupScreen(audio, { onStart, onBack }) {
     });
   }
   onClick('su-size', cycler('size', Object.keys(SIZES)));
+  onClick('su-colour', cycler('colour', ARMY_COLOURS));
   onClick('su-biome', cycler('biome', Object.keys(BIOME_LABEL)));
   onClick('su-layout', cycler('layout', LAYOUT_KEYS));
   onClick('su-regen', () => { rerollSeed(); drawSetupPreview(); audio.sfx('select'); });

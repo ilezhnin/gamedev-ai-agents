@@ -5,7 +5,7 @@
 // state every frame.
 
 import { ECONOMY, COMBAT, POWERS } from './rules.js';
-import { makeRng } from './palette.js';
+import { makeRng, ARMY_COLOURS } from './palette.js';
 import { Player } from './sim/entities.js';
 import * as orders from './sim/orders.js';
 import * as production from './sim/production.js';
@@ -15,13 +15,19 @@ import { recomputeVision, isVisibleToPlayer } from './sim/fog.js';
 import { serializeGame, loadGame } from './sim/persist.js';
 
 export class Game {
-  constructor(map, audio, seed = 1234, enemyHouses = ['enemy']) {
+  constructor(map, audio, seed = 1234, enemyHouses = ['enemy'], playerColour = 'blue') {
     this.map = map;
     this.audio = audio;
     this.seed = seed;
     this.rng = makeRng(seed);
-    this.players = { player: new Player('player', true) };
-    for (const h of enemyHouses) if (h !== 'neutral') this.players[h] = new Player(h, false);
+    this.players = { player: new Player('player', true, playerColour) };
+    // opponents wear whatever the human did not pick, in a stable order
+    const spare = ARMY_COLOURS.filter((c) => c !== playerColour);
+    let ci = 0;
+    for (const h of enemyHouses) {
+      if (h === 'neutral') continue;
+      this.players[h] = new Player(h, false, spare[ci++ % spare.length]);
+    }
     // neutral house owns the map's supply depots — never an opponent
     this.players.neutral = new Player('neutral', false);
     this.players.neutral.isNeutral = true;
